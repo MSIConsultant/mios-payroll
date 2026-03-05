@@ -1,17 +1,19 @@
-# app/core/database.py
+#app/core/database.py
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-
-# In production, this comes from a .env file: 
-# postgresql://[user]:[password]@[host]:[port]/[database_name]
-# For local testing, you can leave it as sqlite or update to your local Postgres credentials
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./payroll.db")
+
+# Standard international established translation for URI fix
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(
     DATABASE_URL,
-    # check_same_thread is only needed for SQLite. We remove it for Postgres compatibility.
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True, # Crucial: Tests connection before running queries
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 )
 
