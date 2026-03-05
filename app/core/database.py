@@ -3,6 +3,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+
 # In production, this comes from a .env file: 
 # postgresql://[user]:[password]@[host]:[port]/[database_name]
 # For local testing, you can leave it as sqlite or update to your local Postgres credentials

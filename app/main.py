@@ -2,13 +2,13 @@
 
 from fastapi import FastAPI
 
-from app.core.database import engine
+from app.core.database import engine, Base
 from app.models.base import Base
 
 from app.routers import company, employee, payroll, reconciliation, regulation, salary_scheme, accounting
 app = FastAPI(title="MIOS Payroll", version="0.1.0",)
 
-# Create tables
+# This creates the tables in Supabase if they don't exist
 Base.metadata.create_all(bind=engine)
 
 # Register routers
