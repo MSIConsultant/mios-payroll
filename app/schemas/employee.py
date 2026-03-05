@@ -1,70 +1,83 @@
-"""
-Employee request/response schemas
-Indonesian Payroll System - Production Grade
-"""
+#app/schemas/employee.py
 
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import date, datetime
-
+from pydantic import BaseModel, field_validator, ConfigDict
+from typing import List, Optional
+from datetime import date
+import re
 
 class EmployeeCreate(BaseModel):
-    """Employee creation request"""
-    company_id: int
-    nama: str = Field(..., min_length=2, max_length=255, description="Employee name")
-    nik: str = Field(..., min_length=16, max_length=16, description="National ID (16 digits)")
-    npwp: Optional[str] = Field(None, min_length=16, max_length=16, description="Tax ID (16 digits)")
-    status_ptkp: str = Field(..., description="PTKP status (TK/0, K/0, K/1, etc.)")
-    jabatan: Optional[str] = Field(None, max_length=255, description="Job position")
-    tanggal_masuk: Optional[date] = Field(None, description="Date of joining")
-
-
-class EmployeeUpdate(BaseModel):
-    """Employee update request"""
-    nama: Optional[str] = Field(None, min_length=2, max_length=255)
-    nik: Optional[str] = Field(None, min_length=16, max_length=16)
-    npwp: Optional[str] = Field(None, min_length=16, max_length=16)
-    status_ptkp: Optional[str] = None
-    jabatan: Optional[str] = Field(None, max_length=255)
-    tanggal_masuk: Optional[date] = None
-    is_active: Optional[bool] = None
-
-
-class EmployeeResponse(BaseModel):
-    """Employee response/read schema"""
-    id: int
-    company_id: int
-    nama: str
+    name: str
     nik: str
-    npwp: Optional[str] = None
-    status_ptkp: str
-    jabatan: Optional[str] = None
-    tanggal_masuk: Optional[date] = None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-    deleted_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
-
-
-class EmployeeListResponse(BaseModel):
-    """Employee list response with pagination"""
-    total: int
-    page: int
-    page_size: int
-    data: list[EmployeeResponse]
-
-
-class EmployeeBulkImportRequest(BaseModel):
-    """Bulk employee import from Excel"""
+    npwp: str
+    base_salary: float
+    ptkp_status: str
+    jabatan: str
+    alamat: str
+    jenis_kelamin: str  # "L" or "P"
     company_id: int
-    skip_validation: bool = False  # For testing
+    
+    # New strict dates instead of "bulan_masuk"
+    date_of_birth: date 
+    join_date: date 
+
+    # Optional
+    bagian: Optional[str] = None
+    resignation_date: Optional[date] = None
+    salary_scheme_id: Optional[int] = None
+
+    @field_validator("nik")
+    @classmethod
+    def validate_nik(cls, v):
+        if not re.fullmatch(r"\d{16}", v):
+            raise ValueError("NIK must be exactly 16 digits")
+        return v
+
+    @field_validator("npwp")
+    @classmethod
+    def validate_npwp(cls, v):
+        digits = re.sub(r"\D", "", v)
+        if len(digits) not in (15, 16):
+            raise ValueError("NPWP must be 15 or 16 digits")
+        return v
+
+    @field_validator("jenis_kelamin")
+    @classmethod
+    def validate_gender(cls, v):
+        if v not in ("L", "P"):
+            raise ValueError("Jenis kelamin must be 'L' or 'P'")
+        return v
+
+    @field_validator("ptkp_status")
+    @classmethod
+    def validate_ptkp(cls, v):
+        valid = {"TK0","TK1","TK2","TK3","K0","K1","K2","K3"}
+        if v not in valid:
+            raise ValueError(f"Invalid PTKP status. Must be one of {valid}")
+        return v
 
 
-class EmployeeBulkImportResponse(BaseModel):
-    """Bulk import response"""
-    imported: int
-    failed: int
-    errors: list[dict] = []
+class EmployeeOut(BaseModel):
+    id: int
+    nik: str
+    name: str
+    alamat: str
+    jenis_kelamin: str
+    npwp: str
+    jabatan: str
+    ptkp_status: str
+    base_salary: float
+    company_id: int
+    
+    # NEW STRICT DATES
+    date_of_birth: date 
+    join_date: date 
+    resignation_date: Optional[date] = None
+    
+    salary_scheme_id: Optional[int] = None
+    bagian: Optional[str] = None
+    bank_account: Optional[str] = None
+    bank_name: Optional[str] = None
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
