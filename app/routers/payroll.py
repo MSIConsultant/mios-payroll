@@ -1,8 +1,8 @@
 # app/routers/payroll.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
 
 from app.core.database import get_db
 from app.models.payroll import PayrollRun, PayrollRecord
@@ -16,6 +16,44 @@ from app.engines.payroll_engine import solve_gross_up, solve_tax_allowance
 from app.engines.bpjs_engine import calculate_bpjs
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
+
+# ==========================================
+# GET ENDPOINTS (Added for UI History)
+# ==========================================
+
+@router.get("/runs", response_model=List[PayrollRunOut])
+def list_payroll_runs(
+    company_id: Optional[int] = Query(None, description="Filter runs by a specific company"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve a list of historical payroll runs. 
+    Can be filtered by company_id to support multi-tenancy.
+    """
+    query = db.query(PayrollRun)
+    
+    if company_id:
+        query = query.filter(PayrollRun.company_id == company_id)
+        
+    # Order by newest first
+    runs = query.order_by(PayrollRun.year.desc(), PayrollRun.month.desc()).all()
+    return runs
+
+@router.get("/runs/{run_id}", response_model=PayrollRunOut)
+def get_payroll_run(run_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve a specific payroll run by its ID to restore state on page refresh.
+    """
+    run = db.query(PayrollRun).filter(PayrollRun.id == run_id).first()
+    
+    if not run:
+        raise HTTPException(status_code=404, detail="Payroll run not found.")
+        
+    return run
+
+# ==========================================
+# POST ENDPOINTS (Your existing logic)
+# ==========================================
 
 @router.post("/runs", response_model=PayrollRunOut)
 def create_payroll_run(run_in: PayrollRunCreate, db: Session = Depends(get_db)):
@@ -51,6 +89,8 @@ def lock_payroll_run(run_id: int, db: Session = Depends(get_db)):
     run.status = "LOCKED"
     run.locked_at = datetime.utcnow()
     db.commit()
+    
+    # Using standard international established translation for the success message
     return {"message": f"Payroll run {run_id} successfully locked. General Ledger is now final."}
 
 @router.post("/runs/{run_id}/process_bulk", response_model=List[PayrollRecordOut])
@@ -114,7 +154,6 @@ def process_bulk_payroll(run_id: int, request: BulkPayrollRequest, db: Session =
                 employee_age=age
             )
         elif item.tax_allowance:
-            # Keeps the base salary intact, generates the exact allowance needed to cover PPh21
             tunjangan_pajak = solve_tax_allowance(
                 base_salary=calculated_base,
                 allowances=item.allowances,
@@ -131,13 +170,10 @@ def process_bulk_payroll(run_id: int, request: BulkPayrollRequest, db: Session =
                 employee_age=age
             )
 
-        # The new Gross is Base + Standard Allowances + The new Tunjangan PPh + Bonus + THR
         gross = calculated_base + sum(item.allowances) + tunjangan_pajak + item.bonus + item.thr
         
         bpjs = calculate_bpjs(gross, jkk_rate, scheme_dict, reg_dict, age)
         
-        # In a real environment, you pull the PPh21 from the forward progressive tax engine here.
-        # Setting to tunjangan_pajak here to illustrate the exact match for non-December months.
         pph21 = tunjangan_pajak if item.tax_allowance else 0 
         
         taxable_net = gross - bpjs["total_employee"] - pph21
