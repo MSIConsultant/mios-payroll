@@ -6,14 +6,16 @@ from app.core.database import engine
 from app.models.base import Base # Assuming all your models use this Base
 from app.routers import company, employee, payroll, reconciliation, regulation, salary_scheme, accounting
 
-app = FastAPI(title="MIOS Payroll", version="0.1.0")
+app = FastAPI(title="MIOS Payroll", version="0.2.0")
 
 # --- THE FIX: CORS Configuration ---
 # This explicitly tells Railway to accept clicks from your Mac and Vercel
 origins = [
-    "http://localhost:8080",
+    "http://localhost:3000",      # Next.js local port
+    "http://127.0.0.1:3000",      # Next.js local IP
+    "http://localhost:8080",      # Keep Vite just in case
     "http://127.0.0.1:8080",
-    # "https://your-mios-project.vercel.app", <-- Uncomment and add your real Vercel URL later
+    "https://mios-payroll.vercel.app",  # Your deployed Next.js frontend
 ]
 
 app.add_middleware(
