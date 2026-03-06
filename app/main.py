@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# This creates the tables in Supabase if they don't exist
+# This creates the tables in Supabase if they don't exis
 Base.metadata.create_all(bind=engine)
 
 # Register routers
