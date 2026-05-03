@@ -1,3 +1,16 @@
+:root {
+  --mios-red:    #E02020;
+  --mios-blue:   #1B4FA8;
+  --mios-green:  #2DB44A;
+  --accent:      #2563EB;
+  --accent-hover:#1D4ED8;
+  --accent-glow: rgba(37,99,235,0.25);
+  --bg-base:     #0D0D0F;
+  --bg-card:     #111113;
+  --bg-deep:     #080809;
+  --border:      #1A1A1C;
+  --border-subtle: #131315;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 @keyframes fadeInUp {
