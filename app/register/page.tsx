@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { MiosLogoAuth } from '@/components/ui/MiosLogo';
 
 export default function RegisterPage() {
   const [email, setEmail]       = useState('');
