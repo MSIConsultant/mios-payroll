@@ -11,6 +11,40 @@
   --border:      #1A1A1C;
   --border-subtle: #131315;
 }
+/* Base readability overrides */
+html {
+  font-size: 15px;
+}
+
+/* Minimum readable sizes for monospace data */
+.font-mono {
+  font-size: 13px;
+}
+
+/* Table cells never below 13px */
+td, th {
+  font-size: 13px !important;
+}
+
+/* Labels minimum 11px */
+label {
+  font-size: 11px !important;
+}
+
+/* Stat numbers — always big */
+.stat-number {
+  font-size: clamp(24px, 4vw, 48px);
+}
+
+/* Input fields — always readable */
+input, select, textarea {
+  font-size: 14px !important;
+}
+
+/* Navigation items */
+nav a span {
+  font-size: 12px !important;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 @keyframes fadeInUp {
