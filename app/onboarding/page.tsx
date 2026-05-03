@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { createWorkspace } from '@/lib/actions/workspace';
 
+
 export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,12 +24,8 @@ export default function OnboardingPage() {
 
       <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-8 animate-fade-in-up stagger-1">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-[#D4AF37] rounded mb-4"
-            style={{ boxShadow: '0 0 40px rgba(212,175,55,0.3)' }}>
-            <span className="text-[#0A0A0B] font-black text-xl">M</span>
-          </div>
-          <h1 className="text-xl font-bold text-zinc-100">Selamat Datang</h1>
-          <p className="text-[11px] text-zinc-600 uppercase tracking-widest mt-1 font-mono">Buat Workspace Pertama Anda</p>
+          <MiosLogoAuth />
+          <p className="text-sm font-bold text-zinc-300 mt-5">Buat Workspace Pertama Anda</p>
         </div>
 
         <div className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg overflow-hidden animate-fade-in-up stagger-2"
