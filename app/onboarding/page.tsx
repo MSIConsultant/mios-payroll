@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { createWorkspace } from '@/lib/actions/workspace';
+import { MiosLogoAuth } from '@/components/ui/MiosLogo';
 
 
 export default function OnboardingPage() {
