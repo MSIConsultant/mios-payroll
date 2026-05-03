@@ -32,15 +32,16 @@ export async function createWorkspace(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data: workspace, error: wsError } = await supabase
-    .from('workspaces').insert({ name, owner_id: user.id }).select().single();
-  if (wsError) return { error: wsError.message };
+  const { data, error } = await supabase.rpc('create_workspace_for_user', {
+    p_name: name,
+    p_owner_id: user.id,
+  });
 
-  await logActivity(supabase, workspace.id, 'WORKSPACE_CREATED', 'workspace', name);
+  if (error) return { error: error.message };
+
   revalidatePath('/', 'layout');
-  redirect('/companies');
+  redirect('/dashboard');
 }
-
 export async function sendInvite(workspaceId: string, invitedEmail: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
