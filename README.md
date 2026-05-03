@@ -151,8 +151,12 @@ npm run dev
 ### Supabase Setup
 
 1. Create a new Supabase project
-2. Run the schema migrations in order from `/supabase/migrations/`
-3. Run the RLS policies from `/supabase/rls.sql`
+2. Run all schema and RLS SQL directly in the Supabase SQL Editor.
+   Key tables: `workspaces`, `workspace_members`, `workspace_invitations`,
+   `workspace_activity`, `companies`, `employees`, `employee_events`,
+   `payroll_runs`, `payroll_results`
+3. Enable RLS on all 9 tables and apply the policies from the
+   [RLS setup in this README](#database-schema)
 4. Run the helper functions:
 
 ```sql
