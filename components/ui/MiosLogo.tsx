@@ -7,115 +7,114 @@ interface MiosLogoProps {
 }
 
 const SIZES = {
-  sm:  { block: 20, gap: 1, font: 7,  wordmark: 11, sub: 8  },
-  md:  { block: 28, gap: 1.5, font: 9, wordmark: 14, sub: 9 },
-  lg:  { block: 40, gap: 2, font: 13, wordmark: 20, sub: 11 },
-  xl:  { block: 56, gap: 3, font: 18, wordmark: 28, sub: 13 },
+  sm:  { mark: 28, font: 8,  wordmark: 12, sub: 8  },
+  md:  { mark: 36, font: 10, wordmark: 15, sub: 9  },
+  lg:  { mark: 52, font: 14, wordmark: 22, sub: 11 },
+  xl:  { mark: 72, font: 20, wordmark: 30, sub: 13 },
 };
 
-// M=Red, I=Blue, O=Green, S=dark-with-border
-const BLOCKS = [
-  { letter: 'M', bg: '#E02020', text: '#fff' },
-  { letter: 'I', bg: '#1B4FA8', text: '#fff' },
-  { letter: 'O', bg: '#2DB44A', text: '#fff' },
-  { letter: 'S', bg: '#1A1A1C', text: '#e4e4e7', border: '#2D2D30' },
-];
+function MiosMark({ size }: { size: number }) {
+  const half = size / 2;
+  const r = size * 0.12; // corner radius
+  const f = size * 0.28; // font size
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none">
+      {/* Outer rounded square clip */}
+      <defs>
+        <clipPath id="mark-clip">
+          <rect width={size} height={size} rx={r} ry={r} />
+        </clipPath>
+      </defs>
+
+      {/* Four quadrants */}
+      <g clipPath="url(#mark-clip)">
+        {/* M — red top-left */}
+        <rect x={0}    y={0}    width={half} height={half} fill="#E02020" />
+        {/* I — blue top-right */}
+        <rect x={half} y={0}    width={half} height={half} fill="#1B4FA8" />
+        {/* O — green bottom-left */}
+        <rect x={0}    y={half} width={half} height={half} fill="#2DB44A" />
+        {/* S — dark bottom-right */}
+        <rect x={half} y={half} width={half} height={half} fill="#111113" />
+
+        {/* Letters */}
+        <text x={half * 0.5} y={half * 0.72} textAnchor="middle"
+          fontFamily="'Courier New', monospace" fontWeight="900"
+          fontSize={f} fill="white">{`M`}</text>
+        <text x={half + half * 0.5} y={half * 0.72} textAnchor="middle"
+          fontFamily="'Courier New', monospace" fontWeight="900"
+          fontSize={f} fill="white">{`I`}</text>
+        <text x={half * 0.5} y={half + half * 0.72} textAnchor="middle"
+          fontFamily="'Courier New', monospace" fontWeight="900"
+          fontSize={f} fill="white">{`O`}</text>
+        <text x={half + half * 0.5} y={half + half * 0.72} textAnchor="middle"
+          fontFamily="'Courier New', monospace" fontWeight="900"
+          fontSize={f} fill="#a1a1aa">{`S`}</text>
+
+        {/* Thin divider lines */}
+        <line x1={half} y1={0} x2={half} y2={size} stroke="rgba(0,0,0,0.25)" strokeWidth={1} />
+        <line x1={0} y1={half} x2={size} y2={half} stroke="rgba(0,0,0,0.25)" strokeWidth={1} />
+      </g>
+
+      {/* Outer border */}
+      <rect width={size} height={size} rx={r} ry={r}
+        stroke="rgba(255,255,255,0.08)" strokeWidth={1} fill="none" />
+    </svg>
+  );
+}
 
 export default function MiosLogo({ size = 'md', showWordmark = true, collapsed = false }: MiosLogoProps) {
   const s = SIZES[size];
-  const totalW = s.block * 4 + s.gap * 3;
-
   return (
-    <div className="flex items-center gap-3 select-none">
-      {/* Icon — 4 colored blocks */}
-      <div style={{ display: 'flex', gap: s.gap }}>
-        {BLOCKS.map(({ letter, bg, text, border }) => (
-          <div
-            key={letter}
-            style={{
-              width: s.block,
-              height: s.block,
-              background: bg,
-              border: border ? `1px solid ${border}` : 'none',
-              borderRadius: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-            <span style={{
-              color: text,
-              fontFamily: "'Courier New', monospace",
-              fontWeight: 900,
-              fontSize: s.font,
-              lineHeight: 1,
-              letterSpacing: '-0.03em',
-            }}>
-              {letter}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Wordmark */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, userSelect: 'none' }}>
+      <MiosMark size={s.mark} />
       {showWordmark && !collapsed && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{
             color: '#f4f4f5',
             fontFamily: "'Courier New', monospace",
             fontWeight: 900,
             fontSize: s.wordmark,
             lineHeight: 1,
-            letterSpacing: '0.08em',
-          }}>
-            MIOS
-          </span>
+            letterSpacing: '0.06em',
+          }}>MIOS</span>
           <span style={{
-            color: '#52525b',
+            color: '#3f3f46',
             fontFamily: "'Courier New', monospace",
             fontWeight: 400,
             fontSize: s.sub,
             lineHeight: 1,
-            letterSpacing: '0.2em',
+            letterSpacing: '0.22em',
             textTransform: 'uppercase',
-          }}>
-            Payroll
-          </span>
+          }}>Payroll</span>
         </div>
       )}
     </div>
   );
 }
 
-// Auth pages (large centered logo)
 export function MiosLogoAuth() {
-  const s = SIZES.lg;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <div style={{ display: 'flex', gap: s.gap }}>
-        {BLOCKS.map(({ letter, bg, text, border }) => (
-          <div key={letter} style={{
-            width: s.block, height: s.block, background: bg,
-            border: border ? `1px solid ${border}` : 'none',
-            borderRadius: 4,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: bg !== '#1A1A1C' ? `0 0 20px ${bg}55` : 'none',
-          }}>
-            <span style={{
-              color: text, fontFamily: "'Courier New', monospace",
-              fontWeight: 900, fontSize: s.font, lineHeight: 1,
-            }}>{letter}</span>
-          </div>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      <div style={{ filter: 'drop-shadow(0 0 24px rgba(27,79,168,0.35))' }}>
+        <MiosMark size={64} />
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{
-          color: '#f4f4f5', fontFamily: "'Courier New', monospace",
-          fontWeight: 900, fontSize: 22, letterSpacing: '0.1em',
+          color: '#f4f4f5',
+          fontFamily: "'Courier New', monospace",
+          fontWeight: 900,
+          fontSize: 22,
+          letterSpacing: '0.1em',
+          lineHeight: 1,
         }}>MIOS Payroll</div>
         <div style={{
-          color: '#52525b', fontFamily: "'Courier New', monospace",
-          fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', marginTop: 4,
+          color: '#3f3f46',
+          fontFamily: "'Courier New', monospace",
+          fontSize: 10,
+          letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+          marginTop: 6,
         }}>Indonesian Accounting Platform</div>
       </div>
     </div>
