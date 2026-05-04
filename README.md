@@ -27,6 +27,8 @@ Most Indonesian payroll software is built for HR departments. MIOS Payroll is bu
 - Multi-company batch dashboard — all client statuses on one screen
 - Month-over-month anomaly detection (>15% bruto change flagged)
 - Import employees directly from existing Excel payroll sheets
+- Multi-tenant workspace with invite system and activity audit log
+- Client read-only share link for payroll summary distribution
 
 ---
 
@@ -72,10 +74,11 @@ app/
 │   │       └── payroll/
 │   │           └── [tahun]/[bulan]/  # Payroll run page
 │   ├── settings/         # Workspace members, invitations, danger zone
-│   ├── dev/              # Dev console (restricted)
+│   ├── dev/              # Dev console (restricted to owner)
 │   ├── terms/            # Terms of service
 │   └── privacy/          # Privacy policy
-├── login/                # Auth
+├── share/[token]/        # Client read-only payroll summary (no login required)
+├── login/
 ├── register/
 ├── forgot-password/
 ├── reset-password/
@@ -89,12 +92,12 @@ lib/
 ├── export/
 │   ├── slip-gaji.ts      # PDF generation (print window)
 │   └── spt-masa.ts       # SPT Masa CSV export
-├── actions/              # Server actions (companies, employees, payroll, workspace)
+├── actions/              # Server actions
 └── formatters.ts         # NPWP, NIK, nominal, date formatting
 
 components/
 ├── ui/
-│   ├── MiosLogo.tsx      # Brand logo component
+│   ├── MiosLogo.tsx      # Brand logo (unified 2×2 quadrant mark)
 │   └── FormattedInput.tsx # NPWP/NIK/nominal/date inputs
 └── layout/
     └── NavLinks.tsx      # Collapsible sidebar navigation
@@ -127,7 +130,7 @@ Row Level Security is enabled on all 9 tables. Access is scoped to workspace mem
 ### Prerequisites
 - Node.js 18+
 - Supabase account
-- Vercel account (for deployment)
+- Vercel account
 
 ### Local Development
 
@@ -151,23 +154,19 @@ npm run dev
 ### Supabase Setup
 
 1. Create a new Supabase project
-2. Run all schema and RLS SQL directly in the Supabase SQL Editor.
-   Key tables: `workspaces`, `workspace_members`, `workspace_invitations`,
-   `workspace_activity`, `companies`, `employees`, `employee_events`,
-   `payroll_runs`, `payroll_results`
-3. Enable RLS on all 9 tables and apply the policies from the
-   [RLS setup in this README](#database-schema)
-4. Run the helper functions:
+2. Run all schema and RLS SQL directly in the Supabase SQL Editor. Key tables: `workspaces`, `workspace_members`, `workspace_invitations`, `workspace_activity`, `companies`, `employees`, `employee_events`, `payroll_runs`, `payroll_results`
+3. Enable RLS on all 9 tables and apply workspace-scoped policies
+4. Run the workspace creation function:
 
 ```sql
--- Workspace creation trigger (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.create_workspace_for_user(
   p_name text, p_owner_id uuid
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_workspace_id uuid;
 BEGIN
   INSERT INTO workspaces (name, owner_id) VALUES (p_name, p_owner_id) RETURNING id INTO v_workspace_id;
-  INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (v_workspace_id, p_owner_id, 'owner') ON CONFLICT DO NOTHING;
+  INSERT INTO workspace_members (workspace_id, user_id, role)
+    VALUES (v_workspace_id, p_owner_id, 'owner') ON CONFLICT DO NOTHING;
   RETURN v_workspace_id;
 END; $$;
 ```
@@ -184,15 +183,15 @@ END; $$;
 vercel --prod
 ```
 
-Add the same environment variables in Vercel project settings.
+Add environment variables in Vercel project settings.
 
 ---
 
 ## Key Design Decisions
 
-**CLI terminal aesthetic** — the entire UI uses monospace fonts, dark backgrounds, and terminal-style data display. This is intentional: accountants are data operators, not casual consumers. Dense, fast, precise.
+**CLI terminal aesthetic** — the entire UI uses monospace fonts, dark backgrounds, and terminal-style data display. Accountants are data operators, not casual consumers. Dense, fast, precise.
 
-**Engine correctness over UX polish** — the payroll calculation engine was verified against real accountant Excel sheets before any UI work. The grossup convergence loop runs up to 200 iterations. December equalization fetches actual Jan–Nov saved results from the database.
+**Engine correctness first** — the payroll calculation engine was verified against real accountant Excel sheets before any UI work. The grossup convergence loop runs up to 200 iterations. December equalization fetches actual Jan–Nov saved results from the database.
 
 **Multi-tenant from day one** — every query is scoped to `workspace_id`. RLS enforces this at the database level, not just the application level.
 
@@ -208,36 +207,11 @@ The engine in `lib/engine/payroll.ts` implements three calculation paths:
 Uses TER rate on monthly bruto. Grossup employees iterate: `pph = (ter × base) / (1 − ter)` until convergence < 0.01.
 
 **`calculateDecember`** (karyawan tetap, bulan 12)
-Annualizes: `bs = akum_bruto + base_des`. Applies biaya jabatan (5%, max Rp 500k/month), deducts PTKP, applies Pasal 17 progressive brackets, subtracts pph_jan_nov.
+Annualizes: `bs = akum_bruto + base_des`. Applies biaya jabatan (5%, max Rp 500k/month), deducts PTKP, applies Pasal 17 progressive brackets, subtracts `pph_jan_nov` fetched from saved database results.
 
 **`calculateFreelance`** (karyawan tidak tetap)
 Harian: Rp 450,000/day threshold, PPh = 5% × (upah − PTKP/360) per day.
 Bulanan: Annualized Pasal 17 ÷ 12 if monthly income > Rp 4,500,000.
-
----
-
-## Status
-
-| Feature | Status |
-|---|---|
-| Auth (register, login, forgot password) | ✅ |
-| Workspace + invite system | ✅ |
-| Activity log / audit trail | ✅ |
-| Company management | ✅ |
-| Employee management (all BPJS flags) | ✅ |
-| Payroll engine (TER + Pasal 17) | ✅ |
-| Grossup iterative convergence | ✅ |
-| December equalization | ✅ |
-| THR/Bonus selisih method | ✅ |
-| Slip gaji PDF | ✅ |
-| SPT Masa PPh 21 CSV | ✅ |
-| Bulk employee import (Excel) | ✅ |
-| Multi-company batch dashboard | ✅ |
-| Anomaly detection | ✅ |
-| Row Level Security (all tables) | ✅ |
-| Mobile responsive | ⚠️ Desktop-first |
-| Import from e-SPT | ❌ Planned |
-| Client read-only share link | ❌ Planned |
 
 ---
 
