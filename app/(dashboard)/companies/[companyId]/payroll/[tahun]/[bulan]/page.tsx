@@ -10,6 +10,9 @@ import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { printSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
 import { toast } from 'sonner';
+import { createShareLink } from '@/lib/actions/share';
+import { Share2 } from 'lucide-react';
+
 
 const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const sep = '─'.repeat(38);
@@ -36,6 +39,9 @@ export default function PayrollRunPage() {
   const [saving, setSaving]         = useState(false);
   const [isCalculated, setIsCalculated] = useState(false);
   const [company, setCompany]       = useState<any>(null);
+  const [shareUrl, setShareUrl] = useState('');
+  const [sharing, setSharing]   = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [calcProgress, setCalcProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
@@ -111,6 +117,7 @@ export default function PayrollRunPage() {
       const thr           = empEvents.filter(e => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
       const bonus         = empEvents.filter(e => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
       const benefit_extra = empEvents.filter(e => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
+    
 
       let calcResult: any = {};
       if (emp.jenis_karyawan === 'tetap') {
@@ -144,6 +151,21 @@ export default function PayrollRunPage() {
       setTimeout(processNext, 0);
     }
     processNext();
+  }
+  
+  async function handleShare() {
+    if (!existingRun?.id) return;
+    setSharing(true);
+    const res = await createShareLink(existingRun.id, companyId as string, Number(tahun), Number(bulan));
+    if (res.error) toast.error(res.error);
+    else {
+      setShareUrl(res.url!);
+      await navigator.clipboard.writeText(res.url!);
+      setShareCopied(true);
+      toast.success('Link disalin ke clipboard');
+      setTimeout(() => setShareCopied(false), 3000);
+    }
+    setSharing(false);
   }
 
   async function handleSave() {
@@ -268,6 +290,14 @@ export default function PayrollRunPage() {
             </p>
           </div>
         </div>
+      )}
+      
+      {existingRun?.status === 'locked' && (
+        <button onClick={handleShare} disabled={sharing}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-[#2563EB] hover:border-[#2563EB]/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50">
+          <Share2 size={13} />
+          {shareCopied ? 'Tersalin!' : sharing ? '...' : 'Bagikan'}
+        </button>
       )}
 
       {/* CLI Results */}
