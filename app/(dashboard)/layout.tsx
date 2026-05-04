@@ -60,9 +60,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Logo */}
         <div className={`border-b border-[#1A1A1C] flex items-center transition-all duration-300 ${
-          collapsed ? 'px-2 py-4 justify-center' : 'px-4 py-4'
+          collapsed ? 'px-3 py-5 justify-center' : 'px-5 py-5 justify-start'
         }`}>
-          <MiosLogo size="sm" showWordmark collapsed={collapsed} />
+          <MiosLogo size="m" showWordmark collapsed={collapsed} />
         </div>
 
         {/* Live indicator — only when expanded */}
