@@ -33,7 +33,7 @@ label {
 
 /* Stat numbers — always big */
 .stat-number {
-  font-size: clamp(24px, 4vw, 48px);
+  font-size: clamp(26px, 6vw, 50px);
 }
 
 /* Input fields — always readable */
@@ -70,8 +70,8 @@ nav a span {
   70%     { text-shadow: -1px 0 #D4AF37; }
 }
 @keyframes borderPulse {
-  0%,100% { border-color: rgba(212,175,55,0.2); }
-  50%     { border-color: rgba(212,175,55,0.6); }
+  0%,100% { border-color: rgba(124, 223, 38, 0.2); }
+  50%     { border-color: rgba(238, 187, 22, 0.6); }
 }
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(-12px); }
