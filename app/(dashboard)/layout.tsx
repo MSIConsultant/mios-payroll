@@ -1,139 +1,125 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import NavLinks from '@/components/layout/NavLinks';
-import MiosLogo from '@/components/ui/MiosLogo';
-import { Toaster } from 'sonner';
-import { LogOut } from 'lucide-react';
-import Link from 'next/link';
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser]           = useState<any>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [ready, setReady]         = useState(false);
+:root {
+  /* MSI Brand */
+  --mios-red:    #E02020;
+  --mios-blue:   #1B4FA8;
+  --mios-green:  #2DB44A;
 
-  useEffect(() => {
-    // Restore collapsed state
-    const saved = localStorage.getItem('sidebar_collapsed');
-    if (saved === 'true') setCollapsed(true);
+  /* Accent — brighter blue for UI */
+  --accent:      #2563EB;
+  --accent-light: #3B82F6;
+  --accent-glow: rgba(37,99,235,0.2);
 
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) window.location.href = '/login';
-      else { setUser(user); setReady(true); }
-    });
-  }, []);
+  /* Backgrounds */
+  --bg-base:    #0C0C0E;
+  --bg-card:    #111114;
+  --bg-deep:    #080809;
+  --bg-sidebar: #09090B;
 
-  function toggleSidebar() {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem('sidebar_collapsed', String(next));
-  }
+  /* Borders */
+  --border:        #1C1C1F;
+  --border-subtle: #141416;
 
-  if (!ready) return (
-    <div className="min-h-screen bg-[#0D0D0F] flex items-center justify-center">
-      <div className="flex gap-1">
-        {['M','I','O','S'].map((l, i) => (
-          <div key={l} className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-black animate-pulse"
-            style={{
-              background: ['#E02020','#1B4FA8','#2DB44A','#1A1A1C'][i],
-              color: '#fff',
-              animationDelay: `${i * 0.15}s`,
-            }}>{l}</div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const sidebarW = collapsed ? 56 : 208;
-
-  return (
-    <div className="flex h-screen bg-[#0D0D0F] overflow-hidden text-zinc-100">
-      {/* Sidebar */}
-      <aside
-        className="bg-[#080809] border-r border-[#1A1A1C] flex flex-col flex-shrink-0 relative transition-all duration-300"
-        style={{ width: sidebarW }}>
-        {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-px"
-          style={{ background: 'linear-gradient(90deg, #E02020, #1B4FA8, #2DB44A)' }} />
-
-        {/* Logo */}
-        <div className={`border-b border-[#1A1A1C] flex items-center transition-all duration-300 ${
-          collapsed ? 'px-3 py-5 justify-center' : 'px-5 py-5 justify-start'
-        }`}>
-          <MiosLogo size="md" showWordmark collapsed={collapsed} />
-        </div>
-
-        {/* Live indicator — only when expanded */}
-        {!collapsed && (
-          <div className="px-4 py-2 border-b border-[#1A1A1C] flex items-center gap-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
-            </span>
-            <p className="text-[9px] text-zinc-700 uppercase tracking-widest font-mono">sistem aktif</p>
-          </div>
-        )}
-
-        <NavLinks collapsed={collapsed} onToggle={toggleSidebar} />
-
-        {/* User + signout */}
-        <div className={`p-2 border-t border-[#1A1A1C] mt-auto ${collapsed ? '' : 'px-3'}`}>
-          {!collapsed && (
-            <div className="px-2 py-2 mb-1">
-              <p className="text-[9px] text-zinc-700 uppercase tracking-widest font-mono mb-0.5">operator</p>
-              <p className="text-[11px] text-zinc-500 truncate font-mono">{user?.email}</p>
-            </div>
-          )}
-          <form action="/auth/signout" method="post">
-            <button type="submit"
-              title={collapsed ? 'Keluar' : undefined}
-              className={`w-full flex items-center rounded-lg py-2 text-[11px] text-zinc-700 hover:text-red-400 hover:bg-[#111113] transition-all font-mono uppercase tracking-widest ${
-                collapsed ? 'justify-center px-0' : 'gap-2 px-3'
-              }`}>
-              <LogOut size={12} />
-              {!collapsed && 'Keluar'}
-            </button>
-          </form>
-          {!collapsed && (
-            <div className="flex gap-3 px-2 pt-2">
-              <Link href="/terms"   className="text-[9px] text-zinc-800 hover:text-zinc-600 font-mono uppercase tracking-widest">Syarat</Link>
-              <Link href="/privacy" className="text-[9px] text-zinc-800 hover:text-zinc-600 font-mono uppercase tracking-widest">Privasi</Link>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto relative min-w-0">
-        {/* Ambient grid */}
-        <div className="fixed inset-0 pointer-events-none z-0"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(37,99,235,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.012) 1px, transparent 1px)',
-            backgroundSize: '48px 48px',
-            left: sidebarW,
-            transition: 'left 0.3s',
-          }} />
-
-        <div className="relative z-10 p-8 min-h-full">
-          {children}
-        </div>
-      </main>
-
-      <Toaster
-        position="bottom-right"
-        theme="dark"
-        toastOptions={{
-          style: {
-            background: '#111113',
-            border: '1px solid #1A1A1C',
-            color: '#e4e4e7',
-            fontFamily: 'ui-monospace, monospace',
-            fontSize: '13px',
-          },
-        }}
-      />
-    </div>
-  );
+  /* Semantic */
+  --green:  #22C55E;
+  --amber:  #F59E0B;
+  --red:    #EF4444;
+  --sky:    #38BDF8;
 }
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background: var(--bg-base);
+  color: #E4E4E7;
+  line-height: 1.6;
+}
+
+/* Monospace — ONLY for data */
+.font-mono {
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 13px;
+}
+
+/* Input / select — always readable */
+input, select, textarea {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px;
+}
+
+/* Tables */
+td { font-size: 13.5px; }
+th { font-size: 11px; }
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+@keyframes scanline {
+  0%   { transform: translateY(-100%); opacity: 0.015; }
+  100% { transform: translateY(100vh); opacity: 0.015; }
+}
+@keyframes glitch {
+  0%,100% { text-shadow: none; }
+  20%     { text-shadow: -2px 0 #E02020; }
+  40%     { text-shadow: 2px 0 #1B4FA8; }
+  70%     { text-shadow: -1px 0 #2DB44A; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up  { animation: fadeInUp 0.45s cubic-bezier(.16,1,.3,1) forwards; }
+.animate-fade-in     { animation: fadeIn 0.3s ease forwards; }
+.animate-blink       { animation: blink 1.2s step-end infinite; }
+.animate-scanline    { animation: scanline 5s linear infinite; }
+.animate-glitch      { animation: glitch 4s infinite; }
+.animate-slide-left  { animation: slideInLeft 0.35s ease forwards; }
+.animate-spin        { animation: spin 1s linear infinite; }
+.animate-ping        { animation: ping 1s cubic-bezier(0,0,.2,1) infinite; }
+.animate-pulse       { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+
+.stagger-1 { animation-delay: 0.05s; opacity: 0; }
+.stagger-2 { animation-delay: 0.10s; opacity: 0; }
+.stagger-3 { animation-delay: 0.15s; opacity: 0; }
+.stagger-4 { animation-delay: 0.20s; opacity: 0; }
+.stagger-5 { animation-delay: 0.25s; opacity: 0; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2A2A2E; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3A3A3E; }
