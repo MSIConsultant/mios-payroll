@@ -109,18 +109,50 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Perusahaan Aktif', value: companies?.length ?? 0, sub: 'klien terdaftar' },
-          { label: 'Karyawan Aktif',   value: empCount ?? 0,          sub: 'seluruh perusahaan' },
-          { label: `Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`, value: (thisMonthRuns ?? []).length, sub: `dari ${companies?.length ?? 0} perusahaan` },
+          {
+            label: 'Perusahaan Aktif',
+            value: companies?.length ?? 0,
+            sub: 'klien terdaftar',
+            color: '#3B82F6',
+            bg: 'rgba(37,99,235,0.06)',
+            border: 'rgba(37,99,235,0.15)',
+          },
+          {
+            label: 'Karyawan Aktif',
+            value: empCount ?? 0,
+            sub: 'seluruh perusahaan',
+            color: '#22C55E',
+            bg: 'rgba(34,197,94,0.06)',
+            border: 'rgba(34,197,94,0.15)',
+          },
+          {
+            label: `Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`,
+            value: (thisMonthRuns ?? []).length,
+            sub: `dari ${companies?.length ?? 0} perusahaan`,
+            color: '#F59E0B',
+            bg: 'rgba(245,158,11,0.06)',
+            border: 'rgba(245,158,11,0.15)',
+          },
         ].map((s, i) => (
           <div key={s.label}
-            className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg p-5 animate-fade-in-up"
-            style={{ animationDelay: `${i * 0.08}s`, opacity: 0 }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3 font-mono">{s.label}</p>
-            <p className="text-5xl font-black text-zinc-100 font-mono leading-none mb-2">{s.value}</p>
-            <p className="text-[10px] text-zinc-700 font-mono">{s.sub}</p>
+            className="rounded-xl p-6 animate-fade-in-up"
+            style={{
+              background: s.bg,
+              border: `1px solid ${s.border}`,
+              animationDelay: `${i * 0.08}s`,
+              opacity: 0,
+            }}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-4"
+              style={{ color: s.color, opacity: 0.7 }}>
+              {s.label}
+            </p>
+            <p className="font-black font-mono leading-none mb-2"
+              style={{ fontSize: 'clamp(36px, 5vw, 56px)', color: s.color }}>
+              {s.value}
+            </p>
+            <p className="text-sm text-[#52525B]">{s.sub}</p>
           </div>
         ))}
       </div>
