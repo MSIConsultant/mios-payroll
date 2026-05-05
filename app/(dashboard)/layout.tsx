@@ -15,7 +15,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') setCollapsed(true);
-
     createClient().auth.getUser().then(({ data: { user } }) => {
       if (!user) window.location.href = '/login';
       else { setUser(user); setReady(true); }
@@ -29,19 +28,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   if (!ready) return (
-    <div className="min-h-screen bg-[#0C0C0E] flex items-center justify-center">
-      <div className="flex gap-1.5 items-center">
-        {[
-          { l: 'M', c: '#E02020' },
-          { l: 'I', c: '#1B4FA8' },
-          { l: 'O', c: '#2DB44A' },
-          { l: 'S', c: '#1C1C1F' },
-        ].map(({ l, c }, i) => (
-          <div key={l}
-            className="w-7 h-7 rounded flex items-center justify-center text-[11px] font-black text-white animate-pulse"
-            style={{ background: c, animationDelay: `${i * 0.12}s` }}>
-            {l}
-          </div>
+    <div style={{ minHeight: '100vh', background: '#0C0C0E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[['M','#E02020'],['I','#1B4FA8'],['O','#2DB44A'],['S','#1C1C1F']].map(([l, c], i) => (
+          <div key={l} style={{
+            width: 28, height: 28, background: c, borderRadius: 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 11, fontWeight: 900,
+            animation: `pulse 1.5s ease-in-out ${i * 0.12}s infinite`,
+          }}>{l}</div>
         ))}
       </div>
     </div>
@@ -50,32 +45,72 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const sw = collapsed ? 56 : 220;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    /* CRITICAL: inline styles guarantee layout regardless of Tailwind hydration */
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      overflow: 'hidden',
+      background: '#0C0C0E',
+    }}>
 
       {/* ── Sidebar ── */}
-      <aside
-        style={{ width: sw, background: 'var(--bg-sidebar)' }}
-        className="flex flex-col flex-shrink-0 border-r border-[#1C1C1F] relative transition-[width] duration-300 ease-in-out z-20">
-
+      <aside style={{
+        width: sw,
+        minWidth: sw,
+        maxWidth: sw,
+        height: '100vh',
+        background: '#09090B',
+        borderRight: '1px solid #1C1C1F',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        position: 'relative',
+        transition: 'width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease',
+        zIndex: 20,
+      }}>
         {/* RGB top line */}
-        <div className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{ background: 'linear-gradient(90deg, #E02020 0%, #1B4FA8 50%, #2DB44A 100%)' }} />
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+          background: 'linear-gradient(90deg, #E02020 0%, #1B4FA8 50%, #2DB44A 100%)',
+        }} />
 
         {/* Logo */}
-        <div className={`flex items-center border-b border-[#1C1C1F] transition-all duration-300 ${
-          collapsed ? 'justify-center px-2 py-4' : 'px-4 py-4'
-        }`}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          padding: collapsed ? '16px 8px' : '16px',
+          borderBottom: '1px solid #1C1C1F',
+          transition: 'padding 0.3s',
+        }}>
           <MiosLogo size="sm" showWordmark collapsed={collapsed} />
         </div>
 
-        {/* Live pill — only expanded */}
+        {/* Live pill */}
         {!collapsed && (
-          <div className="mx-3 mt-3 mb-1 px-3 py-1.5 rounded-full bg-[#0F1F0F] border border-[#1A2E1A] flex items-center gap-2">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#22C55E]" />
+          <div style={{
+            margin: '12px 12px 4px',
+            padding: '6px 12px',
+            borderRadius: 999,
+            background: '#0F1F0F',
+            border: '1px solid #1A2E1A',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span style={{ position: 'relative', display: 'flex', width: 6, height: 6 }}>
+              <span className="animate-ping" style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: '#22C55E', opacity: 0.75,
+              }} />
+              <span style={{
+                position: 'relative', width: 6, height: 6,
+                borderRadius: '50%', background: '#22C55E',
+              }} />
             </span>
-            <span className="text-[11px] font-medium text-[#22C55E]/70">Sistem Aktif</span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(34,197,94,0.7)' }}>
+              Sistem Aktif
+            </span>
           </div>
         )}
 
@@ -83,54 +118,83 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <NavLinks collapsed={collapsed} onToggle={toggleSidebar} />
 
         {/* Footer */}
-        <div className={`border-t border-[#1C1C1F] p-2 ${collapsed ? '' : 'px-3'}`}>
+        <div style={{
+          borderTop: '1px solid #1C1C1F',
+          padding: collapsed ? '8px 4px' : '8px 12px',
+        }}>
           {!collapsed && (
-            <div className="px-2 pb-2">
-              <p className="text-[10px] font-medium text-[#3A3A3E] uppercase tracking-widest mb-0.5">Operator</p>
-              <p className="text-[12px] text-[#71717A] truncate">{user?.email}</p>
+            <div style={{ padding: '4px 8px 8px' }}>
+              <p style={{ fontSize: 10, fontWeight: 500, color: '#3A3A3E', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                Operator
+              </p>
+              <p style={{ fontSize: 12, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.email}
+              </p>
             </div>
           )}
-
           <form action="/auth/signout" method="post">
             <button type="submit"
               title={collapsed ? 'Keluar' : undefined}
-              className={`w-full flex items-center rounded-lg py-2 text-[#3A3A3E] hover:text-red-400 hover:bg-[#1A0F0F] transition-all duration-200 cursor-pointer ${
-                collapsed ? 'justify-center px-0' : 'gap-2 px-2'
-              }`}>
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: collapsed ? 0 : 8,
+                padding: collapsed ? '8px 0' : '8px',
+                borderRadius: 8, border: 'none', background: 'transparent',
+                color: '#3A3A3E', cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                transition: 'color 0.2s, background 0.2s',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.color = '#EF4444';
+                (e.currentTarget as HTMLButtonElement).style.background = '#1A0F0F';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.color = '#3A3A3E';
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+              }}>
               <LogOut size={14} />
-              {!collapsed && <span className="text-xs font-medium">Keluar</span>}
+              {!collapsed && <span>Keluar</span>}
             </button>
           </form>
-
           {!collapsed && (
-            <div className="flex gap-3 px-2 pt-1">
-              <Link href="/terms"
-                className="text-[10px] text-[#2A2A2E] hover:text-[#52525B] transition-colors">
-                Syarat
-              </Link>
-              <Link href="/privacy"
-                className="text-[10px] text-[#2A2A2E] hover:text-[#52525B] transition-colors">
-                Privasi
-              </Link>
+            <div style={{ display: 'flex', gap: 12, padding: '4px 8px 0' }}>
+              <Link href="/terms" style={{ fontSize: 10, color: '#2A2A2E', textDecoration: 'none' }}>Syarat</Link>
+              <Link href="/privacy" style={{ fontSize: 10, color: '#2A2A2E', textDecoration: 'none' }}>Privasi</Link>
             </div>
           )}
         </div>
       </aside>
 
       {/* ── Main ── */}
-      <main className="flex-1 overflow-y-auto relative min-w-0">
-        {/* Subtle grid */}
-        <div className="fixed inset-0 pointer-events-none z-0"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(37,99,235,0.008) 1px, transparent 1px), ' +
-              'linear-gradient(90deg, rgba(37,99,235,0.008) 1px, transparent 1px)',
-            backgroundSize: '52px 52px',
-            left: sw,
-            transition: 'left 0.3s',
-          }} />
+      <main style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        position: 'relative',
+        minWidth: 0,
+      }}>
+        {/* Ambient grid */}
+        <div style={{
+          position: 'fixed',
+          top: 0, bottom: 0, right: 0,
+          left: sw,
+          backgroundImage:
+            'linear-gradient(rgba(37,99,235,0.008) 1px, transparent 1px), ' +
+            'linear-gradient(90deg, rgba(37,99,235,0.008) 1px, transparent 1px)',
+          backgroundSize: '52px 52px',
+          pointerEvents: 'none',
+          zIndex: 0,
+          transition: 'left 0.3s',
+        }} />
 
-        <div className="relative z-10 p-8 max-w-[1400px] mx-auto min-h-full">
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          padding: '32px',
+          maxWidth: 1400,
+          margin: '0 auto',
+          minHeight: '100%',
+        }}>
           {children}
         </div>
       </main>
@@ -146,10 +210,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontSize: '13px',
             borderRadius: '10px',
-          },
-          classNames: {
-            success: '!border-green-900/50',
-            error:   '!border-red-900/50',
           },
         }}
       />
