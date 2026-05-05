@@ -137,22 +137,29 @@ export default async function DashboardPage() {
           },
         ].map((s, i) => (
           <div key={s.label}
-            className="rounded-xl p-6 animate-fade-in-up"
+            className="animate-fade-in-up"
             style={{
               background: s.bg,
               border: `1px solid ${s.border}`,
+              borderRadius: 12,
+              padding: '20px 24px',
               animationDelay: `${i * 0.08}s`,
               opacity: 0,
             }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-4"
-              style={{ color: s.color, opacity: 0.7 }}>
+            <p style={{
+              fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '0.08em', color: s.color, opacity: 0.7, marginBottom: 12,
+            }}>
               {s.label}
             </p>
-            <p className="font-black font-mono leading-none mb-2"
-              style={{ fontSize: 'clamp(36px, 5vw, 56px)', color: s.color }}>
+            <p style={{
+              fontSize: 48, fontWeight: 900, lineHeight: 1,
+              color: s.color, marginBottom: 8,
+              fontFamily: "'Courier New', monospace",
+              }}>
               {s.value}
             </p>
-            <p className="text-sm text-[#52525B]">{s.sub}</p>
+            <p style={{ fontSize: 13, color: '#52525B' }}>{s.sub}</p>
           </div>
         ))}
       </div>
