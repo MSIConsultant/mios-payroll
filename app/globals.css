@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   /* MSI Brand */
   --mios-red:    #E02020;
@@ -16,8 +18,8 @@
   --bg-sidebar: #09090B;
 
   /* Borders */
-  --border:         #1C1C1F;
-  --border-subtle:  #141416;
+  --border:        #1C1C1F;
+  --border-subtle: #141416;
 
   /* Semantic */
   --green: #22C55E;
