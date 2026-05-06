@@ -156,7 +156,7 @@ export default async function DashboardPage() {
               fontSize: 48, fontWeight: 900, lineHeight: 1,
               color: s.color, marginBottom: 8,
               fontFamily: "'Courier New', monospace",
-              }}>
+            }}>
               {s.value}
             </p>
             <p style={{ fontSize: 13, color: '#52525B' }}>{s.sub}</p>
