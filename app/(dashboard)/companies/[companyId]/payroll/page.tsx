@@ -78,27 +78,27 @@ export default function PayrollOverviewPage() {
         {/* New Run */}
         <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Plus size={13} className="text-[#D4AF37]" />
+            <Plus size={13} className="text-[#2563EB]" />
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Payroll Baru</p>
           </div>
           <div className="space-y-3 mb-5">
             <div>
               <label className="block text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-1.5">Tahun</label>
               <select value={selTahun} onChange={e => setSelTahun(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 font-mono">
+                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40 font-mono">
                 {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-1.5">Bulan</label>
               <select value={selBulan} onChange={e => setSelBulan(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
+                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40">
                 {BULAN_NAMES.map((n, i) => <option key={i} value={i + 1}>{n}</option>)}
               </select>
             </div>
           </div>
           <Link href={`/companies/${companyId}/payroll/${selTahun}/${selBulan}`}
-            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors group">
+            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#2563EB] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors group">
             Mulai Hitung
             <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
           </Link>
@@ -112,7 +112,7 @@ export default function PayrollOverviewPage() {
               <div className="w-2 h-2 rounded-full bg-yellow-500/40" />
               <div className="w-2 h-2 rounded-full bg-green-500/40" />
               <span className="ml-3 text-[10px] text-zinc-700 uppercase tracking-widest">riwayat_payroll.log</span>
-              <span className="ml-1 text-[#D4AF37] animate-blink text-xs">_</span>
+              <span className="ml-1 text-[#2563EB] animate-blink text-xs">_</span>
             </div>
 
             {loading ? (
@@ -135,7 +135,7 @@ export default function PayrollOverviewPage() {
                           className="flex-1 hover:opacity-80 transition-opacity">
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-zinc-300">
-                              <span className="text-[#D4AF37]">$</span>{' '}
+                              <span className="text-[#2563EB]">$</span>{' '}
                               <span className="font-bold">{BULAN_NAMES[run.bulan - 1]} {run.tahun}</span>
                             </span>
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${

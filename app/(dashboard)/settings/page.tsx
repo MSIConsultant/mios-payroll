@@ -7,7 +7,7 @@ import { sendInvite, removeMember, revokeInvite, getWorkspaceActivity } from '@/
 import { Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Activity } from 'lucide-react';
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  WORKSPACE_CREATED:  { label: 'Workspace dibuat',       color: 'text-[#D4AF37]' },
+  WORKSPACE_CREATED:  { label: 'Workspace dibuat',       color: 'text-[#2563EB]' },
   MEMBER_INVITED:     { label: 'Undangan dikirim ke',    color: 'text-sky-400' },
   MEMBER_JOINED:      { label: 'Bergabung ke workspace', color: 'text-green-400' },
   MEMBER_REMOVED:     { label: 'Anggota dihapus',        color: 'text-red-400' },
@@ -133,7 +133,7 @@ export default function SettingsPage() {
           <p className="text-[11px] text-zinc-600 font-mono">Workspace aktif:</p>
           <select value={workspace?.id ?? ''}
             onChange={e => switchWorkspace(e.target.value)}
-            className="bg-[#111113] border border-[#1A1A1C] text-zinc-300 text-[11px] rounded px-2 py-1 outline-none focus:border-[#D4AF37]/40 font-mono">
+            className="bg-[#111113] border border-[#1A1A1C] text-zinc-300 text-[11px] rounded px-2 py-1 outline-none focus:border-[#2563EB]/40 font-mono">
             {workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         </div>
@@ -152,7 +152,7 @@ export default function SettingsPage() {
           {/* Invite form */}
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
-              <UserPlus size={13} className="text-[#D4AF37]" />
+              <UserPlus size={13} className="text-[#2563EB]" />
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Undang Anggota</p>
             </div>
             <div className="flex gap-2">
@@ -160,9 +160,9 @@ export default function SettingsPage() {
                 onChange={e => setInviteEmail(e.target.value)}
                 placeholder="email@akuntan.com"
                 onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                className="flex-1 px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/40 transition-colors font-mono" />
+                className="flex-1 px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#2563EB]/40 transition-colors font-mono" />
               <button onClick={handleInvite} disabled={inviting || !inviteEmail}
-                className="px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+                className="px-4 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
                 {inviting ? '...' : 'Kirim'}
               </button>
             </div>
@@ -173,11 +173,11 @@ export default function SettingsPage() {
               <div className="mt-4 animate-fade-in">
                 <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Link undangan (salin & kirim via WhatsApp/Email)</p>
                 <div className="flex gap-2">
-                  <div className="flex-1 px-3 py-2 bg-[#0D0D0F] border border-[#D4AF37]/20 rounded-lg text-[11px] text-zinc-500 font-mono truncate">
+                  <div className="flex-1 px-3 py-2 bg-[#0D0D0F] border border-[#2563EB]/20 rounded-lg text-[11px] text-zinc-500 font-mono truncate">
                     {inviteLink}
                   </div>
                   <button onClick={handleCopy}
-                    className="px-3 py-2 bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-[#D4AF37]/20 transition-colors flex items-center gap-1.5">
+                    className="px-3 py-2 bg-[#2563EB]/10 border border-[#2563EB]/30 text-[#2563EB] rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-[#2563EB]/20 transition-colors flex items-center gap-1.5">
                     {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
                   </button>
                 </div>
@@ -200,7 +200,7 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm text-zinc-300">{email}</p>
                       <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded ${
-                        isOwnerMember ? 'bg-[#D4AF37]/10 text-[#D4AF37]' : 'bg-zinc-800 text-zinc-500'
+                        isOwnerMember ? 'bg-[#2563EB]/10 text-[#2563EB]' : 'bg-zinc-800 text-zinc-500'
                       }`}>{m.role}</span>
                     </div>
                     {!isOwnerMember && (
@@ -316,7 +316,7 @@ export default function SettingsPage() {
             <div className="w-2 h-2 rounded-full bg-yellow-500/40" />
             <div className="w-2 h-2 rounded-full bg-green-500/40" />
             <span className="ml-3 text-[10px] text-zinc-700 uppercase tracking-widest">workspace.activity.log</span>
-            <span className="ml-1 text-[#D4AF37] animate-blink text-xs">_</span>
+            <span className="ml-1 text-[#2563EB] animate-blink text-xs">_</span>
           </div>
 
           {loadingData ? (
@@ -333,7 +333,7 @@ export default function SettingsPage() {
                     className={`px-5 py-3 ${i < activity.length - 1 ? 'border-b border-[#131315]' : ''} hover:bg-[#0F0F11] transition-colors`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <span className="text-[#D4AF37] text-xs mr-2">$</span>
+                        <span className="text-[#2563EB] text-xs mr-2">$</span>
                         <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
                         {a.entity_name && <span className="text-zinc-400 text-xs ml-1">{a.entity_name}</span>}
                         <div className="pl-4 mt-0.5">

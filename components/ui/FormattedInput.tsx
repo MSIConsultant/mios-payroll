@@ -11,7 +11,7 @@ const BASE = "w-full px-3 py-3 bg-[#0D0D0F] border rounded-lg text-base text-zin
 function useFocus() {
   const [f, setF] = useState(false);
   return {
-    style: { borderColor: f ? 'rgba(212,175,55,0.4)' : '#1A1A1C' },
+    style: { borderColor: f ? 'rgba(37,99,235,0.4)' : '#1A1A1C' },
     onFocus: () => setF(true),
     onBlur:  () => setF(false),
   };

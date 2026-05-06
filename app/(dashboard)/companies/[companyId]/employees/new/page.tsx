@@ -14,7 +14,7 @@ function SF({ label, name, children, defaultValue }: { label: string; name: stri
       <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{label}</label>
       <select name={name} defaultValue={defaultValue} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }}>
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }}>
         {children}
       </select>
     </div>
@@ -29,7 +29,7 @@ function TF({ label, name, placeholder, type = 'text', required }: { label: stri
       <input name={name} type={type} required={required} placeholder={placeholder}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -49,7 +49,7 @@ function Chk({ name, label, defaultChecked }: { name: string; label: string; def
   return (
     <label className="flex items-center gap-3 cursor-pointer group">
       <input type="checkbox" name={name} defaultChecked={defaultChecked}
-        className="w-4 h-4 rounded border-zinc-700 bg-[#0D0D0F] text-[#D4AF37] focus:ring-0 cursor-pointer" />
+        className="w-4 h-4 rounded border-zinc-700 bg-[#0D0D0F] text-[#2563EB] focus:ring-0 cursor-pointer" />
       <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors uppercase tracking-widest font-bold">{label}</span>
     </label>
   );
@@ -121,7 +121,7 @@ export default function NewEmployeePage() {
                 <button key={t} type="button" onClick={() => setJenisKaryawan(t)}
                   className={`px-4 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all ${
                     jenisKaryawan === t
-                      ? 'bg-[#1A1A1C] border-[#D4AF37]/60 text-[#D4AF37]'
+                      ? 'bg-[#1A1A1C] border-[#2563EB]/60 text-[#2563EB]'
                       : 'bg-[#0D0D0F] border-[#1A1A1C] text-zinc-600 hover:border-zinc-600'
                   }`}>{t.replace(/_/g,' ')}</button>
               ))}
@@ -193,7 +193,7 @@ export default function NewEmployeePage() {
           <Link href={`/companies/${companyId}`}
             className="px-5 py-2.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</Link>
           <button type="submit" disabled={loading}
-            className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+            className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
             <Save size={13} />
             {loading ? 'Menyimpan...' : 'Simpan Karyawan'}
           </button>

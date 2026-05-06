@@ -30,7 +30,7 @@ function LoginForm() {
 
       {/* Grid background */}
       <div className="absolute inset-0 z-0"
-        style={{ backgroundImage: 'linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        style={{ backgroundImage: 'linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
       <div className="relative z-10 w-full max-w-sm">
         {/* Logo */}
@@ -49,7 +49,7 @@ function LoginForm() {
             <span className="ml-3 text-[10px] text-zinc-700 font-mono uppercase tracking-widest">
               auth.login
             </span>
-            <span className="ml-1 text-[#D4AF37] animate-blink font-mono text-xs">_</span>
+            <span className="ml-1 text-[#2563EB] animate-blink font-mono text-xs">_</span>
           </div>
 
           <form onSubmit={handleLogin} className="p-6 space-y-4 font-mono">
@@ -61,7 +61,7 @@ function LoginForm() {
 
             <div className="animate-fade-in-up stagger-3">
               <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
-                <span className="text-[#D4AF37]">→</span> Email
+                <span className="text-[#2563EB]">→</span> Email
               </label>
               <input type="email" value={email} required
                 onChange={e => setEmail(e.target.value)}
@@ -69,12 +69,12 @@ function LoginForm() {
                 onBlur={() => setFocused(null)}
                 placeholder="nama@perusahaan.com"
                 className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
-                style={{ borderColor: focused === 'email' ? 'rgba(212,175,55,0.5)' : '#1A1A1C' }} />
+                style={{ borderColor: focused === 'email' ? 'rgba(37,99,235,0.5)' : '#1A1A1C' }} />
             </div>
 
             <div className="animate-fade-in-up stagger-4">
               <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
-                <span className="text-[#D4AF37]">→</span> Password
+                <span className="text-[#2563EB]">→</span> Password
               </label>
               <input type="password" value={password} required
                 onChange={e => setPassword(e.target.value)}
@@ -82,13 +82,13 @@ function LoginForm() {
                 onBlur={() => setFocused(null)}
                 placeholder="••••••••"
                 className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
-                style={{ borderColor: focused === 'password' ? 'rgba(212,175,55,0.5)' : '#1A1A1C' }} />
+                style={{ borderColor: focused === 'password' ? 'rgba(37,99,235,0.5)' : '#1A1A1C' }} />
             </div>
 
             <div className="pt-2 animate-fade-in-up stagger-5">
               <button type="submit" disabled={loading}
                 className="w-full py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all duration-300 relative overflow-hidden group disabled:opacity-50"
-                style={{ background: loading ? '#1A1A1C' : '#D4AF37', color: loading ? '#666' : '#0A0A0B' }}>
+                style={{ background: loading ? '#1A1A1C' : '#2563EB', color: loading ? '#666' : '#0A0A0B' }}>
                 {/* Shimmer */}
                 <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
                   style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)' }} />
@@ -109,7 +109,7 @@ function LoginForm() {
               </Link>
               <p className="text-[11px] text-zinc-700 font-mono">
                 Belum punya akun?{' '}
-                <Link href="/register" className="text-[#D4AF37] hover:text-yellow-300 transition-colors">
+                <Link href="/register" className="text-[#2563EB] hover:text-yellow-300 transition-colors">
                   Daftar sekarang
                 </Link>
               </p>

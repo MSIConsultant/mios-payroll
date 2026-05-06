@@ -19,7 +19,7 @@ function Section({ title, icon: Icon, children, defaultOpen = false }: {
       <button onClick={() => setOpen(o => !o)}
         className="w-full px-5 py-4 flex items-center justify-between hover:bg-[#0F0F11] transition-colors">
         <div className="flex items-center gap-3">
-          <Icon size={14} className="text-[#D4AF37]" />
+          <Icon size={14} className="text-[#2563EB]" />
           <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 font-mono">{title}</span>
         </div>
         {open ? <ChevronDown size={13} className="text-zinc-700" /> : <ChevronRight size={13} className="text-zinc-700" />}
@@ -35,7 +35,7 @@ function CopyButton({ text }: { text: string }) {
     <button onClick={async () => {
       await navigator.clipboard.writeText(text);
       setCopied(true); setTimeout(() => setCopied(false), 1500);
-    }} className="p-1 text-zinc-700 hover:text-[#D4AF37] transition-colors">
+    }} className="p-1 text-zinc-700 hover:text-[#2563EB] transition-colors">
       {copied ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
     </button>
   );
@@ -191,7 +191,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
         <div className="grid grid-cols-4 gap-2 mb-5">
           <div className="bg-[#0D0D0F] border border-[#1A1A1C] rounded p-4 col-span-1">
             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 mb-2 font-mono">Total Tenants</p>
-            <p className="text-3xl font-black font-mono text-[#D4AF37]">{workspaces.length}</p>
+            <p className="text-3xl font-black font-mono text-[#2563EB]">{workspaces.length}</p>
           </div>
           <div className="bg-[#0D0D0F] border border-[#1A1A1C] rounded p-4">
             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 mb-2 font-mono">DB Rows</p>
@@ -214,13 +214,13 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
               onClick={() => setSelWorkspace(selWorkspace === ws.id ? 'all' : ws.id)}
               className={`w-full text-left bg-[#0D0D0F] border rounded-lg px-4 py-3 transition-all animate-fade-in-up ${
                 selWorkspace === ws.id
-                  ? 'border-[#D4AF37]/40 bg-[#0F0F0A]'
+                  ? 'border-[#2563EB]/40 bg-[#0F0F0A]'
                   : 'border-[#1A1A1C] hover:border-zinc-700'
               }`}
               style={{ animationDelay: `${i * 0.05}s`, opacity: 0 }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-1.5 h-1.5 rounded-full ${selWorkspace === ws.id ? 'bg-[#D4AF37]' : 'bg-zinc-700'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${selWorkspace === ws.id ? 'bg-[#2563EB]' : 'bg-zinc-700'}`} />
                   <div>
                     <p className="text-sm font-bold text-zinc-300 font-mono">{ws.name}</p>
                     <p className="text-[10px] text-zinc-700 font-mono">{ws.id}</p>
@@ -243,7 +243,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
                     <p className="text-base font-black font-mono text-zinc-400">{ws.runCount}</p>
                     <p className="text-[9px] text-zinc-800 uppercase tracking-widest">runs</p>
                   </div>
-                  <ChevronRight size={13} className={`transition-colors ${selWorkspace === ws.id ? 'text-[#D4AF37] rotate-90' : 'text-zinc-800'}`} />
+                  <ChevronRight size={13} className={`transition-colors ${selWorkspace === ws.id ? 'text-[#2563EB] rotate-90' : 'text-zinc-800'}`} />
                 </div>
               </div>
             </button>
@@ -276,7 +276,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
                 {(wsStats.members ?? []).map((m: any, i: number) => (
                   <div key={i} className="text-[11px] py-1 border-b border-[#0F0F11] flex justify-between">
                     <span className="text-zinc-500 truncate text-[10px]">{m.user_id.slice(0,12)}…</span>
-                    <span className={m.role === 'owner' ? 'text-[#D4AF37]' : 'text-zinc-600'}>{m.role}</span>
+                    <span className={m.role === 'owner' ? 'text-[#2563EB]' : 'text-zinc-600'}>{m.role}</span>
                   </div>
                 ))}
               </div>
@@ -301,7 +301,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
                 {wsStats.activity.map((a: any, i: number) => (
                   <div key={i} className="text-[11px] py-1 border-b border-[#0F0F11] flex items-center justify-between">
                     <span className="text-zinc-600">
-                      <span className="text-[#D4AF37]">$</span> {a.action}
+                      <span className="text-[#2563EB]">$</span> {a.action}
                       {a.entity_name ? <span className="text-zinc-500"> {a.entity_name}</span> : ''}
                     </span>
                     <span className="text-[10px] text-zinc-800">{a.user_email?.split('@')[0]}</span>
@@ -326,7 +326,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
                 <button onClick={() => fetchTable(t)} title="View"
                   className="p-1.5 text-zinc-700 hover:text-sky-400 transition-colors"><Eye size={11} /></button>
                 <button onClick={() => exportTableCSV(t)} title="Export"
-                  className="p-1.5 text-zinc-700 hover:text-[#D4AF37] transition-colors"><Download size={11} /></button>
+                  className="p-1.5 text-zinc-700 hover:text-[#2563EB] transition-colors"><Download size={11} /></button>
                 <button onClick={() => clearTable(t)} title="Clear"
                   className="p-1.5 text-zinc-700 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
               </div>
@@ -380,9 +380,9 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
           <div>
             <p className="text-[10px] uppercase tracking-widest text-zinc-700 mb-2 font-mono">Input JSON</p>
             <textarea value={engineInput} onChange={e => setEngineInput(e.target.value)} rows={20}
-              className="w-full px-3 py-2.5 bg-[#060607] border border-[#1A1A1C] rounded-lg text-[11px] text-zinc-300 font-mono outline-none focus:border-[#D4AF37]/30 resize-none" />
+              className="w-full px-3 py-2.5 bg-[#060607] border border-[#1A1A1C] rounded-lg text-[11px] text-zinc-300 font-mono outline-none focus:border-[#2563EB]/30 resize-none" />
             <button onClick={runEngineTest}
-              className="mt-3 w-full py-2.5 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-black text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors flex items-center justify-center gap-2">
+              className="mt-3 w-full py-2.5 bg-[#2563EB] text-[#0A0A0B] rounded-lg font-black text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors flex items-center justify-center gap-2">
               <Terminal size={13} />$ run engine
             </button>
           </div>
@@ -429,7 +429,7 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Refresh All Stats',      desc: 'Re-fetch counts',                  icon: RefreshCw,  color: 'hover:border-sky-900/50 hover:text-sky-400',      action: fetchStats },
-            { label: 'Export Payroll Results', desc: 'payroll_results.csv',               icon: Download,   color: 'hover:border-[#D4AF37]/30 hover:text-[#D4AF37]', action: () => exportTableCSV('payroll_results') },
+            { label: 'Export Payroll Results', desc: 'payroll_results.csv',               icon: Download,   color: 'hover:border-[#2563EB]/30 hover:text-[#2563EB]', action: () => exportTableCSV('payroll_results') },
             { label: 'Export Employees',       desc: 'employees.csv',                     icon: Users,      color: 'hover:border-green-900/40 hover:text-green-400',  action: () => exportTableCSV('employees') },
             { label: 'Export Activity Log',    desc: 'workspace_activity.csv',            icon: Shield,     color: 'hover:border-amber-900/40 hover:text-amber-400', action: () => exportTableCSV('workspace_activity') },
           ].map(item => (

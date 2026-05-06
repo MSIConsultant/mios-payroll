@@ -14,11 +14,11 @@ export default function SetupRequired() {
             <p className="text-zinc-400 mb-2">Add these in your AI Studio Settings or Vercel Environment Variables:</p>
             <div className="space-y-2">
               <div className="flex justify-between items-center bg-[#18181B] p-2 border border-[#27272A]">
-                <code className="text-[#D4AF37]">NEXT_PUBLIC_SUPABASE_URL</code>
+                <code className="text-[#2563EB]">NEXT_PUBLIC_SUPABASE_URL</code>
                 <span className="text-zinc-600">Your Project URL</span>
               </div>
               <div className="flex justify-between items-center bg-[#18181B] p-2 border border-[#27272A]">
-                <code className="text-[#D4AF37]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
+                <code className="text-[#2563EB]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
                 <span className="text-zinc-600">Publishable API Key</span>
               </div>
             </div>
@@ -35,7 +35,7 @@ export default function SetupRequired() {
         </div>
 
         <div className="bg-[#18181B] border border-red-900/30 p-4 text-xs text-zinc-300 mb-6 font-mono leading-relaxed">
-          <p className="font-bold text-[#D4AF37] mb-2 uppercase tracking-widest text-[10px]">Note on Authentication:</p>
+          <p className="font-bold text-[#2563EB] mb-2 uppercase tracking-widest text-[10px]">Note on Authentication:</p>
           If you are seeing &quot;localhost&quot; when clicking verification links, it means Supabase is using the default development URL. Update the &quot;Site URL&quot; in Supabase Auth settings to fix this instantly.
         </div>
         

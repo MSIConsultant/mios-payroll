@@ -21,7 +21,7 @@ function TF({ label, name, defaultValue, placeholder }: { label: string; name: s
       <input name={name} type="text" defaultValue={defaultValue} placeholder={placeholder}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -127,7 +127,7 @@ export default function CompanyDetailPage() {
             {company.aktif ? 'Archive' : 'Restore'}
           </button>
           <Link href={`/companies/${companyId}/payroll`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-[#D4AF37]/30 hover:text-zinc-200 transition-colors">
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-[#2563EB]/30 hover:text-zinc-200 transition-colors">
             <Calendar size={13} />
             Payroll
           </Link>
@@ -137,7 +137,7 @@ export default function CompanyDetailPage() {
             Import
           </Link>
           <Link href={`/companies/${companyId}/employees/new`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
             <Plus size={13} />
             Karyawan
           </Link>
@@ -173,7 +173,7 @@ export default function CompanyDetailPage() {
           <div className="relative">
             <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-700" />
             <input type="text" placeholder="Cari..." value={search} onChange={e => setSearch(e.target.value)}
-              className="pl-7 pr-3 py-1.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded text-xs text-zinc-300 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/30 transition-colors w-40" />
+              className="pl-7 pr-3 py-1.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded text-xs text-zinc-300 placeholder:text-zinc-700 outline-none focus:border-[#2563EB]/30 transition-colors w-40" />
           </div>
         </div>
 
@@ -196,7 +196,7 @@ export default function CompanyDetailPage() {
               <tr key={emp.id} onClick={() => router.push(`/companies/${companyId}/employees/${emp.id}`)}
                 className="border-b border-[#131315] hover:bg-[#131315] cursor-pointer transition-colors group">
                 <td className="px-5 py-3.5">
-                  <p className="text-zinc-200 font-bold text-xs uppercase group-hover:text-[#D4AF37] transition-colors">{emp.nama}</p>
+                  <p className="text-zinc-200 font-bold text-xs uppercase group-hover:text-[#2563EB] transition-colors">{emp.nama}</p>
                   <p className="text-zinc-700 text-[10px]">#{emp.nik}</p>
                 </td>
                 <td className="px-5 py-3.5">
@@ -246,7 +246,7 @@ export default function CompanyDetailPage() {
                 <button type="button" onClick={() => setShowEdit(false)}
                   className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
                 <button type="submit" disabled={saving}
-                  className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+                  className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
                   <Save size={13} />
                   {saving ? 'Menyimpan...' : 'Simpan'}
                 </button>

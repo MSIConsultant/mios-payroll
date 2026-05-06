@@ -30,7 +30,7 @@ function SF({ label, name, children, defaultValue }: { label: string; name: stri
       <select name={name} defaultValue={defaultValue}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }}>
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }}>
         {children}
       </select>
     </div>
@@ -45,7 +45,7 @@ function TF({ label, name, defaultValue }: { label: string; name: string; defaul
       <input name={name} type="text" defaultValue={defaultValue}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -54,7 +54,7 @@ function Chk({ name, label, defaultChecked }: { name: string; label: string; def
   return (
     <label className="flex items-center gap-3 cursor-pointer group">
       <input type="checkbox" name={name} checked={checked} onChange={e => setChecked(e.target.checked)}
-        className="w-4 h-4 rounded border-zinc-700 bg-[#0D0D0F] text-[#D4AF37] focus:ring-0 cursor-pointer" />
+        className="w-4 h-4 rounded border-zinc-700 bg-[#0D0D0F] text-[#2563EB] focus:ring-0 cursor-pointer" />
       <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors uppercase tracking-widest font-bold">{label}</span>
     </label>
   );
@@ -205,7 +205,7 @@ export default function EmployeeDetailPage() {
             Hapus
           </button>
           <button onClick={() => setShowEditModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
             <Edit2 size={13} />
             Edit
           </button>
@@ -248,7 +248,7 @@ export default function EmployeeDetailPage() {
             <div className="mt-3 pt-3 border-t border-[#1A1A1C]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest">Est. Total Bruto</span>
-                <span className="text-xl font-bold text-[#D4AF37] font-mono">
+                <span className="text-xl font-bold text-[#2563EB] font-mono">
                   {formatRupiah(
                     employee.gaji_pokok + (employee.benefit ?? 0) + (employee.kendaraan ?? 0) +
                     (employee.pulsa ?? 0) + (employee.operasional ?? 0) + (employee.tunj_lain ?? 0)
@@ -284,7 +284,7 @@ export default function EmployeeDetailPage() {
           <div className="px-5 py-3.5 border-b border-[#1A1A1C] flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">THR · Bonus · Potongan</span>
             <button onClick={() => setShowEventModal(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#D4AF37] text-[#0A0A0B] rounded text-[10px] font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#2563EB] text-[#0A0A0B] rounded text-[10px] font-bold uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
               <Plus size={11} />
               Tambah
             </button>
@@ -348,7 +348,7 @@ export default function EmployeeDetailPage() {
                 className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < payrollHistory.length-1 ? 'border-b border-[#131315]' : ''}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-zinc-300">
-                    <span className="text-[#D4AF37]">$</span>{' '}
+                    <span className="text-[#2563EB]">$</span>{' '}
                     <span className="font-bold">{run ? `${BULAN_NAMES[run.bulan-1]} ${run.tahun}` : '—'}</span>
                   </span>
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
@@ -476,7 +476,7 @@ export default function EmployeeDetailPage() {
                 <button type="button" onClick={() => setShowEditModal(false)}
                   className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
                 <button type="submit" disabled={isSaving}
-                  className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+                  className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
                   <Save size={13} />
                   {isSaving ? 'Menyimpan...' : 'Simpan Semua Perubahan'}
                 </button>
@@ -501,12 +501,12 @@ export default function EmployeeDetailPage() {
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Tahun</label>
                   <input name="tahun" type="number" defaultValue={new Date().getFullYear()}
-                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 font-mono" />
+                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40 font-mono" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Bulan</label>
                   <select name="bulan" defaultValue={new Date().getMonth()+1}
-                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
+                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40">
                     {BULAN_NAMES.map((b,i) => <option key={i} value={i+1}>{b}</option>)}
                   </select>
                 </div>
@@ -514,7 +514,7 @@ export default function EmployeeDetailPage() {
               <div>
                 <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Tipe Variasi</label>
                 <select name="tipe"
-                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
+                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40">
                   <option value="thr">THR</option>
                   <option value="bonus">Bonus</option>
                   <option value="benefit_extra">Extra Benefit (Taxable)</option>
@@ -527,10 +527,10 @@ export default function EmployeeDetailPage() {
               <div>
                 <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Keterangan</label>
                 <textarea name="keterangan" rows={2}
-                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 resize-none" />
+                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40 resize-none" />
               </div>
               <button type="submit"
-                className="w-full bg-[#D4AF37] text-[#0A0A0B] py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+                className="w-full bg-[#2563EB] text-[#0A0A0B] py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
                 Simpan Variasi
               </button>
             </form>

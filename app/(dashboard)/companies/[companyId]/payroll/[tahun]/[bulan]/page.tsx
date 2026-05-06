@@ -221,7 +221,7 @@ export default function PayrollRunPage() {
           {isCalculated && (
             <button
               onClick={() => exportSPTMasa(results, company, employees, Number(bulan), Number(tahun))}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-[#2563EB] hover:border-[#2563EB]/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
               <Download size={13} />
               Export SPT
             </button>
@@ -230,7 +230,7 @@ export default function PayrollRunPage() {
             calcProgress.total > 0 ? (
               <div className="flex items-center gap-3 px-4 py-2 bg-[#111113] border border-[#1A1A1C] rounded-lg">
                 <div className="w-24 h-1 bg-[#1A1A1C] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#D4AF37] rounded-full transition-all duration-150"
+                  <div className="h-full bg-[#2563EB] rounded-full transition-all duration-150"
                     style={{ width: `${(calcProgress.current / calcProgress.total) * 100}%` }} />
                 </div>
                 <span className="text-[11px] text-zinc-500 font-mono">{calcProgress.current}/{calcProgress.total}</span>
@@ -245,7 +245,7 @@ export default function PayrollRunPage() {
           )}
           {isCalculated && !isLocked && (
             <button onClick={handleSave} disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
               <Save size={13} />
               {saving ? 'Menyimpan...' : 'Simpan'}
             </button>
@@ -307,7 +307,7 @@ export default function PayrollRunPage() {
           <p className="text-sm text-zinc-500 mb-1">Belum dihitung</p>
           <p className="text-xs text-zinc-700 mb-6">{employees.length} karyawan aktif siap diproses</p>
           <button onClick={handleCalculate}
-            className="px-8 py-3 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+            className="px-8 py-3 bg-[#2563EB] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
             Mulai Kalkulasi
           </button>
         </div>
@@ -325,7 +325,7 @@ export default function PayrollRunPage() {
                 {/* Employee header */}
                 <div className="px-5 py-3 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-[#D4AF37] text-sm">$</span>
+                    <span className="text-[#2563EB] text-sm">$</span>
                     <span className="text-sm font-bold text-zinc-200 uppercase tracking-wide">{res.employee_name}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -346,7 +346,7 @@ export default function PayrollRunPage() {
                     <button
                       onClick={() => printSlipGaji(res, company, Number(bulan), Number(tahun))}
                       title="Cetak Slip Gaji"
-                      className="p-1.5 text-zinc-700 hover:text-[#D4AF37] transition-colors border border-transparent hover:border-[#D4AF37]/30 rounded">
+                      className="p-1.5 text-zinc-700 hover:text-[#2563EB] transition-colors border border-transparent hover:border-[#2563EB]/30 rounded">
                       <Printer size={12} />
                     </button>
                   </div>

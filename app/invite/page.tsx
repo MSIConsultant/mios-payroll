@@ -51,14 +51,14 @@ function InvitePage() {
     <div className="min-h-screen bg-[#080809] flex items-center justify-center p-4 relative overflow-hidden">
       <div className="animate-scanline absolute inset-0 w-full h-8 bg-white/[0.02] pointer-events-none z-0" />
       <div className="absolute inset-0 z-0" style={{
-        backgroundImage: 'linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }} />
 
       <div className="relative z-10 w-full max-w-sm animate-fade-in-up">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-[#D4AF37] rounded mb-4"
-            style={{ boxShadow: '0 0 40px rgba(212,175,55,0.3)' }}>
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-[#2563EB] rounded mb-4"
+            style={{ boxShadow: '0 0 40px rgba(37,99,235,0.3)' }}>
             <span className="text-[#0A0A0B] font-black text-xl">M</span>
           </div>
           <p className="text-[11px] text-zinc-600 uppercase tracking-widest font-mono">MIOS Payroll · Undangan Workspace</p>
@@ -71,13 +71,13 @@ function InvitePage() {
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
             <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
             <span className="ml-3 text-[10px] text-zinc-700 font-mono uppercase tracking-widest">workspace.invite</span>
-            <span className="ml-1 text-[#D4AF37] animate-blink font-mono text-xs">_</span>
+            <span className="ml-1 text-[#2563EB] animate-blink font-mono text-xs">_</span>
           </div>
 
           <div className="p-6 font-mono">
             {status === 'loading' && (
               <div className="text-center py-4">
-                <div className="w-5 h-5 border border-zinc-700 border-t-[#D4AF37] rounded-full animate-spin mx-auto mb-3" />
+                <div className="w-5 h-5 border border-zinc-700 border-t-[#2563EB] rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-xs text-zinc-600">Memverifikasi undangan...</p>
               </div>
             )}
@@ -118,7 +118,7 @@ function InvitePage() {
                   <div className="space-y-2">
                     <p className="text-[11px] text-zinc-600">Login atau daftar untuk menerima undangan ini.</p>
                     <Link href={`/login?next=/invite?token=${token}`}
-                      className="flex items-center justify-center w-full py-2.5 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+                      className="flex items-center justify-center w-full py-2.5 bg-[#2563EB] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
                       $ login →
                     </Link>
                     <Link href={`/register`}
@@ -128,7 +128,7 @@ function InvitePage() {
                   </div>
                 ) : user.email === invite?.invited_email ? (
                   <button onClick={handleAccept}
-                    className="w-full py-3 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors relative overflow-hidden group">
+                    className="w-full py-3 bg-[#2563EB] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors relative overflow-hidden group">
                     <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
                       style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)' }} />
                     $ terima undangan →
@@ -144,7 +144,7 @@ function InvitePage() {
 
             {status === 'accepting' && (
               <div className="text-center py-4 space-y-3">
-                <div className="w-5 h-5 border border-zinc-700 border-t-[#D4AF37] rounded-full animate-spin mx-auto" />
+                <div className="w-5 h-5 border border-zinc-700 border-t-[#2563EB] rounded-full animate-spin mx-auto" />
                 <p className="text-xs text-zinc-500">Memproses...</p>
               </div>
             )}
@@ -155,7 +155,7 @@ function InvitePage() {
                   <span className="text-green-400 text-lg">✓</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-100">Berhasil bergabung!</p>
-                <p className="text-xs text-zinc-600">Mengalihkan ke dashboard <span className="text-[#D4AF37]">{wsName}</span>...</p>
+                <p className="text-xs text-zinc-600">Mengalihkan ke dashboard <span className="text-[#2563EB]">{wsName}</span>...</p>
               </div>
             )}
 

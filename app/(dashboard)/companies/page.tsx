@@ -114,8 +114,8 @@ export default function CompaniesPage() {
           </p>
         </div>
         <Link href="/companies/new"
-          className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-4 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors relative overflow-hidden group"
-          style={{ boxShadow: '0 0 20px rgba(212,175,55,0.2)' }}>
+          className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-4 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors relative overflow-hidden group"
+          style={{ boxShadow: '0 0 20px rgba(37,99,235,0.2)' }}>
           <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"
             style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)' }} />
           <Plus size={13} />
@@ -134,7 +134,7 @@ export default function CompaniesPage() {
             <button key={s.key}
               onClick={() => setFilterStatus(filterStatus === s.key as RunStatus ? 'all' : s.key as RunStatus)}
               className={`border rounded-lg px-4 py-3 text-left transition-all ${s.color} ${
-                filterStatus === s.key ? 'ring-1 ring-[#D4AF37]/40' : 'hover:border-zinc-600'
+                filterStatus === s.key ? 'ring-1 ring-[#2563EB]/40' : 'hover:border-zinc-600'
               }`}>
               <p className="text-3xl font-black font-mono text-zinc-100">{s.count}</p>
               <p className="text-[10px] uppercase tracking-widest font-mono text-zinc-600 mt-1">{s.label}</p>
@@ -148,7 +148,7 @@ export default function CompaniesPage() {
         <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-700" />
         <input type="text" placeholder="$ cari perusahaan..." value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full pl-8 pr-4 py-2.5 bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg text-sm text-zinc-300 placeholder:text-zinc-800 outline-none focus:border-[#D4AF37]/30 transition-colors font-mono" />
+          className="w-full pl-8 pr-4 py-2.5 bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg text-sm text-zinc-300 placeholder:text-zinc-800 outline-none focus:border-[#2563EB]/30 transition-colors font-mono" />
       </div>
 
       {/* Company list */}
@@ -160,7 +160,7 @@ export default function CompaniesPage() {
         <div className="bg-[#0A0A0B] border border-dashed border-[#1A1A1C] rounded-lg p-16 text-center">
           <p className="text-xs text-zinc-700 font-mono">$ tidak ada hasil</p>
           {companies.length === 0 && (
-            <Link href="/companies/new" className="mt-3 inline-block text-xs text-[#D4AF37] hover:underline font-mono">
+            <Link href="/companies/new" className="mt-3 inline-block text-xs text-[#2563EB] hover:underline font-mono">
               tambah perusahaan pertama →
             </Link>
           )}

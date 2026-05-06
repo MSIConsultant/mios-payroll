@@ -16,7 +16,7 @@ function TF({ label, name, placeholder, required }: { label: string; name: strin
       <input name={name} type="text" required={required} placeholder={placeholder}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
+        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -64,12 +64,12 @@ export default function NewCompanyPage() {
           <div>
             <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Alamat</label>
             <textarea name="alamat" rows={2} placeholder="Alamat lengkap kantor..."
-              className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/40 transition-colors resize-none font-mono" />
+              className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#2563EB]/40 transition-colors resize-none font-mono" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Link href="/companies" className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</Link>
             <button type="submit" disabled={loading || !workspace}
-              className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+              className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
               <Save size={13} />
               {loading ? 'Menyimpan...' : 'Simpan'}
             </button>

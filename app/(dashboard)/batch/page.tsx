@@ -190,7 +190,7 @@ export default function BatchPage() {
           <button key={key} onClick={() => setFilter(key as any)}
             className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest font-mono transition-all border ${
               filter === key
-                ? 'bg-[#1A1A1C] border-[#D4AF37]/40 text-zinc-100'
+                ? 'bg-[#1A1A1C] border-[#2563EB]/40 text-zinc-100'
                 : 'bg-[#0A0A0B] border-[#1A1A1C] text-zinc-600 hover:text-zinc-400'
             }`}>
             {label} <span className="ml-1 opacity-60">{count}</span>
@@ -268,7 +268,7 @@ export default function BatchPage() {
                     href={`/companies/${co.id}/payroll/${tahunIni}/${bulanIni}`}
                     className={`ml-4 shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest font-mono transition-all ${
                       status === 'none' || status === 'draft'
-                        ? 'bg-[#D4AF37] text-[#0A0A0B] hover:bg-[#c9a32e]'
+                        ? 'bg-[#2563EB] text-[#0A0A0B] hover:bg-[#1D4ED8]'
                         : status === 'calculated'
                         ? 'bg-[#111113] border border-sky-900/40 text-sky-400 hover:border-sky-700/60'
                         : 'bg-[#111113] border border-[#1A1A1C] text-zinc-600 hover:text-zinc-400'

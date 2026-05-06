@@ -207,13 +207,13 @@ export default async function DashboardPage() {
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
             <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
             <span className="ml-3 text-[10px] text-zinc-800 uppercase tracking-widest">payroll.log</span>
-            <span className="ml-1 text-[#D4AF37] animate-blink text-xs">_</span>
+            <span className="ml-1 text-[#2563EB] animate-blink text-xs">_</span>
           </div>
 
           {(recentRuns ?? []).length === 0 ? (
             <div className="px-5 py-10 text-xs text-zinc-800">
               $ belum ada run.{' '}
-              <Link href="/companies" className="text-[#D4AF37] hover:underline">mulai dari sini →</Link>
+              <Link href="/companies" className="text-[#2563EB] hover:underline">mulai dari sini →</Link>
             </div>
           ) : (recentRuns ?? []).map((run, i) => {
             const t = totalsMap[run.id];
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
                 style={{ animationDelay: `${i * 0.03}s`, opacity: 0 }}>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs text-zinc-400">
-                    <span className="text-[#D4AF37]">$</span>{' '}
+                    <span className="text-[#2563EB]">$</span>{' '}
                     <span className="font-bold text-zinc-200">{co?.name ?? '—'}</span>
                     <span className="text-zinc-700"> ── {BULAN_SHORT[run.bulan]} {run.tahun}</span>
                   </span>

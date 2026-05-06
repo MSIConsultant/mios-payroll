@@ -227,12 +227,12 @@ export default function ImportEmployeesPage() {
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
           className={`border-2 border-dashed rounded-lg p-16 text-center transition-all ${
-            dragOver ? 'border-[#D4AF37]/60 bg-[#D4AF37]/5' : 'border-[#1A1A1C] bg-[#0A0A0B]'
+            dragOver ? 'border-[#2563EB]/60 bg-[#2563EB]/5' : 'border-[#1A1A1C] bg-[#0A0A0B]'
           }`}>
           <FileSpreadsheet size={32} className="mx-auto text-zinc-700 mb-4" />
           <p className="text-sm font-bold text-zinc-400 mb-2 font-mono">Drag & drop file Excel Anda di sini</p>
           <p className="text-[11px] text-zinc-700 font-mono mb-6">Format: Grossup_PPh_21_*.xlsx · Sheet: SALARY</p>
-          <label className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors cursor-pointer">
+          <label className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors cursor-pointer">
             <Upload size={13} />
             Pilih File
             <input type="file" accept=".xlsx,.xls" className="hidden"
@@ -263,7 +263,7 @@ export default function ImportEmployeesPage() {
           {/* File info + actions */}
           <div className="flex items-center justify-between bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg px-5 py-3">
             <div className="flex items-center gap-3">
-              <FileSpreadsheet size={14} className="text-[#D4AF37]" />
+              <FileSpreadsheet size={14} className="text-[#2563EB]" />
               <p className="text-[11px] text-zinc-400 font-mono">{fileName}</p>
             </div>
             <div className="flex gap-3">
@@ -274,7 +274,7 @@ export default function ImportEmployeesPage() {
                   onChange={e => { const f = e.target.files?.[0]; if (f) { setEmployees([]); setTimeout(() => processFile(f), 50); } }} />
               </label>
               <button onClick={handleImport} disabled={importing || validCount === 0}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
+                className="inline-flex items-center gap-2 px-5 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
                 {importing ? (
                   <><Loader2 size={12} className="animate-spin" />{imported}/{validCount}</>
                 ) : (
