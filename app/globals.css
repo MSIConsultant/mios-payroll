@@ -1,15 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 :root {
   /* MSI Brand */
   --mios-red:    #E02020;
   --mios-blue:   #1B4FA8;
   --mios-green:  #2DB44A;
 
-  /* Accent — brighter blue for UI */
-  --accent:      #2563EB;
+  /* Accent */
+  --accent:       #2563EB;
   --accent-light: #3B82F6;
-  --accent-glow: rgba(37,99,235,0.2);
+  --accent-glow:  rgba(37,99,235,0.2);
 
   /* Backgrounds */
   --bg-base:    #0C0C0E;
@@ -18,14 +16,14 @@
   --bg-sidebar: #09090B;
 
   /* Borders */
-  --border:        #1C1C1F;
-  --border-subtle: #141416;
+  --border:         #1C1C1F;
+  --border-subtle:  #141416;
 
   /* Semantic */
-  --green:  #22C55E;
-  --amber:  #F59E0B;
-  --red:    #EF4444;
-  --sky:    #38BDF8;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --red:   #EF4444;
+  --sky:   #38BDF8;
 }
 
 /* Base */
@@ -38,7 +36,7 @@ html {
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
   background: var(--bg-base);
   color: #E4E4E7;
   line-height: 1.6;
@@ -50,9 +48,9 @@ body {
   font-size: 13px;
 }
 
-/* Input / select — always readable */
+/* Inputs */
 input, select, textarea {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
   font-size: 14px;
 }
 
@@ -60,7 +58,7 @@ input, select, textarea {
 td { font-size: 13.5px; }
 th { font-size: 11px; }
 
-/* Animations */
+/* ── Animations ── */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -80,7 +78,7 @@ th { font-size: 11px; }
 @keyframes glitch {
   0%,100% { text-shadow: none; }
   20%     { text-shadow: -2px 0 #E02020; }
-  40%     { text-shadow: 2px 0 #1B4FA8; }
+  40%     { text-shadow:  2px 0 #1B4FA8; }
   70%     { text-shadow: -1px 0 #2DB44A; }
 }
 @keyframes spin {
@@ -97,21 +95,19 @@ th { font-size: 11px; }
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-@keyframes countUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
-.animate-fade-in-up  { animation: fadeInUp 0.45s cubic-bezier(.16,1,.3,1) forwards; }
-.animate-fade-in     { animation: fadeIn 0.3s ease forwards; }
-.animate-blink       { animation: blink 1.2s step-end infinite; }
-.animate-scanline    { animation: scanline 5s linear infinite; }
-.animate-glitch      { animation: glitch 4s infinite; }
-.animate-slide-left  { animation: slideInLeft 0.35s ease forwards; }
-.animate-spin        { animation: spin 1s linear infinite; }
-.animate-ping        { animation: ping 1s cubic-bezier(0,0,.2,1) infinite; }
-.animate-pulse       { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+/* Animation classes */
+.animate-fade-in-up { animation: fadeInUp 0.45s cubic-bezier(.16,1,.3,1) forwards; }
+.animate-fade-in    { animation: fadeIn 0.3s ease forwards; }
+.animate-blink      { animation: blink 1.2s step-end infinite; }
+.animate-scanline   { animation: scanline 5s linear infinite; }
+.animate-glitch     { animation: glitch 4s infinite; }
+.animate-slide-left { animation: slideInLeft 0.35s ease forwards; }
+.animate-spin       { animation: spin 1s linear infinite; }
+.animate-ping       { animation: ping 1s cubic-bezier(0,0,.2,1) infinite; }
+.animate-pulse      { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
 
+/* Stagger delays */
 .stagger-1 { animation-delay: 0.05s; opacity: 0; }
 .stagger-2 { animation-delay: 0.10s; opacity: 0; }
 .stagger-3 { animation-delay: 0.15s; opacity: 0; }
@@ -119,7 +115,7 @@ th { font-size: 11px; }
 .stagger-5 { animation-delay: 0.25s; opacity: 0; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2A2A2E; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #3A3A3E; }
