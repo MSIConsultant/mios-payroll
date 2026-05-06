@@ -32,9 +32,14 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Larger readable subtitles */
+p, span, label, td, th, a {
+  line-height: 1.6;
 }
 
 body {
