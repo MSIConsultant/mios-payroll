@@ -12,6 +12,9 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'MIOS Payroll',
   description: 'Indonesian Payroll Management for Accounting Professionals',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
