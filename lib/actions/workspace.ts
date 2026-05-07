@@ -14,13 +14,8 @@ async function logActivity(
 ) {
   const { data: { user } } = await supabase.auth.getUser();
   await supabase.from('workspace_activity').insert({
-    workspace_id,
-    user_id: user?.id,
-    user_email: user?.email,
-    action,
-    entity_type,
-    entity_name,
-    metadata: metadata ?? {},
+    workspace_id, user_id: user?.id, user_email: user?.email,
+    action, entity_type, entity_name, metadata: metadata ?? {},
   });
 }
 
@@ -35,27 +30,19 @@ export async function createWorkspace(formData: FormData) {
   const { data, error } = await supabase.rpc('create_workspace_for_user', {
     p_name: name,
     p_owner_id: user.id,
+    p_owner_email: user.email,
   });
-
   if (error) return { error: error.message };
 
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
+
 export async function sendInvite(workspaceId: string, invitedEmail: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  // Check already a member
-  const { data: existing } = await supabase.from('workspace_members')
-    .select('id').eq('workspace_id', workspaceId)
-    .eq('user_id', (
-      await supabase.from('workspace_members').select('user_id')
-        .eq('workspace_id', workspaceId)
-    ).data?.map(m => m.user_id)[0] ?? '');
-
-  // Check pending invite
   const { data: pendingInvite } = await supabase.from('workspace_invitations')
     .select('id').eq('workspace_id', workspaceId)
     .eq('invited_email', invitedEmail).is('accepted_at', null).single();
@@ -65,16 +52,13 @@ export async function sendInvite(workspaceId: string, invitedEmail: string) {
   const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await supabase.from('workspace_invitations').insert({
-    workspace_id: workspaceId,
-    invited_email: invitedEmail,
-    token,
-    invited_by: user.id,
-    role: 'member',
-    expires_at,
+    workspace_id: workspaceId, invited_email: invitedEmail,
+    token, invited_by: user.id, role: 'member', expires_at,
   });
   if (error) return { error: error.message };
 
-  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', invitedEmail, { invited_by: user.email });
+  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', invitedEmail,
+    { invited_by: user.email });
 
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://mios-payroll-v5.vercel.app'}/invite?token=${token}`;
   return { success: true, inviteUrl, token };
@@ -93,20 +77,20 @@ export async function acceptInvite(token: string) {
   if (new Date(invite.expires_at) < new Date()) return { error: 'Undangan sudah kadaluarsa.' };
   if (invite.invited_email !== user.email) return { error: 'Undangan ini bukan untuk akun Anda.' };
 
-  // Add to workspace_members
   const { error: memErr } = await supabase.from('workspace_members').insert({
     workspace_id: invite.workspace_id,
     user_id: user.id,
+    user_email: user.email,
     role: invite.role,
   });
   if (memErr && !memErr.message.includes('duplicate')) return { error: memErr.message };
 
-  // Mark accepted
   await supabase.from('workspace_invitations')
     .update({ accepted_at: new Date().toISOString() }).eq('id', invite.id);
 
   const wsName = (invite.workspaces as any)?.name ?? 'workspace';
-  await logActivity(supabase, invite.workspace_id, 'MEMBER_JOINED', 'user', user.email, { workspace: wsName });
+  await logActivity(supabase, invite.workspace_id, 'MEMBER_JOINED', 'user',
+    user.email, { workspace: wsName });
 
   revalidatePath('/');
   return { success: true, workspaceId: invite.workspace_id, workspaceName: wsName };
@@ -117,15 +101,16 @@ export async function removeMember(workspaceId: string, userId: string, userEmai
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  // Prevent removing owner
-  const { data: ws } = await supabase.from('workspaces').select('owner_id').eq('id', workspaceId).single();
+  const { data: ws } = await supabase.from('workspaces')
+    .select('owner_id').eq('id', workspaceId).single();
   if (ws?.owner_id === userId) return { error: 'Owner tidak bisa dihapus dari workspace.' };
 
   const { error } = await supabase.from('workspace_members')
     .delete().eq('workspace_id', workspaceId).eq('user_id', userId);
   if (error) return { error: error.message };
 
-  await logActivity(supabase, workspaceId, 'MEMBER_REMOVED', 'user', userEmail, { removed_by: user.email });
+  await logActivity(supabase, workspaceId, 'MEMBER_REMOVED', 'user',
+    userEmail, { removed_by: user.email });
   revalidatePath('/settings');
   return { success: true };
 }
