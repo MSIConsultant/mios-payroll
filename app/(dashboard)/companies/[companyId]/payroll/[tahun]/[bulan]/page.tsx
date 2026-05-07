@@ -16,13 +16,16 @@ const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','A
 const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 const sep = '─'.repeat(40);
 
-function CliRow({ label, value, color, indent }: { label: string; value: string; color?: string; indent?: boolean }) {
+function CliRow({ label, value, color, indent, dim }: {
+  label: string; value: string; color?: string; indent?: boolean; dim?: boolean;
+}) {
   return (
-    <div className="flex justify-between text-[11px] py-[2px]">
-      <span className="font-mono" style={{ color: 'var(--text-muted)', paddingLeft: indent ? 16 : 0 }}>
-        {label.padEnd(24, ' ')}
+    <div className="flex justify-between py-[3px]" style={{ opacity: dim ? 0.5 : 1 }}>
+      <span className="font-mono text-[13px]"
+        style={{ color: 'var(--text-muted)', paddingLeft: indent ? 20 : 0 }}>
+        {label}
       </span>
-      <span className={`font-mono font-bold ${color ?? ''}`}
+      <span className={`font-mono text-[13px] font-bold ${color ?? ''}`}
         style={!color ? { color: 'var(--text-secondary)' } : {}}>
         {value}
       </span>
@@ -30,11 +33,20 @@ function CliRow({ label, value, color, indent }: { label: string; value: string;
   );
 }
 
+function CliLabel({ text }: { text: string }) {
+  return (
+    <div className="pt-2 pb-0.5">
+      <span className="text-[10px] font-bold uppercase tracking-widest font-mono px-1.5 py-0.5 rounded"
+        style={{ color: 'var(--text-muted)', background: 'var(--border-default)' }}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
 function CliSep() {
   return (
-    <div className="text-[11px] font-mono py-[2px]" style={{ color: 'var(--text-ghost)' }}>
-      {sep}
-    </div>
+    <div className="my-1.5 border-t" style={{ borderColor: 'var(--border-subtle)' }} />
   );
 }
 
@@ -492,116 +504,115 @@ export default function PayrollRunPage() {
                 <div className="px-5 py-4">
                   {isTetap ? (
                     <>
-                      {/* Gaji components */}
-                      <CliRow label="gaji_pokok" value={formatRupiah(res.gaji_pokok ?? 0)} />
+                      {/* ── PENDAPATAN ── */}
+                      <CliLabel text="Pendapatan" />
+                      <CliRow label="Gaji Pokok" value={formatRupiah(res.gaji_pokok ?? 0)} />
+                      {(res.benefit    ?? 0) > 0 && <CliRow label="  Benefit / Tunj. Tetap" value={formatRupiah(res.benefit)}    indent />}
+                      {(res.kendaraan  ?? 0) > 0 && <CliRow label="  Tunjangan Kendaraan"   value={formatRupiah(res.kendaraan)}  indent />}
+                      {(res.pulsa      ?? 0) > 0 && <CliRow label="  Tunjangan Pulsa"       value={formatRupiah(res.pulsa)}      indent />}
+                      {(res.operasional?? 0) > 0 && <CliRow label="  Tunjangan Operasional" value={formatRupiah(res.operasional)}indent />}
+                      {(res.tunj_lain  ?? 0) > 0 && <CliRow label="  Tunjangan Lain"        value={formatRupiah(res.tunj_lain)}  indent />}
 
-                      {/* Individual allowances */}
-                      {(res.benefit ?? 0) > 0 &&
-                        <CliRow label="benefit" value={formatRupiah(res.benefit)} indent />}
-                      {(res.kendaraan ?? 0) > 0 &&
-                        <CliRow label="kendaraan" value={formatRupiah(res.kendaraan)} indent />}
-                      {(res.pulsa ?? 0) > 0 &&
-                        <CliRow label="pulsa" value={formatRupiah(res.pulsa)} indent />}
-                      {(res.operasional ?? 0) > 0 &&
-                        <CliRow label="operasional" value={formatRupiah(res.operasional)} indent />}
-                      {(res.tunj_lain ?? 0) > 0 &&
-                        <CliRow label="tunj_lain" value={formatRupiah(res.tunj_lain)} indent />}
-
-                      {/* BPJS breakdown — toggle */}
+                      {/* ── BPJS IN BRUTO ── */}
                       {(bpjsInBruto + bpjsTunj) > 0 && (
                         <>
-                          <button
-                            onClick={() => toggleRow(i)}
-                            className="flex items-center gap-2 mt-1 mb-0.5 text-[10px] transition-colors"
-                            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                            {isExpanded
-                              ? <ChevronDown size={10} />
-                              : <ChevronRight size={10} />
-                            }
-                            <span className="uppercase tracking-widest">
-                              bpjs in bruto (+{formatRupiah(bpjsInBruto + bpjsTunj)})
-                            </span>
-                          </button>
-
-                          {isExpanded && (
-                            <div className="pl-4 mb-1 space-y-0">
-                              {bpjsJKK > 0 &&
-                                <CliRow label="  jkk (employer)" value={formatRupiah(bpjsJKK)} indent />}
-                              {bpjsJKM > 0 &&
-                                <CliRow label="  jkm (employer)" value={formatRupiah(bpjsJKM)} indent />}
-                              {bpjsKesE > 0 &&
-                                <CliRow label="  kes 4% (employer)" value={formatRupiah(bpjsKesE)} indent />}
-                              {bpjsTunjJHT > 0 &&
-                                <CliRow label="  jht_k (tunj co.)" value={formatRupiah(bpjsTunjJHT)} indent />}
-                              {bpjsTunjJP > 0 &&
-                                <CliRow label="  jp_k (tunj co.)" value={formatRupiah(bpjsTunjJP)} indent />}
-                              {bpjsTunjKes > 0 &&
-                                <CliRow label="  kes_k (tunj co.)" value={formatRupiah(bpjsTunjKes)} indent />}
-                            </div>
-                          )}
+                          <CliLabel text="BPJS Masuk Bruto" />
+                          {bpjsJKK  > 0 && <CliRow label="  JKK Employer"       value={formatRupiah(bpjsJKK)}    indent />}
+                          {bpjsJKM  > 0 && <CliRow label="  JKM Employer"       value={formatRupiah(bpjsJKM)}    indent />}
+                          {bpjsKesE > 0 && <CliRow label="  Kesehatan 4% (Emp)" value={formatRupiah(bpjsKesE)}   indent />}
+                          {bpjsTunjJHT > 0 && <CliRow label="  JHT Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjJHT)} indent />}
+                          {bpjsTunjJP  > 0 && <CliRow label="  JP Karyawan (Co. Tanggung)"  value={formatRupiah(bpjsTunjJP)}  indent />}
+                          {bpjsTunjKes > 0 && <CliRow label="  Kes Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjKes)} indent />}
                         </>
                       )}
 
-                      {res.pph_ditanggung && (res.tunj_pph ?? 0) > 0 &&
-                        <CliRow label="tunj_pph (grossup)" value={formatRupiah(res.tunj_pph ?? 0)} color="text-amber-400" indent />}
+                      {/* ── GROSSUP ── */}
+                      {res.pph_ditanggung && (res.tunj_pph ?? 0) > 0 && (
+                        <>
+                          <CliLabel text="PPh Grossup" />
+                          <CliRow label="  Tunjangan PPh 21 (Co. Tanggung)"
+                            value={formatRupiah(res.tunj_pph ?? 0)} color="text-amber-400" indent />
+                        </>
+                      )}
 
                       <CliSep />
-                      <CliRow label="BRUTO" value={formatRupiah(res.bruto ?? 0)} color="text-[--text-primary]" />
-                      <CliRow label="ter_rate"
+                      <CliRow label="BRUTO" value={formatRupiah(res.bruto ?? 0)}
+                        color="text-[14px] font-bold" />
+                      <CliRow label="TER Rate"
                         value={res.ter != null ? `${(res.ter * 100).toFixed(2)}%` : 'Pasal 17 ✓'} />
-                      <CliRow label="pph21" value={formatRupiah(res.pph ?? 0)} color="text-amber-400" />
+                      <CliRow label="PPh 21" value={formatRupiah(res.pph ?? 0)} color="text-amber-400" />
 
-                      {bpjsK > 0 && (
-                        <>
-                          <CliSep />
-                          <CliRow label="bpjs_karyawan (pot.)" value={formatRupiah(bpjsK)} color="text-red-400" />
-                          {bpjsEmp > 0 &&
-                            <CliRow label="bpjs_employer (total)" value={formatRupiah(bpjsEmp)}
-                              color="text-[--text-ghost]" />}
-                        </>
-                      )}
-
+                      {/* ── THR / BONUS ── */}
                       {(res.thr_nominal > 0 || res.bonus_nominal > 0) && (
                         <>
-                          <CliSep />
+                          <CliLabel text="THR / Bonus (Selisih Pasal 17)" />
                           {res.thr_nominal > 0 && (
-                            <div className="flex justify-between text-[11px] py-[2px]">
-                              <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
-                                {'thr'.padEnd(24, ' ')}
-                              </span>
-                              <span className="font-mono text-xs">
-                                <span className="text-amber-400">
-                                  nominal {formatRupiah(res.thr_nominal)}
-                                </span>
-                                <span style={{ color: 'var(--text-ghost)' }}>
-                                  {' '}· pph {formatRupiah(res.thr_pph ?? 0)}
-                                </span>
-                                <span className="text-green-400">
-                                  {' '}· net {formatRupiah(res.thr_thp ?? 0)}
-                                </span>
-                              </span>
-                            </div>
+                            <>
+                              <CliRow label="  THR Nominal"    value={formatRupiah(res.thr_nominal)} indent />
+                              <CliRow label="  PPh THR"        value={formatRupiah(res.thr_pph ?? 0)} color="text-amber-400" indent />
+                              <CliRow label="  THR Net"        value={formatRupiah(res.thr_thp ?? 0)} color="text-green-400" indent />
+                            </>
                           )}
                           {res.bonus_nominal > 0 && (
-                            <div className="flex justify-between text-[11px] py-[2px]">
-                              <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
-                                {'bonus'.padEnd(24, ' ')}
-                              </span>
-                              <span className="font-mono text-xs">
-                                <span className="text-amber-400">
-                                  nominal {formatRupiah(res.bonus_nominal)}
-                                </span>
-                                <span style={{ color: 'var(--text-ghost)' }}>
-                                  {' '}· pph {formatRupiah(res.bonus_pph ?? 0)}
-                                </span>
-                                <span className="text-green-400">
-                                  {' '}· net {formatRupiah(res.bonus_thp ?? 0)}
-                                </span>
-                              </span>
-                            </div>
+                            <>
+                              <CliRow label="  Bonus Nominal"  value={formatRupiah(res.bonus_nominal)} indent />
+                              <CliRow label="  PPh Bonus"      value={formatRupiah(res.bonus_pph ?? 0)} color="text-amber-400" indent />
+                              <CliRow label="  Bonus Net"      value={formatRupiah(res.bonus_thp ?? 0)} color="text-green-400" indent />
+                            </>
                           )}
                         </>
                       )}
+
+                      {/* ── POTONGAN ── */}
+                      {(bpjsK > 0 || !res.pph_ditanggung || (res.kasbon ?? 0) > 0 || (res.alpha_telat ?? 0) > 0 || (res.pot_lain ?? 0) > 0) && (
+                        <>
+                          <CliLabel text="Potongan" />
+                          {!res.pph_ditanggung && (res.pph ?? 0) > 0 &&
+                            <CliRow label="  PPh 21 Dipotong"   value={`− ${formatRupiah(res.pph ?? 0)}`}   color="text-red-400" indent />}
+                          {(res.bpjs?.pot_jht ?? 0) > 0 &&
+                            <CliRow label="  JHT Karyawan 2%"   value={`− ${formatRupiah(res.bpjs.pot_jht)}`} color="text-red-400" indent />}
+                          {(res.bpjs?.pot_jp  ?? 0) > 0 &&
+                            <CliRow label="  JP Karyawan 1%"    value={`− ${formatRupiah(res.bpjs.pot_jp)}`}  color="text-red-400" indent />}
+                          {(res.bpjs?.pot_kes ?? 0) > 0 &&
+                            <CliRow label="  Kesehatan Karyawan" value={`− ${formatRupiah(res.bpjs.pot_kes)}`} color="text-red-400" indent />}
+                          {(res.kasbon      ?? 0) > 0 &&
+                            <CliRow label="  Kasbon"             value={`− ${formatRupiah(res.kasbon)}`}      color="text-red-400" indent />}
+                          {(res.alpha_telat ?? 0) > 0 &&
+                            <CliRow label="  Potongan Alpha/Telat" value={`− ${formatRupiah(res.alpha_telat)}`} color="text-red-400" indent />}
+                          {(res.pot_lain    ?? 0) > 0 &&
+                            <CliRow label="  Potongan Lain"      value={`− ${formatRupiah(res.pot_lain)}`}    color="text-red-400" indent />}
+                        </>
+                      )}
+
+                      <CliSep />
+
+                      {/* ── THP ── */}
+                      <CliRow label="TAKE HOME PAY (THP)"
+                        value={formatRupiah(res.thp ?? 0)} color="text-green-400" />
+                      <div className="pl-4 space-y-0">
+                        <CliRow label="  = Gaji Pokok + Tunjangan"
+                          value={formatRupiah((res.gaji_pokok ?? 0) + (res.allowance_total ?? 0))}
+                          indent dim />
+                        {!res.pph_ditanggung && <CliRow label="  − PPh 21 Dipotong"
+                          value={`− ${formatRupiah(res.pph ?? 0)}`} indent dim />}
+                        {bpjsK > 0 && <CliRow label="  − BPJS Karyawan Dipotong"
+                          value={`− ${formatRupiah(bpjsK)}`} indent dim />}
+                      </div>
+
+                      <CliSep />
+
+                      {/* ── CTC ── */}
+                      <CliRow label="COST TO COMPANY (CTC)" value={formatRupiah(ctc)} color="text-sky-400" />
+                      <div className="pl-4 space-y-0">
+                        <CliRow label="  Bruto (incl. grossup)"
+                          value={formatRupiah(res.bruto ?? 0)} indent dim />
+                        {(res.bpjs?.jht_e ?? 0) > 0 &&
+                          <CliRow label="  + JHT Employer 3.7% (offslip)"
+                            value={formatRupiah(res.bpjs.jht_e)} indent dim />}
+                        {(res.bpjs?.jp_e ?? 0) > 0 &&
+                          <CliRow label="  + JP Employer 2% (offslip)"
+                            value={formatRupiah(res.bpjs.jp_e)} indent dim />}
+                      </div>
                     </>
                   ) : (
                     <>
