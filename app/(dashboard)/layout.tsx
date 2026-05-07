@@ -13,8 +13,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const [ready, setReady]         = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('sidebar_collapsed');
-    if (saved === 'true') setCollapsed(true);
+  const saved = localStorage.getItem('sidebar_collapsed');
+  // Only collapse if user explicitly chose it — never collapse on first visit
+  if (saved === 'true') setCollapsed(true);
+  if (saved === null) setCollapsed(false); // first visit = always expanded
     createClient().auth.getUser().then(({ data: { user } }) => {
       if (!user) window.location.href = '/login';
       else { setUser(user); setReady(true); }
