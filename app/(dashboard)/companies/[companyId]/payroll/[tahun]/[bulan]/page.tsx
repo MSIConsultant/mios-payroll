@@ -557,7 +557,7 @@ export default function PayrollRunPage() {
                           <CliRow label="bpjs_karyawan (pot.)" value={formatRupiah(bpjsK)} color="text-red-400" />
                           {bpjsEmp > 0 &&
                             <CliRow label="bpjs_employer (total)" value={formatRupiah(bpjsEmp)}
-                              style={{ color: 'var(--text-ghost)' }} />}
+                              color="text-[--text-ghost]" />}
                         </>
                       )}
 
