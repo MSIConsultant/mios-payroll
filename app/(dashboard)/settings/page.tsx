@@ -55,7 +55,7 @@ export default function SettingsPage() {
     const supabase = createClient();
 
     const [{ data: mems }, { data: invs }, { data: cos }] = await Promise.all([
-      supabase.from('workspace_members').select('*, user:user_id(email)').eq('workspace_id', workspace.id),
+      supabase.from('workspace_members').select('user_id, user_email, role, created_at').eq('workspace_id', workspace.id),
       supabase.from('workspace_invitations').select('*').eq('workspace_id', workspace.id).is('accepted_at', null).gt('expires_at', new Date().toISOString()),
       supabase.from('companies').select('id, name, aktif').eq('workspace_id', workspace.id).order('name'),
     ]);
@@ -193,7 +193,7 @@ export default function SettingsPage() {
             </div>
             <div className="divide-y divide-[#131315]">
               {members.map(m => {
-                const email = (m.user as any)?.email ?? '—';
+                const email = m.user_email ?? '—';
                 const isOwnerMember = m.role === 'owner';
                 return (
                   <div key={m.id} className="px-5 py-3 flex items-center justify-between font-mono">
