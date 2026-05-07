@@ -40,16 +40,25 @@ export function NpwpCompanyInput({ name, defaultValue = '', required, label }:
   { name: string; defaultValue?: string; required?: boolean; label: string }) {
   const [val, setVal] = useState(defaultValue);
   const f = useFocus();
+  const digits = val.replace(/\D/g, '').length;
+  const isValid = digits === 15 || digits === 16;
   return (
     <div>
       <Label text={label} />
       <input type="text" inputMode="numeric" name={name} value={val} required={required}
-        placeholder="00.000.000.0-000.000.0"
+        placeholder="00.000.000.0-000.000"
         onChange={e => setVal(formatNPWPCompany(e.target.value))}
         className={BASE} {...f} />
-      <p className="text-[10px] mt-1 text-zinc-700 font-mono">
-        {val.replace(/\D/g,'').length}/16 digit
-      </p>
+      {digits > 0 && (
+        <p className={`text-[10px] mt-1 font-mono transition-colors ${
+          isValid ? 'text-green-500' : 'text-amber-500'
+        }`}>
+          {isValid
+            ? `✓ ${digits} digit valid`
+            : `${digits}/15-16 digit`
+          }
+        </p>
+      )}
     </div>
   );
 }
