@@ -41,6 +41,7 @@ function parseFields(formData: FormData): Record<string, any> {
 export async function createEmployee(formData: FormData) {
   const supabase = await createClient();
   const fields = parseFields(formData);
+  fields.aktif = true;
   const { error } = await supabase.from('employees').insert(fields);
   if (error) { console.error(error); return { error: error.message }; }
   revalidatePath(`/companies/${fields.company_id}`);
