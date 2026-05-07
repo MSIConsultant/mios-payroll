@@ -10,7 +10,10 @@ export function formatNPWP(raw: string): string {
   return out;
 }
 
-/** NPWP Perusahaan: 16 digits → XX.XXX.XXX.X-XXX.XXX.X */
+/** NPWP Perusahaan: 15 OR 16 digits
+ *  15 → XX.XXX.XXX.X-XXX.XXX
+ *  16 → XX.XXX.XXX.X-XXX.XXX.X
+ */
 export function formatNPWPCompany(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 16);
   let out = '';
