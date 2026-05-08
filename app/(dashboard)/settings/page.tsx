@@ -71,6 +71,24 @@ export default function SettingsPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  const [newWsName, setNewWsName]   = useState('');
+  const [creatingWs, setCreatingWs] = useState(false);
+
+  async function handleCreateWorkspace() {
+    if (!newWsName) return;
+    setCreatingWs(true);
+    const fd = new FormData();
+    fd.append('name', newWsName);
+    const res = await createWorkspace(fd);
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success(`Workspace "${newWsName}" dibuat`);
+      setNewWsName('');
+      window.location.reload(); // refresh to pick up new workspace
+    }
+    setCreatingWs(false);
+  }
   async function handleInvite() {
     if (!workspace || !inviteEmail) return;
     setInviting(true); setInviteError(''); setInviteLink('');
@@ -149,6 +167,44 @@ export default function SettingsPage() {
       {/* MEMBERS TAB */}
       {tab === 'members' && (
         <div className="space-y-4">
+          {/* Create new workspace */}
+          <div className="rounded-lg p-5 mb-4"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Plus size={13} className="text-[#3B82F6]" />
+              <p className="text-[11px] font-bold uppercase tracking-widest"
+                style={{ color: 'var(--text-muted)' }}>
+                Workspace Baru {workspaces.length}/2
+              </p>
+            </div>
+            {workspaces.length >= 2 ? (
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+                Maksimal 2 workspace per akun sudah tercapai.
+              </p>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newWsName}
+                  onChange={e => setNewWsName(e.target.value)}
+                  placeholder="Nama workspace baru..."
+                  onKeyDown={e => e.key === 'Enter' && handleCreateWorkspace()}
+                  className="flex-1 px-3 py-2 rounded-lg text-[13px]"
+                  style={{
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-default)',
+                    color: 'var(--text-primary)',
+                  }} />
+                <button
+                  onClick={handleCreateWorkspace}
+                  disabled={creatingWs || !newWsName}
+                  className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-white disabled:opacity-50 transition-colors"
+                  style={{ background: '#2563EB' }}>
+                  {creatingWs ? '...' : 'Buat'}
+                </button>
+              </div>
+            )}
+          </div>
           {/* Invite form */}
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
