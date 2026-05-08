@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Employee, EmployeeEvent } from '@/lib/types';
 import { ArrowLeft, Edit2, Trash2, X, Plus, Save, PowerOff, Power } from 'lucide-react';
@@ -10,9 +10,10 @@ import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/act
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
 import { toast } from 'sonner';
 
-const BULAN_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const BULAN_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: 'green'|'amber'|'red'|'default' }) {
+// --- UI Components ---
+function Row({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'amber' | 'red' | 'default' }) {
   const colors = { green: 'text-green-400', amber: 'text-amber-400', red: 'text-red-400', default: 'text-zinc-300' };
   return (
     <div className="flex items-center justify-between py-2 border-b border-[#131315] last:border-0">
@@ -49,6 +50,7 @@ function TF({ label, name, defaultValue }: { label: string; name: string; defaul
     </div>
   );
 }
+
 function Chk({ name, label, defaultChecked }: { name: string; label: string; defaultChecked?: boolean }) {
   const [checked, setChecked] = useState(!!defaultChecked);
   return (
@@ -60,19 +62,26 @@ function Chk({ name, label, defaultChecked }: { name: string; label: string; def
   );
 }
 
-export default function EmployeeDetailPage() {
+// --- Main Page Logic ---
+function EmployeeDetailPage() {
   const { companyId, empId } = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const [employee, setEmployee]         = useState<Employee | null>(null);
-  const [events, setEvents]             = useState<EmployeeEvent[]>([]);
+
+  const fromPayroll = searchParams.get('from') === 'payroll';
+  const fromTahun = searchParams.get('tahun');
+  const fromBulan = searchParams.get('bulan');
+
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [events, setEvents] = useState<EmployeeEvent[]>([]);
   const [payrollHistory, setPayrollHistory] = useState<any[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [activeTab, setActiveTab]       = useState('profil');
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('profil');
   const [showEventModal, setShowEventModal] = useState(false);
-  const [showEditModal, setShowEditModal]   = useState(false);
-  const [isDeleting, setIsDeleting]     = useState(false);
-  const [isSaving, setIsSaving]         = useState(false);
-  const [isToggling, setIsToggling]     = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   async function loadEvents() {
     const supabase = createClient();
@@ -162,9 +171,9 @@ export default function EmployeeDetailPage() {
   if (!employee) return <div className="text-zinc-600 text-sm">Karyawan tidak ditemukan.</div>;
 
   const tabs = [
-    { id: 'profil',   label: 'Profil' },
-    { id: 'events',   label: 'Variasi' },
-    { id: 'riwayat',  label: 'Riwayat Payroll' },
+    { id: 'profil', label: 'Profil' },
+    { id: 'events', label: 'Variasi' },
+    { id: 'riwayat', label: 'Riwayat Payroll' },
   ];
 
   return (
@@ -172,30 +181,48 @@ export default function EmployeeDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href={`/companies/${companyId}`}
-            className="w-9 h-9 bg-[#111113] border border-[#1A1A1C] rounded-lg flex items-center justify-center text-zinc-600 hover:text-zinc-200 transition-colors">
-            <ArrowLeft size={15} />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={
+                fromPayroll
+                  ? `/companies/${companyId}/payroll/${fromTahun}/${fromBulan}`
+                  : `/companies/${companyId}`
+              }
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+              style={{ background: '#111113', border: '1px solid #1A1A1C', color: '#52525B' }}
+            >
+              <ArrowLeft size={15} />
+            </Link>
+
+            {fromPayroll && (
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/companies/${companyId}/payroll/${fromTahun}/${fromBulan}`}
+                  className="text-[11px] font-mono transition-colors hover:text-[#3B82F6] text-zinc-500"
+                >
+                  ← Payroll {BULAN_NAMES[Number(fromBulan) - 1]} {fromTahun}
+                </Link>
+                <span className="text-zinc-800">/</span>
+              </div>
+            )}
+          </div>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-zinc-100">{employee.nama}</h1>
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest border ${
-                employee.aktif
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest border ${employee.aktif
                   ? 'bg-green-900/25 text-green-400 border-green-900/40'
                   : 'bg-zinc-800 text-zinc-500 border-zinc-700'
-              }`}>{employee.aktif ? 'Aktif' : 'Non-Aktif'}</span>
+                }`}>{employee.aktif ? 'Aktif' : 'Non-Aktif'}</span>
             </div>
             <p className="text-[11px] text-zinc-600 mt-0.5">{employee.jabatan ?? '—'} · {employee.divisi ?? '—'}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button onClick={handleToggleActive} disabled={isToggling}
-            title={employee.aktif ? 'Nonaktifkan karyawan' : 'Aktifkan karyawan'}
-            className={`inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border rounded-lg text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50 ${
-              employee.aktif
+            className={`inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border rounded-lg text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50 ${employee.aktif
                 ? 'border-amber-900/40 text-amber-500/70 hover:text-amber-400 hover:border-amber-800/60'
                 : 'border-green-900/40 text-green-500/70 hover:text-green-400 hover:border-green-800/60'
-            }`}>
+              }`}>
             {employee.aktif ? <PowerOff size={13} /> : <Power size={13} />}
             {employee.aktif ? 'Nonaktifkan' : 'Aktifkan'}
           </button>
@@ -216,9 +243,8 @@ export default function EmployeeDetailPage() {
       <div className="flex gap-0.5 bg-[#111113] border border-[#1A1A1C] rounded-lg p-1 w-fit">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`px-5 py-2 rounded text-xs font-bold uppercase tracking-widest transition-all ${
-              activeTab === t.id ? 'bg-[#1A1A1C] text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'
-            }`}>{t.label}</button>
+            className={`px-5 py-2 rounded text-xs font-bold uppercase tracking-widest transition-all ${activeTab === t.id ? 'bg-[#1A1A1C] text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'
+              }`}>{t.label}</button>
         ))}
       </div>
 
@@ -227,10 +253,10 @@ export default function EmployeeDetailPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Identitas</p>
-            <Row label="NIK"          value={employee.nik} />
-            <Row label="NPWP"         value={employee.npwp ?? 'Belum Terdaftar'} />
-            <Row label="Status PTKP"  value={employee.status_ptkp} />
-            <Row label="NPWP Valid"   value={employee.punya_npwp ? 'Ya' : 'Tidak (+20%)'}
+            <Row label="NIK" value={employee.nik} />
+            <Row label="NPWP" value={employee.npwp ?? 'Belum Terdaftar'} />
+            <Row label="Status PTKP" value={employee.status_ptkp} />
+            <Row label="NPWP Valid" value={employee.punya_npwp ? 'Ya' : 'Tidak (+20%)'}
               highlight={employee.punya_npwp ? 'green' : 'red'} />
             <Row label="Tanggal Masuk"
               value={employee.tanggal_masuk ? new Date(employee.tanggal_masuk).toLocaleDateString('id-ID') : '—'} />
@@ -238,13 +264,12 @@ export default function EmployeeDetailPage() {
 
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Kompensasi</p>
-            <Row label="gaji_pokok"  value={formatRupiah(employee.gaji_pokok)} highlight="green" />
-            {employee.benefit > 0    && <Row label="benefit"    value={formatRupiah(employee.benefit)} />}
-            {employee.kendaraan > 0  && <Row label="kendaraan"  value={formatRupiah(employee.kendaraan)} />}
-            {employee.pulsa > 0      && <Row label="pulsa"      value={formatRupiah(employee.pulsa)} />}
+            <Row label="gaji_pokok" value={formatRupiah(employee.gaji_pokok)} highlight="green" />
+            {employee.benefit > 0 && <Row label="benefit" value={formatRupiah(employee.benefit)} />}
+            {employee.kendaraan > 0 && <Row label="kendaraan" value={formatRupiah(employee.kendaraan)} />}
+            {employee.pulsa > 0 && <Row label="pulsa" value={formatRupiah(employee.pulsa)} />}
             {employee.operasional > 0 && <Row label="operasional" value={formatRupiah(employee.operasional)} />}
-            {employee.tunj_lain > 0  && <Row label="tunj_lain" value={formatRupiah(employee.tunj_lain)} />}
-            {/* Total */}
+            {employee.tunj_lain > 0 && <Row label="tunj_lain" value={formatRupiah(employee.tunj_lain)} />}
             <div className="mt-3 pt-3 border-t border-[#1A1A1C]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest">Est. Total Bruto</span>
@@ -260,19 +285,19 @@ export default function EmployeeDetailPage() {
 
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">BPJS</p>
-            <Row label="JHT"      value={employee.ikut_jht ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jht ? 'green' : 'default'} />
-            <Row label="JP"       value={employee.ikut_jp ? 'Ikut' : 'Tidak'}  highlight={employee.ikut_jp ? 'green' : 'default'} />
-            <Row label="JKP"      value={employee.ikut_jkp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jkp ? 'green' : 'default'} />
+            <Row label="JHT" value={employee.ikut_jht ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jht ? 'green' : 'default'} />
+            <Row label="JP" value={employee.ikut_jp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jp ? 'green' : 'default'} />
+            <Row label="JKP" value={employee.ikut_jkp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jkp ? 'green' : 'default'} />
             <Row label="JKK Rate" value={`${(employee.jkk_rate * 100).toFixed(2)}%`} />
             <Row label="Kesehatan" value={employee.ikut_kes ? 'Ikut' : 'Tidak'} highlight={employee.ikut_kes ? 'green' : 'default'} />
           </div>
 
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">PPh 21</p>
-            <Row label="Skema"         value={employee.pph_ditanggung ? 'GROSSUP' : 'DIPOTONG'}
+            <Row label="Skema" value={employee.pph_ditanggung ? 'GROSSUP' : 'DIPOTONG'}
               highlight={employee.pph_ditanggung ? 'amber' : 'default'} />
-            <Row label="Tipe Karyawan" value={employee.jenis_karyawan.replace(/_/g,' ').toUpperCase()} />
-            {employee.upah_harian     && <Row label="Upah Harian"        value={formatRupiah(employee.upah_harian)} />}
+            <Row label="Tipe Karyawan" value={employee.jenis_karyawan.replace(/_/g, ' ').toUpperCase()} />
+            {employee.upah_harian && <Row label="Upah Harian" value={formatRupiah(employee.upah_harian)} />}
             {employee.hari_kerja_default && <Row label="Hari Kerja Default" value={`${employee.hari_kerja_default} hari`} />}
           </div>
         </div>
@@ -304,13 +329,12 @@ export default function EmployeeDetailPage() {
                 <tr><td colSpan={5} className="px-5 py-10 text-center text-zinc-700">Belum ada variasi</td></tr>
               ) : events.map(ev => (
                 <tr key={ev.id} className="border-b border-[#131315] hover:bg-[#131315] transition-colors">
-                  <td className="px-5 py-3 text-zinc-400">{BULAN_NAMES[ev.bulan-1]} {ev.tahun}</td>
+                  <td className="px-5 py-3 text-zinc-400">{BULAN_NAMES[ev.bulan - 1]} {ev.tahun}</td>
                   <td className="px-5 py-3">
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                      ['thr','bonus'].includes(ev.tipe) ? 'bg-amber-900/25 text-amber-400' :
-                      ['alpha_telat','kasbon','pot_lain'].includes(ev.tipe) ? 'bg-red-900/25 text-red-400' :
-                      'bg-sky-900/25 text-sky-400'
-                    }`}>{ev.tipe.replace(/_/g,' ')}</span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${['thr', 'bonus'].includes(ev.tipe) ? 'bg-amber-900/25 text-amber-400' :
+                        ['alpha_telat', 'kasbon', 'pot_lain'].includes(ev.tipe) ? 'bg-red-900/25 text-red-400' :
+                          'bg-sky-900/25 text-sky-400'
+                      }`}>{ev.tipe.replace(/_/g, ' ')}</span>
                   </td>
                   <td className="px-5 py-3 text-right">
                     <span className="text-base font-bold text-zinc-300">{formatRupiah(ev.nilai)}</span>
@@ -345,22 +369,21 @@ export default function EmployeeDetailPage() {
             return (
               <Link key={h.id}
                 href={`/companies/${companyId}/payroll/${run?.tahun}/${run?.bulan}`}
-                className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < payrollHistory.length-1 ? 'border-b border-[#131315]' : ''}`}>
+                className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < payrollHistory.length - 1 ? 'border-b border-[#131315]' : ''}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-zinc-300">
                     <span className="text-[#2563EB]">$</span>{' '}
-                    <span className="font-bold">{run ? `${BULAN_NAMES[run.bulan-1]} ${run.tahun}` : '—'}</span>
+                    <span className="font-bold">{run ? `${BULAN_NAMES[run.bulan - 1]} ${run.tahun}` : '—'}</span>
                   </span>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                    run?.status === 'locked'     ? 'bg-green-900/30 text-green-500' :
-                    run?.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' : 'bg-zinc-800 text-zinc-600'
-                  }`}>{run?.status ?? '—'}</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${run?.status === 'locked' ? 'bg-green-900/30 text-green-500' :
+                      run?.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' : 'bg-zinc-800 text-zinc-600'
+                    }`}>{run?.status ?? '—'}</span>
                 </div>
                 <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
-                  <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-400">{formatRupiah(h.bruto ?? 0)}</span></span>
-                  <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{formatRupiah(h.pph ?? 0)}</span></span>
-                  <span><span className="text-zinc-700">bpjs_k    </span><span className="text-zinc-400">{formatRupiah(h.bpjs_karyawan ?? 0)}</span></span>
-                  <span><span className="text-zinc-700">thp       </span>
+                  <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-400">{formatRupiah(h.bruto ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{formatRupiah(h.pph ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">bpjs_k    </span><span className="text-zinc-400">{formatRupiah(h.bpjs_karyawan ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">thp       </span>
                     <span className="text-green-400 font-bold text-sm">{formatRupiah(h.thp ?? 0)}</span>
                   </span>
                 </div>
@@ -370,6 +393,7 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
+      {/* EDIT MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -378,74 +402,70 @@ export default function EmployeeDetailPage() {
               <button onClick={() => setShowEditModal(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={16} /></button>
             </div>
             <form action={handleUpdateEmployee} className="p-5 space-y-6">
-
-              {/* IDENTITY */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Identitas Diri</p>
                 <div className="grid grid-cols-2 gap-4">
-                  <TF label="Nama Lengkap" name="nama"    defaultValue={employee.nama} />
-                  <NikInput  label="NIK"   name="nik"     defaultValue={employee.nik} />
-                  <NpwpInput label="NPWP"  name="npwp"    defaultValue={employee.npwp ?? ''} />
+                  <TF label="Nama Lengkap" name="nama" defaultValue={employee.nama} />
+                  <NikInput label="NIK" name="nik" defaultValue={employee.nik} />
+                  <NpwpInput label="NPWP" name="npwp" defaultValue={employee.npwp ?? ''} />
                   <SF label="Punya NPWP?" name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}>
                     <option value="true">Ya (NPWP Valid)</option>
                     <option value="false">Tidak (+20% PPh)</option>
                   </SF>
                   <SF label="Status PTKP" name="status_ptkp" defaultValue={employee.status_ptkp}>
-                    {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
+                    {['TK0', 'TK1', 'TK2', 'TK3', 'K0', 'K1', 'K2', 'K3'].map(s => <option key={s}>{s}</option>)}
                   </SF>
                   <SF label="Jenis Kelamin" name="jenis_kelamin" defaultValue={employee.jenis_kelamin}>
                     <option value="L">Laki-laki</option>
                     <option value="P">Perempuan</option>
                   </SF>
                   <DateInput label="Tanggal Masuk" name="tanggal_masuk" defaultValue={employee.tanggal_masuk ?? ''} />
-                  <TF label="Jabatan"  name="jabatan" defaultValue={employee.jabatan ?? ''} />
+                  <TF label="Jabatan" name="jabatan" defaultValue={employee.jabatan ?? ''} />
                   <div className="col-span-2">
-                    <TF label="Divisi"   name="divisi"  defaultValue={employee.divisi  ?? ''} />
+                    <TF label="Divisi" name="divisi" defaultValue={employee.divisi ?? ''} />
                   </div>
                 </div>
               </div>
 
-              {/* COMPENSATION */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Kompensasi</p>
                 {employee.jenis_karyawan === 'tetap' ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <NominalInput label="Gaji Pokok"    name="gaji_pokok"  defaultValue={employee.gaji_pokok} />
-                    <NominalInput label="Benefit"        name="benefit"     defaultValue={employee.benefit} />
-                    <NominalInput label="Kendaraan"      name="kendaraan"   defaultValue={employee.kendaraan} />
-                    <NominalInput label="Pulsa"          name="pulsa"       defaultValue={employee.pulsa} />
-                    <NominalInput label="Operasional"    name="operasional" defaultValue={employee.operasional} />
-                    <NominalInput label="Tunjangan Lain" name="tunj_lain"   defaultValue={employee.tunj_lain} />
-              </div>
+                    <NominalInput label="Gaji Pokok" name="gaji_pokok" defaultValue={employee.gaji_pokok} />
+                    <NominalInput label="Benefit" name="benefit" defaultValue={employee.benefit} />
+                    <NominalInput label="Kendaraan" name="kendaraan" defaultValue={employee.kendaraan} />
+                    <NominalInput label="Pulsa" name="pulsa" defaultValue={employee.pulsa} />
+                    <NominalInput label="Operasional" name="operasional" defaultValue={employee.operasional} />
+                    <NominalInput label="Tunjangan Lain" name="tunj_lain" defaultValue={employee.tunj_lain} />
+                  </div>
                 ) : employee.jenis_karyawan === 'tidak_tetap_harian' ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <NominalInput label="Upah Harian *"      name="upah_harian"       defaultValue={employee.upah_harian ?? 0} />
-                    <TF           label="Hari Kerja Default" name="hari_kerja_default" defaultValue={String(employee.hari_kerja_default ?? 22)} />
+                    <NominalInput label="Upah Harian *" name="upah_harian" defaultValue={employee.upah_harian ?? 0} />
+                    <TF label="Hari Kerja Default" name="hari_kerja_default" defaultValue={String(employee.hari_kerja_default ?? 22)} />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
                     <NominalInput label="Upah Bulanan TT" name="upah_bulanan_tt" defaultValue={employee.upah_bulanan_tt ?? 0} />
-                    <NominalInput label="Tunjangan TT"    name="tunjangan_tt"   defaultValue={employee.tunjangan_tt ?? 0} />
+                    <NominalInput label="Tunjangan TT" name="tunjangan_tt" defaultValue={employee.tunjangan_tt ?? 0} />
                   </div>
                 )}
                 <input type="hidden" name="jenis_karyawan" value={employee.jenis_karyawan} />
               </div>
 
-              {/* BPJS */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">BPJS Ketenagakerjaan & Kesehatan</p>
                 <div className="grid grid-cols-3 gap-6">
                   <div className="space-y-3">
                     <p className="text-[10px] text-zinc-700 uppercase tracking-widest mb-2">Kepesertaan</p>
                     <Chk name="ikut_jht" label="JHT" defaultChecked={employee.ikut_jht} />
-                    <Chk name="ikut_jp"  label="JP"  defaultChecked={employee.ikut_jp} />
+                    <Chk name="ikut_jp" label="JP" defaultChecked={employee.ikut_jp} />
                     <Chk name="ikut_jkp" label="JKP" defaultChecked={employee.ikut_jkp} />
                     <Chk name="ikut_kes" label="Kesehatan" defaultChecked={employee.ikut_kes} />
                   </div>
                   <div className="space-y-3">
-                      <p className="text-[10px] text-zinc-700 uppercase tracking-widest mb-2">Tunjangan Iuran Karyawan</p>
+                    <p className="text-[10px] text-zinc-700 uppercase tracking-widest mb-2">Tunjangan Iuran Karyawan</p>
                     <Chk name="tanggung_jht_k" label="Tunj. JHT Karyawan" defaultChecked={employee.tanggung_jht_k} />
-                    <Chk name="tanggung_jp_k"  label="Tunj. JP Karyawan"  defaultChecked={employee.tanggung_jp_k} />
+                    <Chk name="tanggung_jp_k" label="Tunj. JP Karyawan" defaultChecked={employee.tanggung_jp_k} />
                     <Chk name="tanggung_kes_k" label="Tunj. Kes Karyawan" defaultChecked={employee.tanggung_kes_k} />
                   </div>
                   <div className="space-y-3">
@@ -460,7 +480,6 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
 
-              {/* PPh */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Skema PPh 21</p>
                 <div className="bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg p-4 max-w-sm">
@@ -496,7 +515,7 @@ export default function EmployeeDetailPage() {
             </div>
             <form action={handleAddEvent} className="p-5 space-y-4">
               <input type="hidden" name="employee_id" value={empId} />
-              <input type="hidden" name="company_id"  value={companyId} />
+              <input type="hidden" name="company_id" value={companyId} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Tahun</label>
@@ -505,9 +524,9 @@ export default function EmployeeDetailPage() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Bulan</label>
-                  <select name="bulan" defaultValue={new Date().getMonth()+1}
+                  <select name="bulan" defaultValue={new Date().getMonth() + 1}
                     className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#2563EB]/40">
-                    {BULAN_NAMES.map((b,i) => <option key={i} value={i+1}>{b}</option>)}
+                    {BULAN_NAMES.map((b, i) => <option key={i} value={i + 1}>{b}</option>)}
                   </select>
                 </div>
               </div>
@@ -538,5 +557,14 @@ export default function EmployeeDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// --- Wrapper to satisfy Suspense requirement for useSearchParams ---
+export default function EmployeeDetailPageWrapper() {
+  return (
+    <Suspense fallback={<div className="h-64 bg-[#111113] border border-[#1A1A1C] rounded-lg animate-pulse" />}>
+      <EmployeeDetailPage />
+    </Suspense>
   );
 }
