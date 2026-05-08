@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { archiveCompany, deleteCompany } from '@/lib/actions/companies';
-import { sendInvite, removeMember, revokeInvite, getWorkspaceActivity } from '@/lib/actions/workspace';
+import { sendInvite, removeMember, revokeInvite, getWorkspaceActivity, createWorkspace} from '@/lib/actions/workspace';
 import { Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Activity } from 'lucide-react';
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
