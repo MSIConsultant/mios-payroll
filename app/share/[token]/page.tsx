@@ -2,19 +2,25 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import MiosLogo from '@/components/ui/MiosLogo';
 
-const BULAN = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 
-export default async function SharePage({ params }: { params: { token: string } }) {
+// 1. Updated type definition to expect a Promise
+export default async function SharePage(props: { params: Promise<{ token: string }> }) {
+  // 2. Await the params before using them
+  const params = await props.params;
+  const { token } = params;
+
   const supabase = await createClient();
 
   const { data: link } = await supabase
     .from('payroll_share_links')
     .select('*, payroll_runs(tahun, bulan, status), companies(name, npwp_perusahaan)')
-    .eq('token', params.token)
+    .eq('token', token) // Use the awaited token
     .single();
 
   if (!link) notFound();
+  
   if (new Date(link.expires_at) < new Date()) {
     return (
       <div className="min-h-screen bg-[#080809] flex items-center justify-center font-mono">
@@ -23,23 +29,19 @@ export default async function SharePage({ params }: { params: { token: string } 
     );
   }
 
+  // Optimized query: selecting result_json directly to handle "Bug 3" logic
   const { data: results } = await supabase
     .from('payroll_results')
-    .select('employee_id, bruto, pph, thp, bpjs_karyawan, tunj_pph')
+    .select('employee_id, bruto, pph, thp, bpjs_karyawan, tunj_pph, result_json, employee_name, status_ptkp')
     .eq('run_id', link.run_id)
     .order('thp', { ascending: false });
 
-  const { data: resultsWithJson } = await supabase
-    .from('payroll_results')
-    .select('employee_id, bruto, pph, thp, bpjs_karyawan, tunj_pph, result_json')
-    .eq('run_id', link.run_id)
-    .order('thp', { ascending: false });
+  const totalBruto = (results ?? []).reduce((a, r) => a + (Number(r.bruto) ?? 0), 0);
+  const totalPph = (results ?? []).reduce((a, r) => a + (Number(r.pph) ?? 0), 0);
+  const totalThp = (results ?? []).reduce((a, r) => a + (Number(r.thp) ?? 0), 0);
   
-  const totalBruto = (results ?? []).reduce((a, r) => a + (r.bruto ?? 0), 0);
-  const totalPph   = (results ?? []).reduce((a, r) => a + (r.pph   ?? 0), 0);
-  const totalThp   = (results ?? []).reduce((a, r) => a + (r.thp   ?? 0), 0);
-  const company    = link.companies as any;
-  const run        = link.payroll_runs as any;
+  const company = link.companies as any;
+  const run = link.payroll_runs as any;
 
   return (
     <div className="min-h-screen bg-[#080809] font-mono" style={{
@@ -68,9 +70,9 @@ export default async function SharePage({ params }: { params: { token: string } 
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total Bruto',  value: fmt(totalBruto), color: 'text-zinc-100' },
-            { label: 'Total PPh 21', value: fmt(totalPph),   color: 'text-amber-400' },
-            { label: 'Total THP',    value: fmt(totalThp),   color: 'text-green-400' },
+            { label: 'Total Bruto', value: fmt(totalBruto), color: 'text-zinc-100' },
+            { label: 'Total PPh 21', value: fmt(totalPph), color: 'text-amber-400' },
+            { label: 'Total THP', value: fmt(totalThp), color: 'text-green-400' },
           ].map(s => (
             <div key={s.label} className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg p-4">
               <p className="text-[10px] uppercase tracking-widest text-zinc-700 mb-2">{s.label}</p>
@@ -100,19 +102,23 @@ export default async function SharePage({ params }: { params: { token: string } 
               </tr>
             </thead>
             <tbody>
-              {(resultsWithJson ?? []).map((r, i) => {
-                const json  = (r.result_json as any) ?? {};
+              {(results ?? []).map((r, i) => {
+                const json = (r.result_json as any) ?? {};
+                // Fallback logic for deleted employees (Bug 3)
+                const name = r.employee_name ?? json.employee_name ?? '—';
+                const ptkp = r.status_ptkp ?? json.status_ptkp ?? '—';
+
                 return (
                   <tr key={i} className="border-b border-[#0F0F11] hover:bg-[#0A0A0B] transition-colors">
                     <td className="px-5 py-3">
                       <p className="font-bold text-zinc-300 uppercase font-mono">
-                        {json.employee_name ?? '—'}
+                        {name}
                       </p>
-                      <p className="text-[11px] text-zinc-700">{json.status_ptkp ?? '—'}</p>
+                      <p className="text-[11px] text-zinc-700">{ptkp}</p>
                     </td>
-                    <td className="px-5 py-3 text-zinc-400 font-mono">{fmt(r.bruto ?? 0)}</td>
-                    <td className="px-5 py-3 text-amber-400 font-mono">{fmt(r.pph ?? 0)}</td>
-                    <td className="px-5 py-3 font-bold text-green-400 font-mono">{fmt(r.thp ?? 0)}</td>
+                    <td className="px-5 py-3 text-zinc-400 font-mono text-right">{fmt(Number(r.bruto) ?? 0)}</td>
+                    <td className="px-5 py-3 text-amber-400 font-mono text-right">{fmt(Number(r.pph) ?? 0)}</td>
+                    <td className="px-5 py-3 font-bold text-green-400 font-mono text-right">{fmt(Number(r.thp) ?? 0)}</td>
                   </tr>
                 );
               })}
