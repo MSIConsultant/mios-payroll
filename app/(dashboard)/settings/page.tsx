@@ -5,6 +5,7 @@ import { useWorkspace } from '@/hooks/useWorkspace';
 import { archiveCompany, deleteCompany } from '@/lib/actions/companies';
 import { sendInvite, removeMember, revokeInvite, getWorkspaceActivity, createWorkspace } from '@/lib/actions/workspace';
 import { Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Activity, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   WORKSPACE_CREATED:  { label: 'Workspace dibuat',       color: 'text-[#2563EB]' },
