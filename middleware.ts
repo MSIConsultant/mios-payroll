@@ -35,6 +35,7 @@ const isAuthPage = pathname.startsWith('/login')
     || pathname.startsWith('/oauth')
     || pathname.startsWith('/forgot-password')
     || pathname.startsWith('/reset-password')
+    || pathname.startsWith('/share')
 
   if (!user && !isAuthPage) {
     const redirectUrl = request.nextUrl.clone()
