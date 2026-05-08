@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { archiveCompany, deleteCompany } from '@/lib/actions/companies';
 import { sendInvite, removeMember, revokeInvite, getWorkspaceActivity, createWorkspace } from '@/lib/actions/workspace';
-import { Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Activity } from 'lucide-react';
+import { Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Activity, Plus } from 'lucide-react';
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   WORKSPACE_CREATED:  { label: 'Workspace dibuat',       color: 'text-[#2563EB]' },
