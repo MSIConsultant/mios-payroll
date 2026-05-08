@@ -151,7 +151,7 @@ export default function PayrollRunPage() {
           ...emp, bulan: Number(bulan), tahun: Number(tahun),
           kasbon, alpha_telat,
           pot_lain:  pot_lain + (emp.pot_lain || 0),
-          tunj_lain: emp.tunj_lain + benefit_extra,
+          tunj_lain: (emp.tunj_lain ?? 0) + benefit_extra,
           thr, bonus,
           pph_jan_nov: (emp as any)._pph_jan_nov ?? 0,
           akum_bruto:  (emp as any)._akum_bruto  ?? 0,
