@@ -7,6 +7,6 @@ const DEV_EMAIL = 'msiconsultant.international@gmail.com';
 export default async function DevPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || user.email !== DEV_EMAIL) redirect('/dashboard');
+  if (!user || user.email?.toLowerCase() !== DEV_EMAIL.toLowerCase()) redirect('/dashboard');
   return <DevDashboard userEmail={user.email} />;
 }
