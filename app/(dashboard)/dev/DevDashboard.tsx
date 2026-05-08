@@ -158,18 +158,44 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
     toast.success(`${table} exported`);
   }
 
-  async function runEngineTest() {
-    try {
-      const input = JSON.parse(engineInput);
-      const { calculateMonthlySalary } = await import('@/lib/engine/payroll');
-      const result = calculateMonthlySalary(input);
-      setEngineResult(result);
-      toast.success('Engine ran successfully');
-    } catch (e: any) {
-      toast.error(e.message);
-      setEngineResult({ error: e.message });
+async function runEngineTest() {
+  setEngineResult(null); // ← reset first so UI clears
+  try {
+    const input = JSON.parse(engineInput);
+
+    // Validate required fields
+    const required = ['gaji_pokok','status_ptkp','bulan','tahun','jkk_rate'];
+    for (const f of required) {
+      if (input[f] === undefined) throw new Error(`Missing required field: ${f}`);
     }
+
+    // Ensure boolean fields are actual booleans not strings
+    const boolFields = ['punya_npwp','ikut_jht','ikut_jp','ikut_jkp',
+      'tanggung_jht_k','tanggung_jp_k','ikut_kes','tanggung_kes_k','pph_ditanggung'];
+    for (const f of boolFields) {
+      if (typeof input[f] === 'string') {
+        input[f] = input[f] === 'true';
+      }
+      if (input[f] === undefined) input[f] = false;
+    }
+
+    // Ensure number fields
+    const numFields = ['gaji_pokok','benefit','kendaraan','pulsa','operasional',
+      'tunj_lain','thr','bonus','kasbon','alpha_telat','pot_lain',
+      'pph_jan_nov','akum_bruto','jkk_rate'];
+    for (const f of numFields) {
+      input[f] = Number(input[f]) || 0;
+    }
+
+    const { calculateMonthlySalary } = await import('@/lib/engine/payroll');
+    const result = calculateMonthlySalary(input);
+    setEngineResult(result);
+    toast.success('Engine ran — ' + (result.jenis ?? 'OK'));
+  } catch (e: any) {
+    toast.error(e.message);
+    setEngineResult({ error: e.message });
   }
+}
 
   const totalRows = Object.values(stats).reduce((a, b) => a + b, 0);
   const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
