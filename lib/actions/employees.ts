@@ -51,6 +51,7 @@ export async function createEmployee(formData: FormData) {
 export async function updateEmployee(id: string, companyId: string, formData: FormData) {
   const supabase = await createClient();
   const fields = parseFields(formData);
+  delete fields.aktif; // ← ADD THIS — never change aktif status during edit
   const { error } = await supabase.from('employees').update(fields).eq('id', id);
   if (error) { console.error(error); return { error: error.message }; }
   revalidatePath(`/companies/${companyId}`);
