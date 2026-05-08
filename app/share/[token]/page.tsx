@@ -100,18 +100,19 @@ export default async function SharePage({ params }: { params: { token: string } 
               </tr>
             </thead>
             <tbody>
-              {(results ?? []).map((r, i) => {
-                const emp = empMap[r.employee_id];
+              {(resultsWithJson ?? []).map((r, i) => {
+                const json  = (r.result_json as any) ?? {};
                 return (
                   <tr key={i} className="border-b border-[#0F0F11] hover:bg-[#0A0A0B] transition-colors">
                     <td className="px-5 py-3">
-                      <p className="font-bold text-zinc-300 uppercase">{emp?.nama ?? '—'}</p>
-                      <p className="text-[10px] text-zinc-700">{emp?.jabatan ?? emp?.divisi ?? '—'}</p>
+                      <p className="font-bold text-zinc-300 uppercase font-mono">
+                        {json.employee_name ?? '—'}
+                      </p>
+                      <p className="text-[11px] text-zinc-700">{json.status_ptkp ?? '—'}</p>
                     </td>
-                    <td className="px-5 py-3 text-zinc-600">{emp?.status_ptkp ?? '—'}</td>
-                    <td className="px-5 py-3 text-right text-zinc-400">{fmt(r.bruto ?? 0)}</td>
-                    <td className="px-5 py-3 text-right text-amber-400">{fmt(r.pph ?? 0)}</td>
-                    <td className="px-5 py-3 text-right font-bold text-green-400">{fmt(r.thp ?? 0)}</td>
+                    <td className="px-5 py-3 text-zinc-400 font-mono">{fmt(r.bruto ?? 0)}</td>
+                    <td className="px-5 py-3 text-amber-400 font-mono">{fmt(r.pph ?? 0)}</td>
+                    <td className="px-5 py-3 font-bold text-green-400 font-mono">{fmt(r.thp ?? 0)}</td>
                   </tr>
                 );
               })}
