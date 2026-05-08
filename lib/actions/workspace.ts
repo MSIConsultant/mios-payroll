@@ -27,6 +27,16 @@ export async function createWorkspace(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  const { count } = await supabase
+    .from('workspace_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('role', 'owner');
+
+  if ((count ?? 0) >= 2) {
+    return { error: 'Maksimal 2 workspace per akun.' };
+  }
+
   const { data, error } = await supabase.rpc('create_workspace_for_user', {
     p_name: name,
     p_owner_id: user.id,
@@ -35,7 +45,7 @@ export async function createWorkspace(formData: FormData) {
   if (error) return { error: error.message };
 
   revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  return { success: true, workspaceId: data };
 }
 
 export async function sendInvite(workspaceId: string, invitedEmail: string) {
