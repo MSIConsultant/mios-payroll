@@ -29,11 +29,12 @@ export default async function SharePage({ params }: { params: { token: string } 
     .eq('run_id', link.run_id)
     .order('thp', { ascending: false });
 
-  const { data: employees } = await supabase
-    .from('employees').select('id, nama, jabatan, divisi, status_ptkp')
-    .in('id', (results ?? []).map(r => r.employee_id));
-
-  const empMap = Object.fromEntries((employees ?? []).map(e => [e.id, e]));
+  const { data: resultsWithJson } = await supabase
+    .from('payroll_results')
+    .select('employee_id, bruto, pph, thp, bpjs_karyawan, tunj_pph, result_json')
+    .eq('run_id', link.run_id)
+    .order('thp', { ascending: false });
+  
   const totalBruto = (results ?? []).reduce((a, r) => a + (r.bruto ?? 0), 0);
   const totalPph   = (results ?? []).reduce((a, r) => a + (r.pph   ?? 0), 0);
   const totalThp   = (results ?? []).reduce((a, r) => a + (r.thp   ?? 0), 0);
