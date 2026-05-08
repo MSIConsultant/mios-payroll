@@ -12,7 +12,13 @@ export default function OnboardingPage() {
   const handleSubmit = async (formData: FormData) => {
     setLoading(true); setError(null);
     const result = await createWorkspace(formData);
-    if (result?.error) { setError(result.error); setLoading(false); }
+    if (result?.error) {
+      setError(result.error);
+      setLoading(false);
+    } else {
+      // Manually redirect since createWorkspace no longer does it
+      window.location.href = '/dashboard';
+    }
   };
 
   return (
