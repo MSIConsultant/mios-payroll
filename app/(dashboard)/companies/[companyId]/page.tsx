@@ -10,6 +10,7 @@ import { updateCompany } from '@/lib/actions/companies';
 import { NpwpCompanyInput } from '@/components/ui/FormattedInput';
 import { toast } from 'sonner';
 import { Upload } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 const BULAN = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
