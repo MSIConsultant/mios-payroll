@@ -7,6 +7,9 @@ const BULAN_ID    = ['','Januari','Februari','Maret','April','Mei','Juni','Juli'
 const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 
+{/* Real-time status is handled via RealtimeStatus component
+    Company status updates live when staff calculate/lock payroll */}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
