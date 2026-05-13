@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Layers, Settings,
   ChevronLeft, ChevronRight, Users, ScrollText,
-  Terminal, Bell
+  Terminal, Bell, Upload
 } from 'lucide-react';
 import type { UserRole } from '@/lib/types/roles';
 
