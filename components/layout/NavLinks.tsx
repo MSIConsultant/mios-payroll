@@ -15,9 +15,10 @@ function buildNav(role: UserRole) {
     { href: '/companies', label: 'Perusahaan',  icon: Building2 },
   ];
   if (role === 'accountant' || role === 'dev') {
-    base.push({ href: '/staff',    label: 'Staff',      icon: Users });
+    base.push({ href: '/import',   label: 'Import',     icon: Upload     });
+    base.push({ href: '/staff',    label: 'Staff',      icon: Users      });
     base.push({ href: '/logs',     label: 'Audit Log',  icon: ScrollText });
-    base.push({ href: '/settings', label: 'Pengaturan', icon: Settings });
+    base.push({ href: '/settings', label: 'Pengaturan', icon: Settings   });
   }
   if (role === 'dev') {
     base.push({ href: '/dev/admin', label: 'Dev Panel', icon: Terminal });
