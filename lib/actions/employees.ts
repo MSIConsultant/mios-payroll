@@ -145,6 +145,7 @@ export async function updateEmployee(
 
   revalidatePath(`/companies/${companyId}`);
   revalidatePath(`/companies/${companyId}/employees/${id}`);
+  revalidateTag(`employees-${workspaceId}`);
 
   return { success: true };
 }
