@@ -31,6 +31,7 @@ export async function updateCompany(id: string, formData: FormData) {
     industri:        formData.get('industri') as string,
   }).eq('id', id);
   if (error) return { error: error.message };
+  revalidateTag(`companies-${workspaceId}`);
   revalidatePath('/companies');
   revalidatePath(`/companies/${id}`);
   return { success: true };
