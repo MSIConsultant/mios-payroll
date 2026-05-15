@@ -122,39 +122,66 @@ function reconcileEmployee(emp: ParsedEmp, bulan: number, tahun: number): {
 } {
   try {
     let result: any = {};
+
+    const base = {
+      ...emp,
+      bulan,
+      tahun,
+      tunj_lain:       0,
+      kasbon:          0,
+      alpha_telat:     0,
+      pot_lain:        0,
+      thr:             0,
+      bonus:           0,
+      pph_jan_nov:     0,
+      akum_bruto:      0,
+      ikut_jkp:        false,
+      tanggung_jht_k:  emp.ikut_jht,
+      tanggung_jp_k:   emp.ikut_jp,
+      tanggung_kes_k:  emp.ikut_kes,
+      pph_ditanggung:  emp.tunj_pph > 0,
+    } as any; // ← cast bypasses strict type check on import-only fields
+
     if (emp.jenis_karyawan === 'tetap') {
-      result = calculateMonthlySalary({
-        ...emp, bulan, tahun,
-        tunj_lain:   0, kasbon: 0, alpha_telat: 0, pot_lain: 0,
-        thr: 0, bonus: 0, pph_jan_nov: 0, akum_bruto: 0,
-      });
+      result = calculateMonthlySalary(base);
     } else {
-      result = calculateMonthlySalary({
-        ...emp, bulan, tahun,
-        tunj_lain:      0,
-        kasbon:         0,
-        alpha_telat:    0,
-        pot_lain:       0,
-        thr:            0,
-        bonus:          0,
-        pph_jan_nov:    0,
-        akum_bruto:     0,
-        // ← These were missing:
-        ikut_jkp:         false,
-        tanggung_jht_k:   emp.ikut_jht,
-        tanggung_jp_k:    emp.ikut_jp,
-        tanggung_kes_k:   emp.ikut_kes,
-        pph_ditanggung:   emp.tunj_pph > 0,
-      });
+      result = calculateFreelance({
+        ...emp,
+        mode:         'harian' as const,
+        upah_harian:  emp.upah_harian,
+        hari_kerja:   22,
+        ikut_bpjs_tk: false,
+        ikut_kes:     false,
+        kasbon:       0,
+        pot_lain:     0,
+        thr:          0,
+        bonus:        0,
+      } as any);
     }
+
     const engine_bruto = result.bruto ?? result.total_upah ?? 0;
     const engine_pph   = result.pph   ?? result.total_pph  ?? 0;
     const engine_thp   = result.thp   ?? 0;
-    const base         = emp.excel_bruto || 1;
-    const diff_pct     = Math.abs(engine_bruto - emp.excel_bruto) / base * 100;
-    return { engine_bruto, engine_pph, engine_thp, diff_pct, has_diff: diff_pct > 0.5, full_result: result };
+    const base_val     = emp.excel_bruto || 1;
+    const diff_pct     = Math.abs(engine_bruto - emp.excel_bruto) / base_val * 100;
+
+    return {
+      engine_bruto,
+      engine_pph,
+      engine_thp,
+      diff_pct,
+      has_diff:    diff_pct > 0.5,
+      full_result: result,
+    };
   } catch {
-    return { engine_bruto: 0, engine_pph: 0, engine_thp: 0, diff_pct: 100, has_diff: true, full_result: {} };
+    return {
+      engine_bruto: 0,
+      engine_pph:   0,
+      engine_thp:   0,
+      diff_pct:     100,
+      has_diff:     true,
+      full_result:  {},
+    };
   }
 }
 
