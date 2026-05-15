@@ -346,6 +346,13 @@ export default async function DashboardPage() {
               })}
             </div>
           </div>
+            {/* Realtime updates — refreshes server data when payroll status changes */}
+            {companyIds.length > 0 && workspaceId && (
+              <DashboardRealtime
+                companyIds={companyIds}
+                workspaceId={workspaceId}
+              />
+            )}
         </>
       )}
     </div>
