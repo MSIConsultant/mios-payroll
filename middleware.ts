@@ -76,10 +76,14 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // Approved but trying to access /dev — only dev email allowed
-    if (isDevPath && user.email?.toLowerCase() !== DEV_EMAIL.toLowerCase()) {
+    // After the approval check, before the end of the function:
+    // Dev with no workspace → skip onboarding, go to dashboard
+    if (
+      user.email?.toLowerCase() === DEV_EMAIL.toLowerCase() &&
+      pathname === '/onboarding'
+    ) {
       const u = request.nextUrl.clone();
-      u.pathname = '/dashboard';
+      u.pathname = '/dev/admin';
       return NextResponse.redirect(u);
     }
 
