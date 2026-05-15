@@ -129,11 +129,22 @@ function reconcileEmployee(emp: ParsedEmp, bulan: number, tahun: number): {
         thr: 0, bonus: 0, pph_jan_nov: 0, akum_bruto: 0,
       });
     } else {
-      result = calculateFreelance({
-        ...emp, mode: 'harian',
-        upah_harian: emp.upah_harian, hari_kerja: 22,
-        ikut_bpjs_tk: false, ikut_kes: false,
-        kasbon: 0, pot_lain: 0, thr: 0, bonus: 0,
+      result = calculateMonthlySalary({
+        ...emp, bulan, tahun,
+        tunj_lain:      0,
+        kasbon:         0,
+        alpha_telat:    0,
+        pot_lain:       0,
+        thr:            0,
+        bonus:          0,
+        pph_jan_nov:    0,
+        akum_bruto:     0,
+        // ← These were missing:
+        ikut_jkp:         false,
+        tanggung_jht_k:   emp.ikut_jht,
+        tanggung_jp_k:    emp.ikut_jp,
+        tanggung_kes_k:   emp.ikut_kes,
+        pph_ditanggung:   emp.tunj_pph > 0,
       });
     }
     const engine_bruto = result.bruto ?? result.total_upah ?? 0;
