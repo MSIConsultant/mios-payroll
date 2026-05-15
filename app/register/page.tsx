@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { MiosLogoAuth } from '@/components/ui/MiosLogo';
+import { notifyPendingApproval } from '@/lib/actions/notify';
 
 export default function RegisterPage() {
   const [email, setEmail]       = useState('');
@@ -23,6 +24,7 @@ export default function RegisterPage() {
       email, password,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
+    await notifyPendingApproval(email);
     if (err) { setError(err.message); setLoading(false); }
     else setDone(true);
   };
