@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
+import { notifyUserApproved, notifyUserRejected } from '@/lib/actions/notify';
 
 const DEV_EMAIL = 'msiconsultant.international@gmail.com';
 
@@ -38,6 +39,7 @@ export async function approveUser(userId: string, role: 'accountant' | 'staff') 
     message:      `Selamat! Akun Anda telah disetujui sebagai ${role === 'accountant' ? 'Akuntan' : 'Staff'}.`,
     data:         { role },
   });
+  await notifyUserApproved(profile?.email ?? '', role);
 
   revalidatePath('/dev/admin');
   return { success: true };
@@ -53,6 +55,7 @@ export async function rejectUser(userId: string, reason: string) {
 
   if (error) return { error: error.message };
   revalidatePath('/dev/admin');
+  await notifyUserRejected(profile?.email ?? '', reason);
   return { success: true };
 }
 
