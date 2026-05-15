@@ -74,10 +74,10 @@ export default function OnboardingPage() {
 
     if (error) { toast.error(error.message); setLoading(false); return; }
 
-    // Update user profile with workspace
     await supabase.from('user_profiles')
-      .update({ workspace_id: ws, role: 'accountant', status: 'approved', approved_at: new Date().toISOString() })
-      .eq('id', user.id);
+      .update({ workspace_id: ws, status: 'approved', approved_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .neq('role', 'dev');
 
     setWorkspaceId(ws);
     setLoading(false);
