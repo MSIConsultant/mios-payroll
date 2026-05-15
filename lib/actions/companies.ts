@@ -1,4 +1,5 @@
 'use server';
+import { revalidateTag } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
@@ -12,6 +13,7 @@ export async function createCompany(formData: FormData) {
   const industri          = formData.get('industri') as string;
   if (!name || !workspace_id) return { error: 'Nama perusahaan dan workspace wajib diisi.' };
   const { error } = await supabase.from('companies').insert({ workspace_id, name, npwp_perusahaan, alamat, kota, industri, aktif: true });
+  revalidateTag(`companies-${workspaceId}`);
   if (error) return { error: error.message };
   revalidatePath('/companies');
   return { success: true };
