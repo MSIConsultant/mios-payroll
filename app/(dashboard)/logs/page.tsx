@@ -26,5 +26,5 @@ export default async function LogsPage() {
       .eq('workspace_id', workspaceId),
   ]);
 
-  return <LogsClient logs={logs ?? []} companies={companies ?? []} />;
+  return <LogsClient logs={logs ?? []} companies={companies ?? []} workspaceId={workspaceId} />;
 }
