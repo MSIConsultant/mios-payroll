@@ -9,12 +9,13 @@ const pct  = (n: number) => `${n.toFixed(1)}%`;
 const BULAN = ['','Januari','Februari','Maret','April','Mei','Juni',
   'Juli','Agustus','September','Oktober','November','Desember'];
 
-export default async function ImportSessionPage({ params }: { params: { sessionId: string } }) {
+export default async function ImportSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const { sessionId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { session, records } = await getImportSession(params.sessionId);
+  const { session, records } = await getImportSession(sessionId);
   if (!session) notFound();
 
   const company  = (session as any).companies?.name ?? '—';
