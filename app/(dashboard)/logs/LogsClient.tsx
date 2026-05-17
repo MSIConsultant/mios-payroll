@@ -97,13 +97,46 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
   const [filterAction,  setFilterAction]  = useState('');
   const [filterCompany, setFilterCompany] = useState('');
   const [expanded,      setExpanded]      = useState<Set<string>>(new Set());
-  const [exporting,     setExporting]     = useState(false);  // ← inside component now
+  const [exporting,     setExporting]     = useState(false);
 
-  // ── Export handler — inside component ────────────────────────────
-  async function handleExport() {
+  const uniqueActions = useMemo(() =>
+    [...new Set(logs.map(l => l.action))].sort(), [logs]);
+
+  const filtered = useMemo(() => logs.filter(log => {
+    if (filterAction  && log.action     !== filterAction)  return false;
+    if (filterCompany && log.company_id !== filterCompany) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (
+        log.actor_email?.toLowerCase().includes(q) ||
+        log.action?.toLowerCase().includes(q)      ||
+        log.entity_name?.toLowerCase().includes(q) ||
+        log.entity_type?.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  }), [logs, filterAction, filterCompany, search]);
+
+  // companyMap MUST be defined before handleExport
+  const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
+
+  // handleExport defined AFTER companyMap and inside component
+  function handleExport() {
     setExporting(true);
     try {
-      const csv  = await exportAuditLogCSV(workspaceId);
+      const headers = ['Tanggal','Aksi','Aktor','Role','Entitas','Nama Entitas','Perusahaan','Detail'];
+      const rows = logs.map(log => [
+        new Date(log.created_at).toLocaleString('id-ID'),
+        log.action,
+        log.actor_email  ?? '',
+        log.actor_role   ?? '',
+        log.entity_type  ?? '',
+        log.entity_name  ?? '',
+        log.company_id ? (companyMap[log.company_id] ?? log.company_id) : '',
+        log.metadata ? JSON.stringify(log.metadata) : '',
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+
+      const csv  = [headers.join(','), ...rows].join('\n');
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
@@ -116,26 +149,6 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
     }
     setExporting(false);
   }
-
-  const uniqueActions = useMemo(() =>
-    [...new Set(logs.map(l => l.action))].sort(), [logs]);
-
-  const filtered = useMemo(() => logs.filter(log => {
-    if (filterAction  && log.action     !== filterAction)  return false;
-    if (filterCompany && log.company_id !== filterCompany) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        log.actor_email?.toLowerCase().includes(q)  ||
-        log.action?.toLowerCase().includes(q)        ||
-        log.entity_name?.toLowerCase().includes(q)   ||
-        log.entity_type?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  }), [logs, filterAction, filterCompany, search]);
-
-  const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
 
   function toggleExpand(id: string) {
     setExpanded(prev => {
