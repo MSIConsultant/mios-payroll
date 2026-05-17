@@ -27,15 +27,14 @@ export default function RegisterPage() {
     await notifyPendingApproval(email);
     if (err) { setError(err.message); setLoading(false); }
     else {
-    // Notify dev of new registration
       try {
         await fetch('/api/notify-registration', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body:    JSON.stringify({ email }),
         });
       } catch {}
-    setDone(true);
+      setDone(true);
     }
   };
 
