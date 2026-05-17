@@ -1,7 +1,7 @@
 'use server';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL     = 'MIOS Payroll <noreply@mios-payroll.com>';
+const FROM_EMAIL = 'MIOS Payroll <onboarding@resend.dev>';
 const DEV_EMAIL      = 'msiconsultant.international@gmail.com';
 
 interface SendEmailParams {
