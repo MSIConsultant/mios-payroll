@@ -1,7 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { ScrollText, Search, Building2, User, Clock, Download } from 'lucide-react';
-import { exportAuditLogCSV } from '@/lib/actions/logs';
 
 interface AuditLog {
   id:          string;
@@ -21,19 +20,35 @@ interface Company { id: string; name: string; }
 
 const [exporting, setExporting] = useState(false);
 
-async function handleExport() {
+function handleExport() {
   setExporting(true);
-  const { workspaceId } = ... // get from props — add workspaceId as a prop to LogsClient
-  const csv = await exportAuditLogCSV(workspaceId);
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const headers = ['Tanggal','Aksi','Aktor','Role','Entitas','Nama Entitas','Perusahaan','Detail'];
+    const rows = logs.map(log => [
+      new Date(log.created_at).toLocaleString('id-ID'),
+      log.action,
+      log.actor_email  ?? '',
+      log.actor_role   ?? '',
+      log.entity_type  ?? '',
+      log.entity_name  ?? '',
+      log.company_id ? (companyMap[log.company_id] ?? log.company_id) : '',
+      log.metadata ? JSON.stringify(log.metadata) : '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+
+    const csv  = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    // silent
+  }
   setExporting(false);
 }
+
 const ACTION_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   PAYROLL_LOCKED:     { bg: 'rgba(34,197,94,0.1)',   text: '#4ADE80', label: 'Dikunci' },
   PAYROLL_SAVED:      { bg: 'rgba(56,189,248,0.1)',  text: '#38BDF8', label: 'Disimpan' },
