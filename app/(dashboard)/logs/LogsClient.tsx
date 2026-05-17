@@ -18,35 +18,10 @@ interface AuditLog {
 
 interface Company { id: string; name: string; }
 
-const [exporting, setExporting] = useState(false);
-
-function handleExport() {
-  setExporting(true);
-  try {
-    const headers = ['Tanggal','Aksi','Aktor','Role','Entitas','Nama Entitas','Perusahaan','Detail'];
-    const rows = logs.map(log => [
-      new Date(log.created_at).toLocaleString('id-ID'),
-      log.action,
-      log.actor_email  ?? '',
-      log.actor_role   ?? '',
-      log.entity_type  ?? '',
-      log.entity_name  ?? '',
-      log.company_id ? (companyMap[log.company_id] ?? log.company_id) : '',
-      log.metadata ? JSON.stringify(log.metadata) : '',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
-
-    const csv  = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    // silent
-  }
-  setExporting(false);
+interface Props {
+  logs:        AuditLog[];
+  companies:   Company[];
+  workspaceId: string;
 }
 
 const ACTION_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -70,6 +45,7 @@ const ACTION_COLORS: Record<string, { bg: string; text: string; label: string }>
 
 const DEFAULT_ACTION = { bg: 'rgba(113,113,122,0.1)', text: '#71717A', label: '' };
 
+// Pure helper functions — safe outside component (no hooks, no props)
 function getActionConfig(action: string) {
   return ACTION_COLORS[action] ?? { ...DEFAULT_ACTION, label: action.replace(/_/g, ' ') };
 }
@@ -83,21 +59,25 @@ function timeAgo(dateStr: string): string {
   if (mins  < 60) return `${mins} menit lalu`;
   if (hours < 24) return `${hours} jam lalu`;
   if (days  < 7)  return `${days} hari lalu`;
-  return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
 }
 
-interface Props {
-  logs:        AuditLog[];
-  companies:   Company[];
-  workspaceId: string;  
-}
-
+// ─────────────────────────────────────────────────────────────────
+// Component — everything that touches props/state is INSIDE here
+// ─────────────────────────────────────────────────────────────────
 export default function LogsClient({ logs, companies, workspaceId }: Props) {
+
+  // ── State ──────────────────────────────────────────────────────
   const [search,        setSearch]        = useState('');
   const [filterAction,  setFilterAction]  = useState('');
   const [filterCompany, setFilterCompany] = useState('');
   const [expanded,      setExpanded]      = useState<Set<string>>(new Set());
   const [exporting,     setExporting]     = useState(false);
+
+  // ── Derived data ───────────────────────────────────────────────
+  const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
 
   const uniqueActions = useMemo(() =>
     [...new Set(logs.map(l => l.action))].sort(), [logs]);
@@ -117,14 +97,14 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
     return true;
   }), [logs, filterAction, filterCompany, search]);
 
-  // companyMap MUST be defined before handleExport
-  const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
-
-  // handleExport defined AFTER companyMap and inside component
+  // ── Handlers ───────────────────────────────────────────────────
   function handleExport() {
     setExporting(true);
     try {
-      const headers = ['Tanggal','Aksi','Aktor','Role','Entitas','Nama Entitas','Perusahaan','Detail'];
+      const headers = [
+        'Tanggal', 'Aksi', 'Aktor', 'Role',
+        'Entitas', 'Nama Entitas', 'Perusahaan', 'Detail',
+      ];
       const rows = logs.map(log => [
         new Date(log.created_at).toLocaleString('id-ID'),
         log.action,
@@ -145,7 +125,7 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // silent
+      // silent fail
     }
     setExporting(false);
   }
@@ -158,6 +138,7 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
     });
   }
 
+  // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="max-w-5xl space-y-6 animate-fade-in-up">
 
@@ -183,7 +164,7 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total Entri', value: logs.length,     color: 'var(--text-primary)' },
+          { label: 'Total Entri', value: logs.length, color: 'var(--text-primary)' },
           { label: 'Hari Ini',    value: logs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length, color: '#3B82F6' },
           { label: 'Ditampilkan', value: filtered.length, color: '#4ADE80' },
         ].map(s => (
@@ -294,20 +275,28 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
                     </span>
                     {hasDetails && (
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-                        style={{ color: 'var(--text-ghost)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                        <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        style={{
+                          color:      'var(--text-ghost)',
+                          transform:  isExpanded ? 'rotate(180deg)' : 'none',
+                          transition: 'transform 0.2s',
+                        }}>
+                        <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5"
+                          strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </div>
                 </div>
 
                 {isExpanded && hasDetails && (
-                  <div className="px-5 pb-4 pt-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <div className="px-5 pb-4 pt-1"
+                    style={{ borderTop: '1px solid var(--border-subtle)' }}>
                     <div className="rounded-xl p-4 font-mono text-[12px] overflow-x-auto"
                       style={{ background: 'var(--bg-deep)' }}>
                       {log.old_values && (
                         <div className="mb-3">
-                          <p className="text-[10px] uppercase tracking-widest mb-2 text-red-400">Sebelum</p>
+                          <p className="text-[10px] uppercase tracking-widest mb-2 text-red-400">
+                            Sebelum
+                          </p>
                           <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                             {JSON.stringify(log.old_values, null, 2)}
                           </pre>
@@ -315,7 +304,9 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
                       )}
                       {log.new_values && (
                         <div>
-                          <p className="text-[10px] uppercase tracking-widest mb-2 text-green-400">Sesudah</p>
+                          <p className="text-[10px] uppercase tracking-widest mb-2 text-green-400">
+                            Sesudah
+                          </p>
                           <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                             {JSON.stringify(log.new_values, null, 2)}
                           </pre>
