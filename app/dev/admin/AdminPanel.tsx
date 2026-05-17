@@ -40,6 +40,7 @@ export default function AdminPanel() {
       supabase.from('companies').select('*', { count: 'exact', head: true }),
       supabase.from('employees').select('*', { count: 'exact', head: true }),
     ]);
+    console.log('users fetched:', u, 'error check');  // ← add this
     if (u) setUsers(u as UserProfile[]);
     setStats({ users: u?.length ?? 0, workspaces: ws.count ?? 0, companies: cos.count ?? 0, employees: emps.count ?? 0 });
     setLoading(false);
