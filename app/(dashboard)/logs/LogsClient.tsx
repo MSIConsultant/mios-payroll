@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { ScrollText, Search, Filter, Building2, User, Clock } from 'lucide-react';
+import { exportAuditLogCSV } from '@/lib/actions/logs';
 
 interface AuditLog {
   id:           string;
@@ -18,6 +19,21 @@ interface AuditLog {
 
 interface Company { id: string; name: string; }
 
+const [exporting, setExporting] = useState(false);
+
+async function handleExport() {
+  setExporting(true);
+  const { workspaceId } = ... // get from props — add workspaceId as a prop to LogsClient
+  const csv = await exportAuditLogCSV(workspaceId);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setExporting(false);
+}
 const ACTION_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   PAYROLL_LOCKED:     { bg: 'rgba(34,197,94,0.1)',   text: '#4ADE80', label: 'Dikunci' },
   PAYROLL_SAVED:      { bg: 'rgba(56,189,248,0.1)',  text: '#38BDF8', label: 'Disimpan' },
@@ -103,6 +119,12 @@ export default function LogsClient({ logs, companies }: { logs: AuditLog[]; comp
       </div>
 
       {/* Stats */}
+      <button onClick={handleExport} disabled={exporting}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[13px] disabled:opacity-50 transition-colors"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+        <Download size={14} />
+        {exporting ? 'Mengekspor...' : 'Export CSV'}
+      </button>
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Total Entri',   value: logs.length,     color: 'var(--text-primary)' },
