@@ -48,14 +48,18 @@ export async function approveUser(userId: string, role: 'accountant' | 'staff') 
 export async function rejectUser(userId: string, reason: string) {
   const { supabase } = await assertDev();
 
+  const { data: profile } = await supabase
+    .from('user_profiles').select('email').eq('id', userId).single();
+
   const { error } = await supabase.from('user_profiles').update({
     status:          'rejected',
     rejected_reason: reason,
   }).eq('id', userId);
 
   if (error) return { error: error.message };
-  revalidatePath('/dev/admin');
+
   await notifyUserRejected(profile?.email ?? '', reason);
+  revalidatePath('/dev/admin');
   return { success: true };
 }
 
