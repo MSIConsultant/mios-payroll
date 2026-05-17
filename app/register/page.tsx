@@ -26,7 +26,17 @@ export default function RegisterPage() {
     });
     await notifyPendingApproval(email);
     if (err) { setError(err.message); setLoading(false); }
-    else setDone(true);
+    else {
+    // Notify dev of new registration
+      try {
+        await fetch('/api/notify-registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      } catch {}
+    setDone(true);
+    }
   };
 
   if (done) return (
