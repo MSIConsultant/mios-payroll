@@ -35,9 +35,8 @@ export default function AdminPanel() {
     setLoading(true);
     const supabase = createClient();
 
-    const { data: u } = await supabase.rpc('get_all_profiles'),
+    const { data: u } = await supabase.rpc('get_all_profiles');
 
-    console.log('users fetched:', u);
     if (u) setUsers(u as UserProfile[]);
 
     // Count from user_profiles only — avoids RLS issues on other tables
