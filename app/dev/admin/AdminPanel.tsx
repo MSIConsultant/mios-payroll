@@ -35,10 +35,7 @@ export default function AdminPanel() {
     setLoading(true);
     const supabase = createClient();
 
-    const { data: u } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data: u } = await supabase.rpc('get_all_profiles'),
 
     console.log('users fetched:', u);
     if (u) setUsers(u as UserProfile[]);
