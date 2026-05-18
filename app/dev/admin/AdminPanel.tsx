@@ -40,7 +40,7 @@ export default function AdminPanel() {
     if (u) setUsers(u as UserProfile[]);
 
     // Count from user_profiles only — avoids RLS issues on other tables
-    const wsCount  = u?.filter(p => p.role === 'accountant' || p.role === 'dev').length ?? 0;
+    const wsCount = (u as UserProfile[])?.filter((p: UserProfile) => p.role === 'accountant' || p.role === 'dev').length ?? 0;
     const empCount = 0; // will show after we fix RLS separately
     const coCount  = 0;
 
