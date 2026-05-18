@@ -40,9 +40,21 @@ export async function middleware(request: NextRequest) {
     if (pathname !== '/') url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
+  
 
   // Logged in → check approval status
   if (user && !isPublic) {
+    // Dev email bypasses all status checks
+    if (user.email?.toLowerCase() === DEV_EMAIL.toLowerCase()) {
+      // Only block if trying to access pending-approval page
+      if (pathname === '/pending-approval') {
+        const u = request.nextUrl.clone();
+        u.pathname = '/dev/admin';
+        return NextResponse.redirect(u);
+      }
+      // Dev can access everything — skip profile check entirely
+      return response;
+    }
     const { data: profile } = await supabase
       .from('user_profiles').select('status, role').eq('id', user.id).single();
 
