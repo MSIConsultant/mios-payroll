@@ -18,3 +18,10 @@ __pycache__/
 
 # Claude Code user-local settings
 .claude/settings.local.json
+
+# Local Excel/CSV samples (real client data — never commit)
+samples/
+*.xlsx
+*.xls
+!public/**/*.xlsx
+
