@@ -256,22 +256,38 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
 
 ## Payroll Engine
 
-### TER Method (PP 58/2023 + PMK 168/2023)
-- **Jan–Nov**: `pph = TER_rate × bruto`
-- **December**: Pasal 17 equalization using akum_bruto from saved results
-- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations
-- **Non-NPWP**: ×1.2 multiplier on PPh
+> Tests: `lib/engine/payroll.test.ts` (Vitest). Run with `npm test`. Add a case here before changing any calc.
 
-### BPJS (included in bruto)
-- JKK: company rate (0.24%–1.74%) — IN bruto
+### Karyawan Tetap — TER Method (PP 58/2023 + PMK 168/2023)
+- **Jan–Nov**: `pph = TER_rate × bruto`
+- **December**: Pasal 17 equalization using `akum_bruto` from saved results. Without prior data: silently falls back to `base × 12` — known hazard (AUDIT.md MEDIUM #4, to add warning).
+- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations.
+- **Non-NPWP**: ×1.2 multiplier on PPh.
+
+### Karyawan Tidak Tetap
+- **Harian** (PMK 168/2023): `pph = TER_rate × monthly_bruto`, looked up by PTKP grup. Replaced the pre-2024 Pasal 17 + Rp 450k daily threshold method on 2026-05-20.
+- **Bulanan**: still uses the annualized Pasal 17 / 12 method (`calculateFreelance` mode `bulanan`) — open question whether this should also move to TER; verify against accountant's TIDAK FINAL sheet before changing.
+
+### BPJS — `bpjs_basis` overrides `gaji_pokok`
+- Optional `bpjs_basis` field on `KaryawanTetap` (and propagated through `calculateTHRBonus`). When set, JKK/JKM/JHT/JP/Kes calculations use it instead of `gaji_pokok`. Null/undefined preserves the prior behavior.
+- Use this when the company has declared a separate (usually lower) salary with BPJS than the actual `gaji_pokok`. Very common in Indonesian payroll. The reconciliation script (`scripts/reconcile-payroll.ts --bpjs-sheet`) showed >5% PPh divergence drops from 53/381 → 10/381 once `bpjs_basis` is threaded through.
+
+### BPJS rates (in `lib/engine/constants.ts`)
+- JKK: per-employee rate (0.24%–1.74%) — IN bruto
 - JKM: 0.3% employer — IN bruto
 - JHT: 3.7% employer (offslip), 2% employee — if `tanggung_jht_k`: IN bruto
-- JP: 2% employer (offslip, capped), 1% employee — if `tanggung_jp_k`: IN bruto
-- Kes: 4% employer (capped 12jt), 1% employee — if `tanggung_kes_k`: IN bruto
+- JP: 2% employer (offslip, capped at `JP_MAX_BASIS = 10,547,400`), 1% employee — if `tanggung_jp_k`: IN bruto
+- Kes: 4% employer (capped at `KES_MAX_BASIS = 12,000,000`), 1% employee — if `tanggung_kes_k`: IN bruto
+
+### Annual projection (`result.proyeksi.*`)
+Every `calculateMonthlySalary` result includes a `proyeksi` block:
+- `bruto_setahun`, `biaya_jabatan_setahun`, `netto_setahun`, `pkp_setahun`, `pph_setahun`, `pph_jan_nov_proyeksi`, `pph_desember_proyeksi`
+
+For Jan–Nov these are forecasts (current bruto × 12); for December they are actual values. UI surfaces can read `result.proyeksi.*` uniformly regardless of period.
 
 ### THR/Bonus
-- Selisih Pasal 17 method
-- Stored separately in `employee_events` (tipe = 'thr' or 'bonus')
+- Selisih Pasal 17 method (`calculateTHRBonus`).
+- Stored separately in `employee_events` (tipe = 'thr' or 'bonus').
 
 ---
 
