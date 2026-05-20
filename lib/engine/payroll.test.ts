@@ -299,6 +299,67 @@ describe('calculateMonthlySalary (grossup / pph_ditanggung)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+describe('annual projection (every-month forecast columns)', () => {
+  it('Jan-Nov: proyeksi.* computed by projecting current bruto × 12', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 3, // any non-December month
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0, // simplifies: no employer JKK
+      // No BPJS enrollment → bruto = 8M + jkm(24k) = 8,024,000
+    }));
+    expect(r.bruto).toBe(8_024_000);
+    expect(r.pph).toBe(Math.round(8_024_000 * 0.015)); // 120,360
+
+    expect(r.proyeksi.bruto_setahun).toBe(96_288_000);
+    expect(r.proyeksi.biaya_jabatan_setahun).toBe(4_814_400); // 5% of 96.288M, under 6M cap
+    expect(r.proyeksi.netto_setahun).toBe(91_473_600);
+    expect(r.proyeksi.pkp_setahun).toBe(37_473_000);
+    expect(r.proyeksi.pph_setahun).toBe(1_873_650); // 5% × 37.473M
+    expect(r.proyeksi.pph_jan_nov_proyeksi).toBe(120_360 * 11); // 1,323,960
+    expect(r.proyeksi.pph_desember_proyeksi).toBe(549_690); // setahun - jan_nov
+  });
+
+  it('Jan-Nov: biaya_jabatan caps at Rp 6,000,000 per year for high earners', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 6,
+      gaji_pokok: 50_000_000, // 600M/year → 5% would be 30M; cap kicks in
+      jkk_rate: 0,
+    }));
+    expect(r.proyeksi.biaya_jabatan_setahun).toBe(6_000_000); // capped at BIAYA_JAB_MAX × 12
+  });
+
+  it('Jan-Nov: non-NPWP multiplies pph_setahun by 1.2', () => {
+    const withNpwp = calculateMonthlySalary(tetap({
+      bulan: 4,
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+      punya_npwp: true,
+    }));
+    const withoutNpwp = calculateMonthlySalary(tetap({
+      bulan: 4,
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+      punya_npwp: false,
+    }));
+    expect(withoutNpwp.proyeksi.pph_setahun).toBe(Math.round(withNpwp.proyeksi.pph_setahun * 1.2));
+  });
+
+  it('December: proyeksi.* reflects actual (not projected) values', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      jkk_rate: 0,
+      akum_bruto: 110_000_000, // realistic Jan-Nov bruto sum
+      pph_jan_nov: 1_500_000,
+    }));
+    // The proyeksi fields exist on December results too, mirroring the calc.
+    expect(r.proyeksi).toBeDefined();
+    expect(r.proyeksi.pph_jan_nov_proyeksi).toBe(1_500_000); // actual, not projected × 11
+    expect(r.proyeksi.pph_desember_proyeksi).toBe(r.pph); // matches calculated December PPh
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 describe('calculateMonthlySalary (December equalization)', () => {
   it('uses akum_bruto when provided; emits Pasal 17 calc', () => {
     const r = calculateMonthlySalary(tetap({

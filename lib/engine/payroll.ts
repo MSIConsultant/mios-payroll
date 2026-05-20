@@ -189,6 +189,12 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
 
     const thp = k.gaji_pokok + allowance_total + irregular_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
+    // Annual projection: matches the accountant's standard Excel layout where
+    // every monthly worksheet shows "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES" as
+    // a forecast assuming the current month's bruto continues for the rest of
+    // the year. Useful as a reconciliation aid and December surprise prevention.
+    const proyeksi = computeAnnualProjection(k, bruto, pph, bpjs);
+
     return {
         jenis: "GAJI BULANAN INTEGRATED",
         bulan: k.bulan,
@@ -205,6 +211,44 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
+        proyeksi,
+    };
+}
+
+/**
+ * Annual projection if the current month's bruto continued for all 12 months.
+ * Mirrors the accountant's spreadsheet "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES"
+ * forecast columns. Used as a reconciliation aid on Jan-Nov payroll pages.
+ *
+ * For an isolated month where no prior data exists this is a hypothetical:
+ * "if you stay at this rate, December's equalization will look like this".
+ */
+function computeAnnualProjection(
+    k: KaryawanTetap,
+    monthlyBruto: number,
+    monthlyPph: number,
+    bpjs: ReturnType<typeof calculateBPJS>,
+) {
+    const ptkp = PTKP[k.status_ptkp];
+    const bruto_setahun = monthlyBruto * 12;
+    const biaya_jabatan_setahun = Math.min(bruto_setahun * BIAYA_JAB_RATE, BIAYA_JAB_MAX * 12);
+    const jp_k_tahunan = !k.tanggung_jp_k ? bpjs.jp_k * 12 : 0;
+    const netto_setahun = bruto_setahun - biaya_jabatan_setahun - jp_k_tahunan;
+    const pkp_setahun = Math.max(0, Math.floor((netto_setahun - ptkp) / 1000) * 1000);
+    let pph_setahun = getPasal17Tax(pkp_setahun);
+    if (!k.punya_npwp) {
+        pph_setahun = Math.round(pph_setahun * 1.2);
+    }
+    const pph_jan_nov_proyeksi = Math.round(monthlyPph * 11);
+    const pph_desember_proyeksi = Math.max(0, pph_setahun - pph_jan_nov_proyeksi);
+    return {
+        bruto_setahun,
+        biaya_jabatan_setahun,
+        netto_setahun,
+        pkp_setahun,
+        pph_setahun,
+        pph_jan_nov_proyeksi,
+        pph_desember_proyeksi,
     };
 }
 
@@ -226,6 +270,19 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
 
     const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
+    // Mirror the same `proyeksi` shape used in Jan-Nov so the UI can read one
+    // field path regardless of period. For December these are actual (not
+    // projected) values.
+    const proyeksi = {
+        bruto_setahun: bs,
+        biaya_jabatan_setahun: bj,
+        netto_setahun: netto,
+        pkp_setahun: pkp,
+        pph_setahun: pth,
+        pph_jan_nov_proyeksi: k.pph_jan_nov,
+        pph_desember_proyeksi: pd,
+    };
+
     return {
         jenis: "GAJI — DESEMBER (Equalisasi Pasal 17)",
         bulan: 12, tahun: k.tahun,
@@ -240,6 +297,7 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
         pph: pd, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
+        proyeksi,
     };
 }
 
