@@ -332,41 +332,79 @@ describe('calculateMonthlySalary (December equalization)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('calculateFreelance (PINS-CURRENT — to be replaced with TER in HARIAN task)', () => {
-  it('harian: under Rp 450k daily threshold → PPh nihil', () => {
+describe('calculateFreelance harian (TER method per PMK 168/2023)', () => {
+  it('harian under TER A bracket 0: PPh nihil regardless of daily wage', () => {
+    // 8 days × Rp 380k = Rp 3,040,000 monthly bruto. TER A bracket 0..5,400,000 = 0%.
+    // Matches ALI SAKBAN DAULAY in samples/HARIAN 02 sheet (PPh = 0).
     const r = calculateFreelance({
-      nama: 'Daily', nik: '1', npwp: '', divisi: '', bulan: 2, tahun: 2026,
+      nama: 'Ali', nik: '1', npwp: '', divisi: '', bulan: 2, tahun: 2026,
       status_ptkp: 'TK0', punya_npwp: false,
       mode: 'harian',
-      upah_harian: 400_000, hari_kerja: 20,
+      upah_harian: 380_000, hari_kerja: 8,
       upah_bulanan: 0, tunjangan: 0,
       ikut_bpjs_tk: false, ikut_kes: false,
       kasbon: 0, pot_lain: 0,
     } satisfies KaryawanTidakTetap);
     expect(r.mode).toBe('harian');
     if (r.mode === 'harian') {
+      expect(r.total_upah).toBe(3_040_000);
+      expect(r.grup).toBe('A');
+      expect(r.ter).toBe(0);
       expect(r.total_pph).toBe(0);
-      expect(r.keterangan).toContain('Nihil');
+      expect(r.keterangan).toContain('PPh nihil');
     }
   });
 
-  it('harian: above Rp 450k threshold → 5% × (upah - PTKP/360)', () => {
+  it('REGRESSION (ALFREDO Feb-2026 HARIAN): TER A 1% bracket', () => {
+    // Real row from HARIAN 02: TK0 + bruto 6,310,559 → TER A 0.01 → PPh 63,106
     const r = calculateFreelance({
-      nama: 'Daily', nik: '1', npwp: '', divisi: '', bulan: 2, tahun: 2026,
-      status_ptkp: 'TK0', punya_npwp: true,
+      nama: 'Alfredo', nik: '3172020104970015', npwp: '', divisi: '',
+      bulan: 2, tahun: 2026, status_ptkp: 'TK0', punya_npwp: true,
       mode: 'harian',
-      upah_harian: 600_000, hari_kerja: 10,
+      upah_harian: 631_055.9, hari_kerja: 10,
       upah_bulanan: 0, tunjangan: 0,
       ikut_bpjs_tk: false, ikut_kes: false,
       kasbon: 0, pot_lain: 0,
     } satisfies KaryawanTidakTetap);
     if (r.mode === 'harian') {
-      // PTKP TK0 = 54M → 54M/360 = 150,000/day
-      // PKP/day = 600,000 - 150,000 = 450,000
-      // PPh/day = 450,000 × 0.05 = 22,500
-      // Total = 22,500 × 10 = 225,000
-      expect(r.pph_per_hari).toBe(22_500);
-      expect(r.total_pph).toBe(225_000);
+      expect(r.total_upah).toBeCloseTo(6_310_559, 0);
+      expect(r.ter).toBe(0.01);
+      expect(r.total_pph).toBe(63_106);
+    }
+  });
+
+  it('REGRESSION (JOKO Feb-2026 HARIAN): K3 → TER C, bracket 0 → PPh nihil', () => {
+    // Real row from HARIAN 02: K3 + bruto 6,380,436 → TER C bracket 0..6,600,000 = 0% → PPh 0
+    // Important case: high earner but K3 (TER C) so still in bracket 0.
+    const r = calculateFreelance({
+      nama: 'Joko', nik: '1608180604830002', npwp: '', divisi: '',
+      bulan: 2, tahun: 2026, status_ptkp: 'K3', punya_npwp: false,
+      mode: 'harian',
+      upah_harian: 638_043.6, hari_kerja: 10,
+      upah_bulanan: 0, tunjangan: 0,
+      ikut_bpjs_tk: false, ikut_kes: false,
+      kasbon: 0, pot_lain: 0,
+    } satisfies KaryawanTidakTetap);
+    if (r.mode === 'harian') {
+      expect(r.grup).toBe('C');
+      expect(r.ter).toBe(0);
+      expect(r.total_pph).toBe(0);
+    }
+  });
+
+  it('harian: non-NPWP applies ×1.2 multiplier on top of TER result', () => {
+    const r = calculateFreelance({
+      nama: 'NoNPWP', nik: '1', npwp: '', divisi: '',
+      bulan: 2, tahun: 2026, status_ptkp: 'TK0', punya_npwp: false,
+      mode: 'harian',
+      upah_harian: 631_055.9, hari_kerja: 10,
+      upah_bulanan: 0, tunjangan: 0,
+      ikut_bpjs_tk: false, ikut_kes: false,
+      kasbon: 0, pot_lain: 0,
+    } satisfies KaryawanTidakTetap);
+    if (r.mode === 'harian') {
+      // Same bruto as ALFREDO above, but non-NPWP: 63,106 × 1.2 = 75,727 (rounded)
+      expect(r.total_pph).toBe(75_727);
     }
   });
 

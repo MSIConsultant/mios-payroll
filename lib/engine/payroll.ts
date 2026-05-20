@@ -299,33 +299,40 @@ export function calculateFreelance(k: KaryawanTidakTetap) {
     const ptkp = PTKP[k.status_ptkp];
 
     if (k.mode === "harian") {
-        const BATAS_HARIAN = 450_000;
+        // Per PMK 168/2023, pegawai tidak tetap harian use the TER method
+        // on the cumulative monthly bruto, looked up by PTKP grup. The
+        // accountant's HARIAN sheet confirms this — e.g., bruto Rp 6,310,559
+        // with TK0 (TER A) at the 0.01 bracket → PPh Rp 63,106.
+        const grup = PTKP_TER_GRUP[k.status_ptkp] as "A" | "B" | "C";
         const upah_reg = k.upah_harian * k.hari_kerja;
         const total_upah = upah_reg + (k.thr || 0) + (k.bonus || 0);
-        let pph_per_hari = 0;
-        let keterangan = "";
-        
-        if (k.upah_harian <= BATAS_HARIAN) {
-            keterangan = `Upah harian Rp ${k.upah_harian} <= Rp ${BATAS_HARIAN} -> PPh Nihil`;
-        } else {
-            const ptkp_per_hari = ptkp / 360;
-            const pkp_per_hari = Math.max(0, k.upah_harian - ptkp_per_hari);
-            pph_per_hari = pkp_per_hari * 0.05;
-            keterangan = "5% x (upah harian - PTKP/360)";
-        }
-        
+        const ter = getTerRate(total_upah, grup);
+
+        let total_pph = Math.round(total_upah * ter);
         if (!k.punya_npwp) {
-            pph_per_hari *= 1.2;
+            total_pph = Math.round(total_pph * 1.2);
         }
-        
-        const total_pph = Math.round(pph_per_hari * k.hari_kerja);
+
+        const pph_per_hari = k.hari_kerja > 0
+            ? Math.round(total_pph / k.hari_kerja)
+            : 0;
+
+        const keterangan = total_upah === 0
+            ? "Tidak ada upah"
+            : ter === 0
+                ? `TER ${grup} bracket 0 → PPh nihil`
+                : `TER ${grup} ${(ter * 100).toFixed(2)}% × bruto`;
+
         const thp = total_upah - total_pph - k.kasbon - k.pot_lain;
-        
+
         return {
             mode: "harian", status_ptkp: k.status_ptkp,
+            grup, ter,
             upah_harian: k.upah_harian, hari_kerja: k.hari_kerja,
-            total_upah, ptkp_harian: +(ptkp / 360).toFixed(2),
-            pph_per_hari: Math.round(pph_per_hari), total_pph,
+            total_upah,
+            // legacy field kept for backward compat — no longer meaningful under TER
+            ptkp_harian: 0,
+            pph_per_hari, total_pph,
             kasbon: k.kasbon, pot_lain: k.pot_lain, thp, keterangan,
         };
     } else {
