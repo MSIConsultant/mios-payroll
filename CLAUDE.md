@@ -76,6 +76,11 @@
 
 ## Database Schema
 
+### How schema changes happen
+- `supabase/schema.sql` is the **base snapshot** (incomplete per AUDIT.md — to be regenerated from production as a separate audit-cleanup task).
+- Schema changes after the snapshot live in `supabase/migrations/YYYY-MM-DD-name.sql` — one file per change set. Each file is self-contained, wraps work in `BEGIN/COMMIT`, and includes a commented-out rollback block.
+- Apply by pasting the file into the Supabase SQL editor and clicking Run. There is no auto-apply / no migration library; tracking lives in git.
+
 ### Core Tables
 ```
 workspaces              — Multi-tenant root
