@@ -5,3 +5,23 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python bytecode (from Claude Code skill scripts)
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code user-local settings
+.claude/settings.local.json
+
+# Local Excel/CSV samples (real client data — never commit)
+samples/
+*.xlsx
+*.xls
+!public/**/*.xlsx
+
