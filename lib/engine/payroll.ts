@@ -1,4 +1,4 @@
-import { PTKP, PTKP_TER_GRUP, PASAL17, TER, BPJS, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from "./constants";
+import { PTKP, PTKP_TER_GRUP, PASAL17, PESANGON_BRACKETS, TER, BPJS, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from "./constants";
 
 export interface KaryawanTetap {
     nama: string;
@@ -351,6 +351,93 @@ export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: numb
     }
 
     return hasil;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Kompensasi (pesangon / penghargaan masa kerja / penggantian hak / manfaat
+// pensiun) — PPh 21 final per PP 68/2009 progressive brackets.
+// ───────────────────────────────────────────────────────────────────────────
+
+export type KompensasiKategori = 'pesangon' | 'penghargaan' | 'manfaat_pensiun' | 'penggantian_hak' | 'other';
+
+export interface KompensasiInput {
+    nama: string;
+    nik: string;
+    npwp: string;
+    punya_npwp: boolean;
+    status_ptkp?: string;     // for reporting; PP 68/2009 doesn't consume PTKP
+    divisi?: string;
+    kategori: KompensasiKategori;
+    jumlah_bruto: number;     // gross severance amount in Rp
+}
+
+export interface KompensasiBracketApplied {
+    bracket_lo: number;   // lower bound of this bracket
+    bracket_hi: number;   // upper bound (Infinity for top bracket)
+    rate: number;         // 0, 0.05, 0.15, 0.25
+    taxable: number;      // portion of jumlah_bruto falling in this bracket
+    tax: number;          // = taxable × rate (before non-NPWP multiplier)
+}
+
+/**
+ * Compute PPh 21 final on a one-off kompensasi payment using PP 68/2009
+ * brackets. Returns the full bracket-by-bracket breakdown for transparency
+ * (stored in result_json).
+ *
+ * Brackets are cumulative widths:
+ *   first  Rp 50,000,000 → 0%
+ *   next   Rp 50,000,000 → 5%   (50M..100M)
+ *   next   Rp 400,000,000 → 15% (100M..500M)
+ *   above  Rp 500,000,000 → 25%
+ *
+ * Non-NPWP: PPh × 1.2 per UU PPh Pasal 17 ayat (5). Applied to the final
+ * total (not to each bracket individually).
+ */
+export function calculateSeverance(k: KompensasiInput) {
+    const jumlah = Math.max(0, Math.floor(k.jumlah_bruto));
+    const breakdown: KompensasiBracketApplied[] = [];
+
+    let lo = 0;
+    let remaining = jumlah;
+    let pph_before_npwp = 0;
+
+    for (const [width, rate] of PESANGON_BRACKETS) {
+        const hi = lo + width;
+        if (remaining <= 0) break;
+        const taxable = Math.min(remaining, width);
+        const tax = taxable * rate;
+        breakdown.push({
+            bracket_lo: lo,
+            bracket_hi: hi === Infinity ? Infinity : hi,
+            rate,
+            taxable,
+            tax,
+        });
+        pph_before_npwp += tax;
+        remaining -= taxable;
+        lo = hi;
+    }
+
+    const npwp_mult = k.punya_npwp ? 1.0 : 1.2;
+    const pph = Math.round(pph_before_npwp * npwp_mult);
+    const thp = jumlah - pph;
+
+    return {
+        jenis: 'KOMPENSASI (PPh 21 Final — PP 68/2009)',
+        kategori: k.kategori,
+        nama: k.nama,
+        nik: k.nik,
+        npwp: k.npwp,
+        punya_npwp: k.punya_npwp,
+        status_ptkp: k.status_ptkp ?? null,
+        divisi: k.divisi ?? null,
+        jumlah_bruto: jumlah,
+        breakdown,
+        pph_before_npwp_multiplier: Math.round(pph_before_npwp),
+        npwp_multiplier: npwp_mult,
+        pph,
+        thp,
+    };
 }
 
 export function calculateFreelance(k: KaryawanTidakTetap) {

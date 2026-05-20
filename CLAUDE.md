@@ -294,6 +294,13 @@ For Jan–Nov these are forecasts (current bruto × 12); for December they are a
 - Selisih Pasal 17 method (`calculateTHRBonus`).
 - Stored separately in `employee_events` (tipe = 'thr' or 'bonus').
 
+### Kompensasi / Severance (PP 68/2009)
+- One-off severance payments via `calculateSeverance(KompensasiInput)`.
+- PPh 21 final with progressive brackets (cumulative widths): 0% first Rp 50M; 5% next 50M; 15% next 400M; 25% above 500M.
+- Non-NPWP applies ×1.2 to the total, not per-bracket.
+- Returns the full bracket-by-bracket `breakdown[]` for transparency — stored in `kompensasi_payments.result_json` once slice 3 schema lands.
+- Categories: `pesangon | penghargaan | manfaat_pensiun | penggantian_hak | other`. All use the same brackets when paid sekaligus.
+
 ---
 
 ## Design System
