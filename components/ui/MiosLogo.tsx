@@ -71,20 +71,18 @@ export default function MiosLogo({ size = 'md', showWordmark = true, collapsed =
       {showWordmark && !collapsed && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{
-            color: '#f4f4f5',
-            fontFamily: "'Courier New', monospace",
-            fontWeight: 900,
+            color: '#0F172A',
+            fontWeight: 800,
             fontSize: s.wordmark,
             lineHeight: 1,
-            letterSpacing: '0.06em',
+            letterSpacing: '-0.01em',
           }}>MIOS</span>
           <span style={{
-            color: '#3f3f46',
-            fontFamily: "'Courier New', monospace",
-            fontWeight: 400,
+            color: '#64748B',
+            fontWeight: 600,
             fontSize: s.sub,
             lineHeight: 1,
-            letterSpacing: '0.22em',
+            letterSpacing: '0.2em',
             textTransform: 'uppercase',
           }}>Payroll</span>
         </div>
@@ -96,25 +94,24 @@ export default function MiosLogo({ size = 'md', showWordmark = true, collapsed =
 export function MiosLogoAuth() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-      <div style={{ filter: 'drop-shadow(0 0 24px rgba(27,79,168,0.35))' }}>
+      <div style={{ filter: 'drop-shadow(0 8px 16px rgba(15,23,42,0.08))' }}>
         <MiosMark size={64} />
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{
-          color: '#f4f4f5',
-          fontFamily: "'Courier New', monospace",
-          fontWeight: 900,
+          color: '#0F172A',
+          fontWeight: 800,
           fontSize: 22,
-          letterSpacing: '0.1em',
+          letterSpacing: '-0.01em',
           lineHeight: 1,
         }}>MIOS Payroll</div>
         <div style={{
-          color: '#3f3f46',
-          fontFamily: "'Courier New', monospace",
-          fontSize: 10,
-          letterSpacing: '0.3em',
+          color: '#64748B',
+          fontSize: 11,
+          letterSpacing: '0.25em',
           textTransform: 'uppercase',
-          marginTop: 6,
+          marginTop: 8,
+          fontWeight: 600,
         }}>Indonesian Accounting Platform</div>
       </div>
     </div>

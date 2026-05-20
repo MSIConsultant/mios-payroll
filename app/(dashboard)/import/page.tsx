@@ -2,9 +2,11 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getImportHistory } from '@/lib/actions/import';
 import Link from 'next/link';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react';
+import {
+  Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ChevronRight,
+} from 'lucide-react';
 
-const BULAN = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const BULAN = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 
 export default async function ImportPage() {
@@ -13,140 +15,135 @@ export default async function ImportPage() {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase
-    .from('user_profiles').select('role, workspace_id').eq('id', user.id).single();
+    .from('user_profiles')
+    .select('role, workspace_id')
+    .eq('id', user.id)
+    .single();
   if (!profile || profile.role === 'staff') redirect('/dashboard');
   if (!profile.workspace_id) redirect('/onboarding');
 
   const history = await getImportHistory(profile.workspace_id);
 
   return (
-    <div className="max-w-4xl space-y-8 animate-fade-in-up">
-
-      {/* Header */}
-      <div className="flex items-center justify-between border-b pb-6"
-        style={{ borderColor: 'var(--border-default)' }}>
+    <div className="space-y-7 animate-fade-in-up">
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-5 border-b border-[var(--border-default)]">
         <div>
-          <h1 className="text-3xl font-black" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Import Data
           </h1>
-          <p className="text-[14px] mt-1" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             Impor data payroll dari Excel akuntan. Riwayat import tersimpan permanen.
           </p>
         </div>
-        <Link href="/import/new"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-[14px] text-white transition-colors"
-          style={{ background: '#2563EB' }}>
-          <Upload size={15} />
+        <Link
+          href="/import/new"
+          className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+        >
+          <Upload size={16} />
           Import Baru
         </Link>
-      </div>
+      </header>
 
-      {/* History */}
       {history.length === 0 ? (
-        <div className="rounded-2xl p-16 text-center"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-          <FileSpreadsheet size={40} className="mx-auto mb-4" style={{ color: 'var(--text-ghost)' }} />
-          <p className="text-[17px] font-bold mb-2" style={{ color: 'var(--text-secondary)' }}>
+        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
+          <FileSpreadsheet size={36} className="mx-auto text-[var(--text-faint)]" />
+          <p className="mt-4 text-base font-semibold text-[var(--text-secondary)]">
             Belum ada import
           </p>
-          <p className="text-[14px] mb-6" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             Mulai dengan mengimpor file Excel payroll bulanan.
           </p>
-          <Link href="/import/new"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-[14px] text-white"
-            style={{ background: '#2563EB' }}>
-            <Upload size={15} />
+          <Link
+            href="/import/new"
+            className="mt-5 inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Upload size={16} />
             Import Pertama
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-2">
           {history.map((session: any, i: number) => {
-            const diffs    = session.summary?.has_diffs ?? 0;
-            const company  = (session.companies as any)?.name ?? '—';
+            const diffs = session.summary?.has_diffs ?? 0;
+            const company = (session.companies as any)?.name ?? '—';
             const hasDiffs = diffs > 0;
 
             return (
-              <Link key={session.id}
-                href={`/import/${session.id}`}
-                className="flex items-center gap-5 px-5 py-4 rounded-xl transition-all group animate-fade-in-up"
-                style={{
-                  background:     'var(--bg-card)',
-                  border:         '1px solid var(--border-default)',
-                  animationDelay: `${i * 0.04}s`,
-                  opacity:        0,
-                }}>
-
-                {/* Icon */}
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: hasDiffs ? 'rgba(251,176,64,0.1)' : 'rgba(34,197,94,0.1)' }}>
-                  {hasDiffs
-                    ? <AlertTriangle size={18} className="text-amber-400" />
-                    : <CheckCircle2  size={18} className="text-green-400" />}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <p className="font-bold text-[15px] truncate" style={{ color: 'var(--text-primary)' }}>
-                      {session.file_name}
-                    </p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest shrink-0"
-                      style={{ background: 'rgba(37,99,235,0.1)', color: '#3B82F6' }}>
-                      {BULAN[session.bulan]} {session.tahun}
-                    </span>
+              <li
+                key={session.id}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${Math.min(i, 8) * 0.04}s`, opacity: 0 }}
+              >
+                <Link
+                  href={`/import/${session.id}`}
+                  className="group flex items-center gap-4 bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-md rounded-xl px-4 py-4 transition-all"
+                >
+                  <div
+                    className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${
+                      hasDiffs ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    {hasDiffs ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
-                      {company}
-                    </span>
-                    <span style={{ color: 'var(--text-ghost)' }}>·</span>
-                    <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
-                      {session.imported_rows} karyawan
-                    </span>
-                    {session.summary?.created > 0 && (
-                      <>
-                        <span style={{ color: 'var(--text-ghost)' }}>·</span>
-                        <span className="text-[13px] text-green-400">
-                          {session.summary.created} baru
-                        </span>
-                      </>
-                    )}
-                    {hasDiffs && (
-                      <>
-                        <span style={{ color: 'var(--text-ghost)' }}>·</span>
-                        <span className="text-[13px] text-amber-400">
-                          {diffs} perbedaan
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
 
-                {/* Totals */}
-                {session.summary?.total_bruto && (
-                  <div className="hidden md:flex flex-col items-end shrink-0">
-                    <p className="text-[13px] font-bold font-mono" style={{ color: 'var(--text-secondary)' }}>
-                      {fmt(session.summary.total_thp)}
-                    </p>
-                    <p className="text-[11px] font-mono" style={{ color: 'var(--text-ghost)' }}>
-                      Total THP
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-[15px] text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors truncate">
+                        {session.file_name}
+                      </p>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-[var(--brand-soft)] text-[var(--brand)] ring-blue-200 font-mono">
+                        {BULAN[session.bulan]} {session.tahun}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[13px] text-[var(--text-muted)] flex-wrap">
+                      <span>{company}</span>
+                      <span>·</span>
+                      <span>{session.imported_rows} karyawan</span>
+                      {session.summary?.created > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="text-emerald-700 font-semibold">
+                            {session.summary.created} baru
+                          </span>
+                        </>
+                      )}
+                      {hasDiffs && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-700 font-semibold">
+                            {diffs} perbedaan
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                )}
 
-                {/* Date */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[12px] font-mono" style={{ color: 'var(--text-ghost)' }}>
-                    {new Date(session.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                  </span>
-                  <ChevronRight size={14} style={{ color: 'var(--text-ghost)' }}
-                    className="group-hover:text-[#3B82F6] transition-colors" />
-                </div>
-              </Link>
+                  {session.summary?.total_thp && (
+                    <div className="hidden md:flex flex-col items-end shrink-0">
+                      <p className="text-[14px] font-mono font-semibold text-emerald-700">
+                        {fmt(session.summary.total_thp)}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">Total THP</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[12px] font-mono text-[var(--text-muted)]">
+                      {new Date(session.created_at).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      className="text-[var(--text-faint)] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all"
+                    />
+                  </div>
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );

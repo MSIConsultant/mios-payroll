@@ -4,12 +4,18 @@ import { getImportSession } from '@/lib/actions/import';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-const fmt  = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
-const pct  = (n: number) => `${n.toFixed(1)}%`;
-const BULAN = ['','Januari','Februari','Maret','April','Mei','Juni',
-  'Juli','Agustus','September','Oktober','November','Desember'];
+const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+const pct = (n: number) => `${n.toFixed(1)}%`;
+const BULAN = [
+  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
 
-export default async function ImportSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
+export default async function ImportSessionPage({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
   const { sessionId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -18,98 +24,131 @@ export default async function ImportSessionPage({ params }: { params: Promise<{ 
   const { session, records } = await getImportSession(sessionId);
   if (!session) notFound();
 
-  const company  = (session as any).companies?.name ?? '—';
-  const diffs    = records.filter(r => r.has_diff);
-  const matches  = records.filter(r => !r.has_diff);
+  const company = (session as any).companies?.name ?? '—';
+  const diffs = records.filter((r) => r.has_diff);
+  const matches = records.filter((r) => !r.has_diff);
 
   return (
-    <div className="max-w-5xl space-y-6 animate-fade-in-up">
-
-      <div className="flex items-center gap-4 border-b pb-6"
-        style={{ borderColor: 'var(--border-default)' }}>
-        <Link href="/import"
-          className="w-9 h-9 rounded-lg flex items-center justify-center"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-muted)' }}>
-          <ArrowLeft size={15} />
+    <div className="space-y-6 animate-fade-in-up">
+      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+        <Link
+          href="/import"
+          className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors"
+        >
+          <ArrowLeft size={14} />
+          Import
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>
-            {session.file_name}
-          </h1>
-          <p className="text-[13px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {company} · {BULAN[session.bulan]} {session.tahun} ·{' '}
-            {new Date(session.created_at).toLocaleString('id-ID')}
-          </p>
-        </div>
       </div>
+
+      <header className="bg-white border border-[var(--border-default)] rounded-xl p-5 sm:p-6">
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] break-all">
+          {session.file_name}
+        </h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">
+          {company} · {BULAN[session.bulan]} {session.tahun} ·{' '}
+          {new Date(session.created_at).toLocaleString('id-ID')}
+        </p>
+      </header>
 
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Total',   value: records.length, color: 'var(--text-primary)' },
-          { label: 'Match',   value: matches.length, color: '#4ADE80' },
-          { label: 'Beda',    value: diffs.length,   color: diffs.length > 0 ? '#FBB040' : '#4ADE80' },
-          { label: 'Total THP', value: fmt((session.summary as any)?.total_thp ?? 0), color: '#3B82F6' },
-        ].map(s => (
-          <div key={s.label} className="rounded-xl p-4"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-muted)' }}>{s.label}</p>
-            <p className="text-2xl font-black font-mono" style={{ color: s.color }}>{s.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Total" value={records.length} />
+        <Stat label="Match" value={matches.length} accent="emerald" />
+        <Stat
+          label="Beda"
+          value={diffs.length}
+          accent={diffs.length > 0 ? 'amber' : 'emerald'}
+        />
+        <Stat
+          label="Total THP"
+          value={fmt((session.summary as any)?.total_thp ?? 0)}
+          accent="brand"
+        />
       </div>
 
-      {/* Reconciliation table */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'var(--bg-deep)', border: '1px solid var(--border-default)' }}>
-        <div className="px-5 py-3 grid gap-3 text-[10px] font-bold uppercase tracking-widest"
-          style={{
-            gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px',
-            borderBottom: '1px solid var(--border-default)',
-            background: 'var(--bg-card)', color: 'var(--text-muted)',
-          }}>
-          <div>Karyawan</div>
-          <div className="text-right">Bruto (Excel)</div>
-          <div className="text-right">Bruto (Engine)</div>
-          <div className="text-right">PPh</div>
-          <div className="text-right">THP</div>
-          <div className="text-center">Delta</div>
+      {/* Reconciliation */}
+      <section className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
+          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+            Rekonsiliasi{' '}
+            <span className="text-[var(--text-muted)] font-normal">
+              ({records.length})
+            </span>
+          </h2>
         </div>
-        {records.map((r, i) => (
-          <div key={i}
-            className="px-5 py-3 grid gap-3 items-center text-[13px]"
-            style={{
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px',
-              borderBottom: '1px solid var(--border-subtle)',
-              background: r.has_diff ? 'rgba(251,176,64,0.02)' : 'transparent',
-            }}>
-            <div>
-              <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{r.employee_name}</p>
-            </div>
-            <div className="text-right font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
-              {fmt((r.original_data as any)?.bruto ?? 0)}
-            </div>
-            <div className="text-right font-mono" style={{ color: r.has_diff ? '#FBB040' : 'var(--text-muted)' }}>
-              {fmt((r.recalculated_data as any)?.bruto ?? 0)}
-            </div>
-            <div className="text-right font-mono text-amber-400">
-              {fmt((r.original_data as any)?.pph ?? 0)}
-            </div>
-            <div className="text-right font-mono text-green-400 font-bold">
-              {fmt((r.original_data as any)?.thp ?? 0)}
-            </div>
-            <div className="flex justify-center">
-              {r.has_diff
-                ? <span className="text-[11px] font-bold text-amber-400">
-                    {pct((r.differences as any)?.diff_pct ?? 0)}
-                  </span>
-                : <CheckCircle2 size={14} className="text-green-500" />
-              }
-            </div>
-          </div>
-        ))}
-      </div>
+        <div className="overflow-x-auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th className="text-right">Bruto (Excel)</th>
+                <th className="text-right">Bruto (Engine)</th>
+                <th className="text-right">PPh</th>
+                <th className="text-right">THP</th>
+                <th className="text-center">Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, i) => (
+                <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
+                  <td className="font-semibold text-[var(--text-primary)]">
+                    {r.employee_name}
+                  </td>
+                  <td className="text-right font-mono font-semibold">
+                    {fmt((r.original_data as any)?.bruto ?? 0)}
+                  </td>
+                  <td
+                    className={`text-right font-mono ${
+                      r.has_diff ? 'text-amber-700 font-semibold' : ''
+                    }`}
+                  >
+                    {fmt((r.recalculated_data as any)?.bruto ?? 0)}
+                  </td>
+                  <td className="text-right font-mono text-amber-700">
+                    {fmt((r.original_data as any)?.pph ?? 0)}
+                  </td>
+                  <td className="text-right font-mono font-bold text-emerald-700">
+                    {fmt((r.original_data as any)?.thp ?? 0)}
+                  </td>
+                  <td className="text-center">
+                    {r.has_diff ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                        <AlertTriangle size={11} />
+                        {pct((r.differences as any)?.diff_pct ?? 0)}
+                      </span>
+                    ) : (
+                      <CheckCircle2 size={14} className="text-emerald-600 inline" />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Stat({
+  label, value, accent,
+}: {
+  label: string;
+  value: string | number;
+  accent?: 'brand' | 'emerald' | 'amber';
+}) {
+  const accentMap = {
+    brand: 'text-[var(--brand)]',
+    emerald: 'text-emerald-700',
+    amber: 'text-amber-700',
+  } as const;
+  const text = accent ? accentMap[accent] : 'text-[var(--text-primary)]';
+  return (
+    <div className="bg-white border border-[var(--border-default)] rounded-xl p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </p>
+      <p className={`mt-2 text-2xl font-bold font-mono ${text}`}>{value}</p>
     </div>
   );
 }

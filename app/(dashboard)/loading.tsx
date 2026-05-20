@@ -1,8 +1,20 @@
 export default function Loading() {
   return (
-    <div className="p-8 space-y-4">
-      {[1,2,3].map(i => (
-        <div key={i} className="h-16 bg-[#111113] border border-[#1A1A1C] rounded-lg animate-pulse" />
+    <div className="space-y-4 animate-fade-in">
+      <div className="h-20 bg-white border border-[var(--border-default)] rounded-xl animate-pulse" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-24 bg-white border border-[var(--border-default)] rounded-xl animate-pulse"
+          />
+        ))}
+      </div>
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="h-16 bg-white border border-[var(--border-default)] rounded-xl animate-pulse"
+        />
       ))}
     </div>
   );

@@ -4,25 +4,53 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Company, Employee } from '@/lib/types';
-import { Users, Plus, Search, ArrowLeft, ChevronRight, Calendar, Edit2, X, Save } from 'lucide-react';
+import {
+  Users, Plus, Search, ArrowLeft, ChevronRight, Calendar,
+  Edit2, X, Save, Upload, Download, Building2,
+} from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { updateCompany } from '@/lib/actions/companies';
 import { NpwpCompanyInput } from '@/components/ui/FormattedInput';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
-import { Download } from 'lucide-react';
 
-const BULAN = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const BULAN = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-function TF({ label, name, defaultValue, placeholder }: { label: string; name: string; defaultValue?: string; placeholder?: string }) {
-  const [focused, setFocused] = useState(false);
+function TF({
+  label, name, defaultValue, placeholder,
+}: { label: string; name: string; defaultValue?: string; placeholder?: string }) {
   return (
     <div>
-      <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{label}</label>
-      <input name={name} type="text" defaultValue={defaultValue} placeholder={placeholder}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none transition-colors font-mono"
-        style={{ borderColor: focused ? 'rgba(37,99,235,0.4)' : '#1A1A1C' }} />
+      <label className="block text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5">
+        {label}
+      </label>
+      <input
+        name={name}
+        type="text"
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all"
+      />
+    </div>
+  );
+}
+
+function EmployeeInitials({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  const hue = Math.abs(hash) % 360;
+  return (
+    <div
+      className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white"
+      style={{ background: `hsl(${hue} 55% 50%)` }}
+      aria-hidden="true"
+    >
+      {initials}
     </div>
   );
 }
@@ -30,13 +58,13 @@ function TF({ label, name, defaultValue, placeholder }: { label: string; name: s
 export default function CompanyDetailPage() {
   const { companyId } = useParams();
   const router = useRouter();
-  const [company, setCompany]       = useState<Company | null>(null);
-  const [employees, setEmployees]   = useState<Employee[]>([]);
-  const [lastRun, setLastRun]       = useState<any>(null);
-  const [loading, setLoading]       = useState(true);
-  const [search, setSearch]         = useState('');
-  const [showEdit, setShowEdit]     = useState(false);
-  const [saving, setSaving]         = useState(false);
+  const [company, setCompany]     = useState<Company | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [lastRun, setLastRun]     = useState<any>(null);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
+  const [showEdit, setShowEdit]   = useState(false);
+  const [saving, setSaving]       = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -45,7 +73,8 @@ export default function CompanyDetailPage() {
         supabase.from('companies').select('*').eq('id', companyId).single(),
         supabase.from('employees').select('*').eq('company_id', companyId).eq('aktif', true).order('nama'),
         supabase.from('payroll_runs').select('*').eq('company_id', companyId)
-          .order('tahun', { ascending: false }).order('bulan', { ascending: false }).limit(1).maybeSingle(),
+          .order('tahun', { ascending: false }).order('bulan', { ascending: false })
+          .limit(1).maybeSingle(),
       ]);
       if (co) setCompany(co);
       if (emps) setEmployees(emps);
@@ -63,7 +92,6 @@ export default function CompanyDetailPage() {
     } else {
       toast.success('Data perusahaan diperbarui');
       setShowEdit(false);
-      // Refresh company data
       const supabase = createClient();
       const { data } = await supabase.from('companies').select('*').eq('id', companyId).single();
       if (data) setCompany(data);
@@ -80,189 +108,333 @@ export default function CompanyDetailPage() {
     if (res.error) toast.error(res.error);
     else {
       toast.success(company.aktif ? 'Perusahaan diarsipkan' : 'Perusahaan diaktifkan');
-      setCompany(c => c ? { ...c, aktif: !c.aktif } : c);
+      setCompany((c) => (c ? { ...c, aktif: !c.aktif } : c));
     }
   }
 
-  const filtered = employees.filter(e =>
+  const filtered = employees.filter((e) =>
     e.nama.toLowerCase().includes(search.toLowerCase()) ||
-    e.nik.toLowerCase().includes(search.toLowerCase())
+    e.nik.toLowerCase().includes(search.toLowerCase()),
   );
 
-  if (loading) return (
-    <div className="space-y-3">
-      {[1,2,3,4].map(i => <div key={i} className="h-14 bg-[#111113] border border-[#1A1A1C] rounded-lg animate-pulse" />)}
-    </div>
+  if (loading) {
+    return (
+      <div className="space-y-3 animate-fade-in">
+        <div className="h-20 bg-white border border-[var(--border-default)] rounded-xl animate-pulse" />
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-white border border-[var(--border-default)] rounded-xl animate-pulse" />
+          ))}
+        </div>
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-14 bg-white border border-[var(--border-default)] rounded-lg animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
+        <Building2 size={32} className="mx-auto text-[var(--text-faint)]" />
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">Perusahaan tidak ditemukan.</p>
+      </div>
+    );
+  }
+
+  const totalBruto = employees.reduce(
+    (a, e) => a + (e.gaji_pokok ?? 0) + (e.benefit ?? 0),
+    0,
   );
-  if (!company) return <div className="text-zinc-600 text-sm">Perusahaan tidak ditemukan.</div>;
 
   return (
-    <div className="max-w-4xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/companies"
-            className="w-9 h-9 bg-[#111113] border border-[#1A1A1C] rounded-lg flex items-center justify-center text-zinc-600 hover:text-zinc-200 transition-colors">
-            <ArrowLeft size={15} />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-zinc-100">{company.name}</h1>
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest border ${
-                company.aktif
-                  ? 'bg-green-900/25 text-green-400 border-green-900/40'
-                  : 'bg-zinc-800 text-zinc-500 border-zinc-700'
-              }`}>{company.aktif ? 'Aktif' : 'Arsip'}</span>
+    <div className="space-y-6 animate-fade-in-up">
+      {/* Breadcrumb / back */}
+      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+        <Link
+          href="/companies"
+          className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors"
+        >
+          <ArrowLeft size={14} />
+          Perusahaan
+        </Link>
+      </div>
+
+      {/* Header card */}
+      <header className="bg-white border border-[var(--border-default)] rounded-xl p-5 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="shrink-0 w-12 h-12 rounded-xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center">
+              <Building2 size={22} />
             </div>
-            <p className="text-[11px] text-zinc-600 mt-0.5">{company.industri ?? '—'} · {company.kota ?? '—'}</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] truncate">
+                  {company.name}
+                </h1>
+                <span
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 ring-inset ${
+                    company.aktif
+                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                      : 'bg-slate-100 text-slate-600 ring-slate-200'
+                  }`}
+                >
+                  {company.aktif ? 'Aktif' : 'Arsip'}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                {company.industri ?? '—'} · {company.kota ?? '—'}
+                {company.npwp_perusahaan ? (
+                  <span className="font-mono"> · NPWP {company.npwp_perusahaan}</span>
+                ) : null}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowEdit(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              <Edit2 size={14} />
+              Edit
+            </button>
+            <button
+              onClick={handleArchive}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            >
+              {company.aktif ? 'Arsipkan' : 'Aktifkan'}
+            </button>
+            <Link
+              href={`/companies/${companyId}/employees/import`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <Upload size={14} />
+              Import Karyawan
+            </Link>
+            <Link
+              href={`/companies/${companyId}/import`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <Download size={14} />
+              Import Excel
+            </Link>
+            <Link
+              href={`/companies/${companyId}/payroll`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--brand)] text-[var(--brand)] rounded-lg text-sm font-semibold hover:bg-[var(--brand-soft)] transition-colors"
+            >
+              <Calendar size={14} />
+              Payroll
+            </Link>
+            <Link
+              href={`/companies/${companyId}/employees/new`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--brand-hover)] transition-colors shadow-sm"
+            >
+              <Plus size={14} />
+              Karyawan
+            </Link>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowEdit(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-zinc-200 hover:border-zinc-600 transition-colors">
-            <Edit2 size={13} />
-            Edit
-          </button>
-          <button onClick={handleArchive}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-zinc-200 transition-colors">
-            {company.aktif ? 'Archive' : 'Restore'}
-          </button>
-          <Link href={`/companies/${companyId}/payroll`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-[#2563EB]/30 hover:text-zinc-200 transition-colors">
-            <Calendar size={13} />
-            Payroll
-          </Link>
-          <Link href={`/companies/${companyId}/employees/import`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-zinc-200 hover:border-zinc-600 transition-colors">
-            <Upload size={13} />
-            Import
-          </Link>
-          
-          {/* Integrated Claude Button */}
-          <Link href={`/companies/${companyId}/import`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-zinc-200 hover:border-zinc-600 transition-colors">
-            <Download size={13} />
-            Import Excel
-          </Link>
-
-          <Link href={`/companies/${companyId}/employees/new`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors">
-            <Plus size={13} />
-            Karyawan
-          </Link>
-        </div>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Karyawan Aktif</p>
-          <p className="text-4xl font-bold text-zinc-100 font-mono">{employees.length}</p>
-        </div>
-        <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Payroll Terakhir</p>
-          <p className="text-xl font-bold text-zinc-100">{lastRun ? `${BULAN[lastRun.bulan]} ${lastRun.tahun}` : '—'}</p>
-          {lastRun && <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-1">{lastRun.status}</p>}
-        </div>
-        <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Est. Bruto Bulanan</p>
-          <p className="text-xl font-bold text-zinc-100 font-mono">
-            {formatRupiah(employees.reduce((a, e) => a + (e.gaji_pokok ?? 0) + (e.benefit ?? 0), 0))}
-          </p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Karyawan Aktif" value={String(employees.length)} accent="brand" mono />
+        <StatCard
+          label="Payroll Terakhir"
+          value={lastRun ? `${BULAN[lastRun.bulan]} ${lastRun.tahun}` : '—'}
+          sub={lastRun?.status}
+        />
+        <StatCard label="Est. Bruto Bulanan" value={formatRupiah(totalBruto)} mono />
       </div>
 
-      {/* Employee Table */}
-      <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-[#1A1A1C] flex items-center justify-between">
+      {/* Employees */}
+      <section className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Users size={13} className="text-zinc-600" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Karyawan</span>
+            <Users size={16} className="text-[var(--text-muted)]" />
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+              Karyawan{' '}
+              <span className="text-[var(--text-muted)] font-normal">({filtered.length})</span>
+            </h2>
           </div>
           <div className="relative">
-            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-700" />
-            <input type="text" placeholder="Cari..." value={search} onChange={e => setSearch(e.target.value)}
-              className="pl-7 pr-3 py-1.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded text-xs text-zinc-300 placeholder:text-zinc-700 outline-none focus:border-[#2563EB]/30 transition-colors w-40" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
+            />
+            <input
+              type="text"
+              placeholder="Cari nama atau NIK…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all w-full sm:w-64"
+            />
           </div>
         </div>
 
-        <table className="w-full font-mono text-xs">
-          <thead>
-            <tr className="border-b border-[#1A1A1C] text-[10px] uppercase tracking-widest text-zinc-700">
-              <th className="px-5 py-3 text-left">Nama</th>
-              <th className="px-5 py-3 text-left">Tipe</th>
-              <th className="px-5 py-3 text-left">PTKP / NPWP</th>
-              <th className="px-5 py-3 text-right">Gaji Pokok</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-12 text-center text-zinc-700">
-                {search ? 'Tidak ditemukan' : 'Belum ada karyawan — tambah di atas'}
-              </td></tr>
-            ) : filtered.map(emp => (
-              <tr key={emp.id} onClick={() => router.push(`/companies/${companyId}/employees/${emp.id}`)}
-                className="border-b border-[#131315] hover:bg-[#131315] cursor-pointer transition-colors group">
-                <td className="px-5 py-3.5">
-                  <p className="text-zinc-200 font-bold text-xs uppercase group-hover:text-[#2563EB] transition-colors">{emp.nama}</p>
-                  <p className="text-zinc-700 text-[10px]">#{emp.nik}</p>
-                </td>
-                <td className="px-5 py-3.5">
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                    emp.jenis_karyawan === 'tetap' ? 'bg-sky-900/25 text-sky-400' : 'bg-zinc-800 text-zinc-500'
-                  }`}>{emp.jenis_karyawan === 'tetap' ? 'Tetap' : 'TT'}</span>
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-zinc-500">{emp.status_ptkp}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                      emp.punya_npwp ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
-                    }`}>{emp.punya_npwp ? 'NPWP ✓' : 'NO NPWP'}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  <span className="text-base font-bold text-zinc-300">{formatRupiah(emp.gaji_pokok)}</span>
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <ChevronRight size={13} className="text-zinc-700 group-hover:text-zinc-400 inline transition-colors" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        {filtered.length === 0 ? (
+          <div className="px-5 py-16 text-center">
+            <Users size={28} className="mx-auto text-[var(--text-faint)]" />
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">
+              {search ? 'Tidak ditemukan' : 'Belum ada karyawan'}
+            </p>
+            {!search && (
+              <Link
+                href={`/companies/${companyId}/employees/new`}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--brand)] hover:underline"
+              >
+                <Plus size={14} />
+                Tambah karyawan pertama
+              </Link>
+            )}
+          </div>
+        ) : (
+          <ul className="divide-y divide-[var(--border-subtle)]">
+            {filtered.map((emp) => (
+              <li key={emp.id}>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/companies/${companyId}/employees/${emp.id}`)}
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[var(--bg-subtle)] transition-colors text-left group cursor-pointer"
+                >
+                  <EmployeeInitials name={emp.nama} />
 
-      {/* Edit Company Modal */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors truncate">
+                      {emp.nama}
+                    </p>
+                    <p className="text-[12px] text-[var(--text-muted)] font-mono mt-0.5">
+                      NIK {emp.nik}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`hidden sm:inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 ring-inset ${
+                      emp.jenis_karyawan === 'tetap'
+                        ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                        : 'bg-slate-100 text-slate-600 ring-slate-200'
+                    }`}
+                  >
+                    {emp.jenis_karyawan === 'tetap' ? 'Tetap' : 'Tidak Tetap'}
+                  </span>
+
+                  <div className="hidden md:flex items-center gap-2 shrink-0">
+                    <span className="text-[12px] text-[var(--text-secondary)] font-medium">
+                      {emp.status_ptkp}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        emp.punya_npwp
+                          ? 'text-emerald-700 bg-emerald-50'
+                          : 'text-red-700 bg-red-50'
+                      }`}
+                    >
+                      {emp.punya_npwp ? 'NPWP ✓' : 'NO NPWP'}
+                    </span>
+                  </div>
+
+                  <div className="text-right shrink-0 min-w-[120px]">
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)] font-mono">
+                      {formatRupiah(emp.gaji_pokok)}
+                    </p>
+                    <p className="text-[11px] text-[var(--text-muted)]">gaji pokok</p>
+                  </div>
+
+                  <ChevronRight
+                    size={16}
+                    className="text-[var(--text-faint)] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all shrink-0"
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Edit modal */}
       {showEdit && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg w-full max-w-lg overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#1A1A1C] flex items-center justify-between bg-[#0F0F11]">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Edit Perusahaan</p>
-              <button onClick={() => setShowEdit(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors">
-                <X size={16} />
+        <div
+          className="fixed inset-0 bg-[var(--bg-overlay)] z-50 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setShowEdit(false)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-lg overflow-hidden shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-[var(--border-default)] flex items-center justify-between">
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">
+                Edit Perusahaan
+              </h3>
+              <button
+                onClick={() => setShowEdit(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-md cursor-pointer"
+                aria-label="Tutup"
+              >
+                <X size={18} />
               </button>
             </div>
-            <form action={async (fd) => { await handleEditCompany(fd); }} className="p-5 space-y-4">
-              <TF label="Nama Perusahaan *"  name="name"             defaultValue={company.name}             placeholder="PT Bangun Jaya Abadi" />
+            <form
+              action={async (fd) => {
+                await handleEditCompany(fd);
+              }}
+              className="p-5 space-y-4"
+            >
+              <TF label="Nama Perusahaan *" name="name" defaultValue={company.name} placeholder="PT Bangun Jaya Abadi" />
               <NpwpCompanyInput label="NPWP Perusahaan" name="npwp_perusahaan" defaultValue={company.npwp_perusahaan ?? ''} />
               <div className="grid grid-cols-2 gap-4">
                 <TF label="Industri" name="industri" defaultValue={company.industri ?? ''} placeholder="Manufaktur" />
-                <TF label="Kota"     name="kota"     defaultValue={company.kota ?? ''}     placeholder="Jakarta" />
+                <TF label="Kota" name="kota" defaultValue={company.kota ?? ''} placeholder="Jakarta" />
               </div>
               <TF label="Alamat" name="alamat" defaultValue={company.alamat ?? ''} placeholder="Alamat lengkap" />
-              <div className="flex justify-end gap-3 pt-2 border-t border-[#1A1A1C]">
-                <button type="button" onClick={() => setShowEdit(false)}
-                  className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
-                <button type="submit" disabled={saving}
-                  className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#1D4ED8] disabled:opacity-50 transition-colors">
-                  <Save size={13} />
-                  {saving ? 'Menyimpan...' : 'Simpan'}
+              <div className="flex justify-end gap-3 pt-2 border-t border-[var(--border-subtle)]">
+                <button
+                  type="button"
+                  onClick={() => setShowEdit(false)}
+                  className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-5 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  <Save size={14} />
+                  {saving ? 'Menyimpan…' : 'Simpan'}
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label, value, sub, accent, mono,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: 'brand';
+  mono?: boolean;
+}) {
+  return (
+    <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-2xl font-bold tracking-tight ${
+          accent === 'brand' ? 'text-[var(--brand)]' : 'text-[var(--text-primary)]'
+        } ${mono ? 'font-mono' : ''}`}
+      >
+        {value}
+      </p>
+      {sub && (
+        <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider mt-1">{sub}</p>
       )}
     </div>
   );

@@ -1,15 +1,21 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, Lock, CheckCircle2, Clock, Plus, Building2, Users, Play } from 'lucide-react';
+import {
+  Lock, CheckCircle2, Clock, Plus, Building2, Users, Play,
+  ArrowRight, TrendingUp,
+} from 'lucide-react';
 import DashboardRealtime from './DashboardRealtime';
 
-const BULAN_ID    = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const BULAN_ID    = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const BULAN_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 
-{/* Real-time status is handled via RealtimeStatus component
-    Company status updates live when staff calculate/lock payroll */}
+const STATUS_CHIP: Record<string, string> = {
+  locked: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  calculated: 'bg-sky-50 text-sky-700 ring-sky-200',
+  draft: 'bg-amber-50 text-amber-700 ring-amber-200',
+};
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -32,7 +38,7 @@ export default async function DashboardPage() {
     .from('companies').select('id, name, kota')
     .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
 
-  const companyIds = (companies ?? []).map(c => c.id);
+  const companyIds = (companies ?? []).map((c) => c.id);
 
   const { count: empCount } = companyIds.length > 0
     ? await supabase.from('employees').select('*', { count: 'exact', head: true })
@@ -44,19 +50,20 @@ export default async function DashboardPage() {
         .in('company_id', companyIds).eq('tahun', tahunIni).eq('bulan', bulanIni)
     : { data: [] };
 
-  const runMap    = Object.fromEntries((thisMonthRuns ?? []).map(r => [r.company_id, r.status]));
-  const locked    = (thisMonthRuns ?? []).filter(r => r.status === 'locked').length;
-  const calculated = (thisMonthRuns ?? []).filter(r => r.status === 'calculated').length;
-  const pending   = (companies?.length ?? 0) - locked - calculated;
+  const runMap     = Object.fromEntries((thisMonthRuns ?? []).map((r) => [r.company_id, r.status]));
+  const locked     = (thisMonthRuns ?? []).filter((r) => r.status === 'locked').length;
+  const calculated = (thisMonthRuns ?? []).filter((r) => r.status === 'calculated').length;
+  const pending    = (companies?.length ?? 0) - locked - calculated;
+  const lockedPct  = (companies?.length ?? 0) > 0 ? (locked / (companies?.length ?? 1)) * 100 : 0;
 
   const { data: recentRuns } = companyIds.length > 0
     ? await supabase.from('payroll_runs')
         .select('id, company_id, tahun, bulan, status, calculated_at')
         .in('company_id', companyIds)
-        .order('calculated_at', { ascending: false }).limit(10)
+        .order('calculated_at', { ascending: false }).limit(8)
     : { data: [] };
 
-  const runIds = (recentRuns ?? []).map(r => r.id);
+  const runIds = (recentRuns ?? []).map((r) => r.id);
   const { data: runTotals } = runIds.length > 0
     ? await supabase.from('payroll_results').select('run_id, thp, bruto, pph').in('run_id', runIds)
     : { data: [] };
@@ -69,89 +76,89 @@ export default async function DashboardPage() {
     totalsMap[r.run_id].pph   += r.pph   ?? 0;
     totalsMap[r.run_id].count += 1;
   }
-  const companyMap = Object.fromEntries((companies ?? []).map(c => [c.id, c]));
+  const companyMap = Object.fromEntries((companies ?? []).map((c) => [c.id, c]));
   const isEmpty    = (companies?.length ?? 0) === 0;
 
   return (
-    <div className="max-w-4xl space-y-8 animate-fade-in-up">
-
+    <div className="space-y-8 animate-fade-in-up">
       {/* Period header */}
-      <div className="border-b border-[#1E1E22] pb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest mb-2"
-          style={{ color: 'var(--text-muted)' }}>
-          {wsName} · Periode Aktif
-        </p>
-        <div className="flex items-baseline gap-4">
-          <h1 className="font-black font-mono tracking-tighter leading-none"
-            style={{ fontSize: 52, color: 'var(--text-primary)' }}>
-            {BULAN_ID[bulanIni].toUpperCase()}
-          </h1>
-          <span className="text-2xl font-bold font-mono"
-            style={{ color: 'var(--text-muted)' }}>{tahunIni}</span>
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-[var(--border-default)]">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            {wsName} · Periode Aktif
+          </p>
+          <div className="flex items-baseline gap-3 mt-1">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-primary)]">
+              {BULAN_ID[bulanIni]}
+            </h1>
+            <span className="text-xl font-semibold text-[var(--text-muted)] font-mono">
+              {tahunIni}
+            </span>
+          </div>
         </div>
 
         {!isEmpty && (
-          <div className="flex items-center gap-6 mt-4">
-            <div className="flex items-center gap-2">
-              <Lock size={11} className="text-green-400" />
-              <span className="text-xs font-bold text-green-400 font-mono">{locked} terkunci</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={11} className="text-sky-400" />
-              <span className="text-xs font-bold text-sky-400 font-mono">{calculated} dihitung</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock size={11} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-xs font-bold font-mono" style={{ color: 'var(--text-muted)' }}>
-                {pending} pending
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-1.5">
+              <Lock size={14} className="text-emerald-600" />
+              <span className="text-sm font-semibold text-[var(--text-secondary)]">
+                <span className="font-mono">{locked}</span> terkunci
               </span>
             </div>
-            {(companies?.length ?? 0) > 0 && (
-              <div className="flex-1 max-w-32 h-1 rounded-full overflow-hidden"
-                style={{ background: 'var(--bg-card)' }}>
-                <div className="h-full bg-green-500 rounded-full transition-all duration-1000"
-                  style={{ width: `${(locked / (companies?.length ?? 1)) * 100}%` }} />
-              </div>
-            )}
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-sky-600" />
+              <span className="text-sm font-semibold text-[var(--text-secondary)]">
+                <span className="font-mono">{calculated}</span> dihitung
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock size={14} className="text-amber-600" />
+              <span className="text-sm font-semibold text-[var(--text-secondary)]">
+                <span className="font-mono">{pending}</span> pending
+              </span>
+            </div>
+            <div className="w-32 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                style={{ width: `${lockedPct}%` }}
+              />
+            </div>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* ── EMPTY STATE ── */}
       {isEmpty ? (
-        <div className="space-y-6">
+        <>
           {/* Welcome card */}
-          <div className="rounded-2xl overflow-hidden border"
-            style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}>
-            {/* Top gradient bar */}
-            <div className="h-1 w-full"
-              style={{ background: 'linear-gradient(90deg, #E02020, #1B4FA8, #2DB44A)' }} />
+          <div className="bg-white border border-[var(--border-default)] rounded-2xl overflow-hidden shadow-sm">
+            <div
+              className="h-1 w-full"
+              style={{ background: 'linear-gradient(90deg, #E02020, #1B4FA8, #2DB44A)' }}
+            />
             <div className="p-10 text-center">
-              <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center"
-                style={{ background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)' }}>
-                <Play size={24} className="text-[#3B82F6]" style={{ marginLeft: 2 }} />
+              <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center bg-[var(--brand-soft)] text-[var(--brand)]">
+                <Play size={26} className="ml-0.5" />
               </div>
-              <h2 className="text-2xl font-black mb-2" style={{ color: 'var(--text-primary)' }}>
-                Selamat Datang di MIOS Payroll
+              <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+                Selamat datang di MIOS Payroll
               </h2>
-              <p className="text-sm mb-8 max-w-md mx-auto leading-relaxed"
-                style={{ color: 'var(--text-muted)' }}>
-                Mulai dengan menambahkan perusahaan klien pertama Anda. Setelah itu, tambahkan karyawan dan jalankan payroll pertama.
+              <p className="text-[15px] text-[var(--text-secondary)] mt-3 max-w-md mx-auto leading-relaxed">
+                Mulai dengan menambahkan perusahaan klien pertama. Setelah itu, tambahkan karyawan
+                dan jalankan payroll pertama Anda.
               </p>
 
-              <div className="flex items-center justify-center gap-4">
-                <Link href="/companies/new"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all"
-                  style={{ background: '#3B82F6', color: '#fff' }}>
-                  <Plus size={16} />
-                  Tambah Perusahaan Pertama
-                </Link>
-              </div>
+              <Link
+                href="/companies/new"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition-colors shadow-sm"
+              >
+                <Plus size={16} />
+                Tambah Perusahaan Pertama
+              </Link>
             </div>
           </div>
 
           {/* Step guide */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               {
                 step: '01',
@@ -159,7 +166,7 @@ export default async function DashboardPage() {
                 title: 'Tambah Perusahaan',
                 desc: 'Daftarkan perusahaan klien lengkap dengan NPWP dan informasi dasar.',
                 href: '/companies/new',
-                color: '#3B82F6',
+                tint: 'bg-blue-50 text-blue-700',
               },
               {
                 step: '02',
@@ -167,7 +174,7 @@ export default async function DashboardPage() {
                 title: 'Input Karyawan',
                 desc: 'Tambahkan karyawan dengan data gaji, BPJS, dan skema PPh 21.',
                 href: '/companies',
-                color: '#22C55E',
+                tint: 'bg-emerald-50 text-emerald-700',
               },
               {
                 step: '03',
@@ -175,24 +182,28 @@ export default async function DashboardPage() {
                 title: 'Jalankan Payroll',
                 desc: 'Hitung, simpan, dan kunci payroll. Cetak slip gaji dan export SPT.',
                 href: '/companies',
-                color: '#F59E0B',
+                tint: 'bg-amber-50 text-amber-700',
               },
             ].map((s) => (
-              <Link key={s.step} href={s.href}
-                className="rounded-xl p-5 border transition-all group"
-                style={{
-                  background: 'var(--bg-card)',
-                  borderColor: 'var(--border-default)',
-                }}>
+              <Link
+                key={s.step}
+                href={s.href}
+                className="group bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-md rounded-xl p-5 transition-all"
+              >
                 <div className="flex items-start gap-4">
-                  <span className="text-xs font-black font-mono"
-                    style={{ color: s.color, opacity: 0.5 }}>{s.step}</span>
-                  <div>
-                    <s.icon size={18} className="mb-2" style={{ color: s.color }} />
-                    <p className="font-bold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>
+                  <div
+                    className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${s.tint}`}
+                  >
+                    <s.icon size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold font-mono text-[var(--text-muted)] uppercase tracking-wider">
+                      Step {s.step}
+                    </p>
+                    <p className="font-semibold text-[15px] text-[var(--text-primary)] mt-0.5 group-hover:text-[var(--brand)] transition-colors">
                       {s.title}
                     </p>
-                    <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    <p className="text-[13px] text-[var(--text-muted)] mt-1 leading-relaxed">
                       {s.desc}
                     </p>
                   </div>
@@ -200,162 +211,201 @@ export default async function DashboardPage() {
               </Link>
             ))}
           </div>
-        </div>
+        </>
       ) : (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Perusahaan Aktif', value: companies?.length ?? 0, sub: 'klien terdaftar',
-                color: '#3B82F6', bg: 'rgba(37,99,235,0.06)', border: 'rgba(37,99,235,0.15)' },
-              { label: 'Karyawan Aktif',   value: empCount ?? 0,          sub: 'seluruh perusahaan',
-                color: '#22C55E', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)' },
-              { label: `Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`,
-                value: (thisMonthRuns ?? []).length, sub: `dari ${companies?.length ?? 0} perusahaan`,
-                color: '#F59E0B', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)' },
-            ].map((s, i) => (
-              <div key={s.label}
-                className="rounded-xl animate-fade-in-up"
-                style={{ background: s.bg, border: `1px solid ${s.border}`,
-                  padding: '20px 24px', animationDelay: `${i * 0.08}s`, opacity: 0 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', color: s.color, opacity: 0.7, marginBottom: 12 }}>
-                  {s.label}
-                </p>
-                <p style={{ fontSize: 48, fontWeight: 900, lineHeight: 1, color: s.color,
-                  marginBottom: 8, fontFamily: "'Courier New', monospace" }}>
-                  {s.value}
-                </p>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{s.sub}</p>
-              </div>
-            ))}
+          {/* KPI stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <KpiCard
+              label="Perusahaan Aktif"
+              value={companies?.length ?? 0}
+              sub="klien terdaftar"
+              accent="brand"
+              icon={Building2}
+            />
+            <KpiCard
+              label="Karyawan Aktif"
+              value={empCount ?? 0}
+              sub="seluruh perusahaan"
+              accent="emerald"
+              icon={Users}
+            />
+            <KpiCard
+              label={`Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`}
+              value={(thisMonthRuns ?? []).length}
+              sub={`dari ${companies?.length ?? 0} perusahaan`}
+              accent="amber"
+              icon={TrendingUp}
+            />
           </div>
 
-          {/* Mission board */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest mb-3 font-mono"
-              style={{ color: 'var(--text-muted)' }}>
-              Status Payroll {BULAN_SHORT[bulanIni]} {tahunIni}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Status board */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Status Payroll {BULAN_SHORT[bulanIni]} {tahunIni}
+              </h2>
+              <Link
+                href="/batch"
+                className="text-[13px] font-semibold text-[var(--brand)] hover:underline inline-flex items-center gap-1"
+              >
+                Batch Board <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {(companies ?? []).map((co, i) => {
-                const status      = runMap[co.id];
-                const borderColor = status === 'locked' ? '#22c55e' : status === 'calculated' ? '#38bdf8' : '#2A2A2E';
-                const statusLabel = status === 'locked' ? 'locked' : status === 'calculated' ? 'calculated' : 'pending';
-                const statusColor = status === 'locked' ? 'text-green-400' : status === 'calculated' ? 'text-sky-400' : '';
+                const status = (runMap[co.id] as string) ?? 'pending';
+                const chipClass = STATUS_CHIP[status] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
                 return (
-                  <Link key={co.id}
+                  <Link
+                    key={co.id}
                     href={`/companies/${co.id}/payroll/${tahunIni}/${bulanIni}`}
-                    className="flex items-center justify-between rounded-lg px-4 py-3 border transition-all group animate-fade-in-up"
-                    style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)',
-                      borderLeftColor: borderColor, borderLeftWidth: 3,
-                      animationDelay: `${i * 0.04}s`, opacity: 0 }}>
+                    className="group flex items-center justify-between bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-sm rounded-lg px-4 py-3 transition-all animate-fade-in-up"
+                    style={{ animationDelay: `${Math.min(i, 8) * 0.03}s`, opacity: 0 }}
+                  >
                     <div className="min-w-0">
-                      <p className="text-sm font-bold truncate font-mono"
-                        style={{ color: 'var(--text-secondary)' }}>
+                      <p className="text-[14px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors truncate">
                         {co.name}
                       </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      <p className="text-[12px] text-[var(--text-muted)] mt-0.5 truncate">
                         {co.kota ?? '—'}
                       </p>
                     </div>
-                    <span className={`text-[9px] font-black uppercase tracking-widest font-mono shrink-0 ml-3 ${statusColor}`}
-                      style={!statusColor ? { color: 'var(--text-muted)' } : {}}>
-                      {statusLabel}
+                    <span
+                      className={`shrink-0 ml-3 inline-flex text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${chipClass}`}
+                    >
+                      {status}
                     </span>
                   </Link>
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          {/* Payroll log */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest mb-3 font-mono"
-              style={{ color: 'var(--text-muted)' }}>
+          {/* Recent runs */}
+          <section>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">
               Log Payroll Terbaru
-            </p>
-            <div className="rounded-lg overflow-hidden border font-mono"
-              style={{ background: 'var(--bg-deep)', borderColor: 'var(--border-default)' }}>
-              <div className="px-4 py-2.5 border-b flex items-center gap-1.5"
-                style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}>
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
-                <span className="ml-3 text-[10px] uppercase tracking-widest"
-                  style={{ color: 'var(--text-ghost)' }}>payroll.log</span>
-                <span className="ml-1 text-[#2563EB] animate-blink text-xs">_</span>
-              </div>
+            </h2>
 
+            <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
               {(recentRuns ?? []).length === 0 ? (
-                <div className="px-5 py-10 text-xs" style={{ color: 'var(--text-ghost)' }}>
-                  $ belum ada run.{' '}
-                  <Link href="/companies" className="text-[#3B82F6] hover:underline">mulai dari sini →</Link>
-                </div>
-              ) : (recentRuns ?? []).map((run, i) => {
-                const t  = totalsMap[run.id];
-                const co = companyMap[run.company_id];
-                return (
-                  <Link key={run.id}
-                    href={`/companies/${run.company_id}/payroll/${run.tahun}/${run.bulan}`}
-                    className={`block px-5 py-3.5 transition-colors animate-fade-in-up ${
-                      i < (recentRuns ?? []).length - 1 ? 'border-b' : ''
-                    }`}
-                    style={{ borderColor: 'var(--border-subtle)', animationDelay: `${i * 0.03}s`, opacity: 0 }}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="text-[#3B82F6]">$</span>{' '}
-                        <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                          {co?.name ?? '—'}
-                        </span>
-                        <span style={{ color: 'var(--text-ghost)' }}>
-                          {' '}── {BULAN_SHORT[run.bulan]} {run.tahun}
-                        </span>
-                      </span>
-                      <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded tracking-widest ${
-                        run.status === 'locked'     ? 'bg-green-900/25 text-green-500' :
-                        run.status === 'calculated' ? 'bg-sky-900/25 text-sky-400' :
-                        'bg-zinc-900 text-zinc-700'
-                      }`}>{run.status}</span>
-                    </div>
-                    {t ? (
-                      <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
-                        <span>
-                          <span style={{ color: 'var(--text-ghost)' }}>kar   </span>
-                          <span style={{ color: 'var(--text-muted)' }}>{t.count}</span>
-                        </span>
-                        <span>
-                          <span style={{ color: 'var(--text-ghost)' }}>bruto </span>
-                          <span style={{ color: 'var(--text-secondary)' }}>{fmt(t.bruto)}</span>
-                        </span>
-                        <span>
-                          <span style={{ color: 'var(--text-ghost)' }}>pph   </span>
-                          <span className="text-amber-500">{fmt(t.pph)}</span>
-                        </span>
-                        <span>
-                          <span style={{ color: 'var(--text-ghost)' }}>thp   </span>
-                          <span className="text-green-400 font-bold">{fmt(t.thp)}</span>
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="pl-3 text-[11px]" style={{ color: 'var(--text-ghost)' }}>
-                        ── belum ada hasil
-                      </p>
-                    )}
+                <div className="px-5 py-10 text-center text-sm text-[var(--text-muted)]">
+                  Belum ada run.{' '}
+                  <Link href="/companies" className="text-[var(--brand)] hover:underline font-semibold">
+                    Mulai dari sini →
                   </Link>
-                );
-              })}
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--border-subtle)]">
+                  {(recentRuns ?? []).map((run) => {
+                    const t = totalsMap[run.id];
+                    const co = companyMap[run.company_id];
+                    const chip = STATUS_CHIP[run.status] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
+                    return (
+                      <li key={run.id}>
+                        <Link
+                          href={`/companies/${run.company_id}/payroll/${run.tahun}/${run.bulan}`}
+                          className="block px-5 py-4 hover:bg-[var(--bg-subtle)] transition-colors group"
+                        >
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="min-w-0">
+                              <p className="text-[14px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors truncate">
+                                {co?.name ?? '—'}
+                              </p>
+                              <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+                                {BULAN_SHORT[run.bulan]} {run.tahun}
+                              </p>
+                            </div>
+                            <span
+                              className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${chip}`}
+                            >
+                              {run.status}
+                            </span>
+                          </div>
+
+                          {t ? (
+                            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[13px]">
+                              <Metric label="Karyawan" value={String(t.count)} />
+                              <Metric label="Bruto" value={fmt(t.bruto)} />
+                              <Metric label="PPh" value={fmt(t.pph)} tone="amber" />
+                              <Metric label="THP" value={fmt(t.thp)} tone="emerald" strong />
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-[12px] text-[var(--text-muted)]">
+                              Belum ada hasil
+                            </p>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-          </div>
-            {/* Realtime updates — refreshes server data when payroll status changes */}
-            {companyIds.length > 0 && workspaceId && (
-              <DashboardRealtime
-                companyIds={companyIds}
-                workspaceId={workspaceId}
-              />
-            )}
+          </section>
+
+          {companyIds.length > 0 && workspaceId && (
+            <DashboardRealtime companyIds={companyIds} workspaceId={workspaceId} />
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function KpiCard({
+  label, value, sub, accent, icon: Icon,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  accent: 'brand' | 'emerald' | 'amber';
+  icon: typeof Building2;
+}) {
+  const accentMap = {
+    brand:   { text: 'text-[var(--brand)]',   bg: 'bg-[var(--brand-soft)]' },
+    emerald: { text: 'text-emerald-700',      bg: 'bg-emerald-50' },
+    amber:   { text: 'text-amber-700',        bg: 'bg-amber-50' },
+  } as const;
+  const a = accentMap[accent];
+  return (
+    <div className="bg-white border border-[var(--border-default)] rounded-xl p-5 hover:shadow-sm transition-shadow">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {label}
+        </p>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${a.bg} ${a.text}`}>
+          <Icon size={15} />
+        </div>
+      </div>
+      <p className={`mt-3 text-3xl font-bold font-mono leading-none ${a.text}`}>{value}</p>
+      <p className="text-[13px] text-[var(--text-muted)] mt-2">{sub}</p>
+    </div>
+  );
+}
+
+function Metric({
+  label, value, tone, strong,
+}: {
+  label: string;
+  value: string;
+  tone?: 'amber' | 'emerald';
+  strong?: boolean;
+}) {
+  const toneClass =
+    tone === 'amber'   ? 'text-amber-700' :
+    tone === 'emerald' ? 'text-emerald-700' :
+    'text-[var(--text-secondary)]';
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </p>
+      <p className={`mt-0.5 font-mono ${strong ? 'font-bold' : 'font-semibold'} ${toneClass}`}>
+        {value}
+      </p>
     </div>
   );
 }
