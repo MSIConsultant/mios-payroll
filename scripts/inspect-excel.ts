@@ -23,6 +23,8 @@ function parseArgs() {
   const args = argv.slice(2);
   let filePath: string | undefined;
   let sampleRows = 3;
+  let rawRows: number | null = null;
+  let onlySheet: string | null = null;
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -32,17 +34,28 @@ function parseArgs() {
         console.error(`Invalid --rows value`);
         exit(2);
       }
+    } else if (a === '--raw' && args[i + 1]) {
+      rawRows = Number(args[++i]);
+      if (!Number.isFinite(rawRows) || rawRows < 0) {
+        console.error(`Invalid --raw value`);
+        exit(2);
+      }
+    } else if (a === '--sheet' && args[i + 1]) {
+      onlySheet = args[++i];
     } else if (!a.startsWith('--')) {
       filePath = a;
     }
   }
 
   if (!filePath) {
-    console.error('Usage: npx tsx scripts/inspect-excel.ts <path-to-file.xlsx> [--rows N]');
+    console.error('Usage: npx tsx scripts/inspect-excel.ts <path-to-file.xlsx> [--rows N] [--raw N] [--sheet NAME]');
+    console.error('  --rows N    sample N data rows (default 3)');
+    console.error('  --raw N     dump the first N raw rows as cell arrays (useful for merged headers)');
+    console.error('  --sheet S   only inspect sheet with name S');
     exit(2);
   }
 
-  return { filePath, sampleRows };
+  return { filePath, sampleRows, rawRows, onlySheet };
 }
 
 function inferType(value: unknown): string {
@@ -67,7 +80,7 @@ function formatCell(value: unknown): string {
 }
 
 function main() {
-  const { filePath, sampleRows } = parseArgs();
+  const { filePath, sampleRows, rawRows, onlySheet } = parseArgs();
   const absolutePath = resolve(filePath);
 
   if (!existsSync(absolutePath)) {
@@ -85,12 +98,14 @@ function main() {
 
   console.log(`\nSheets (${workbook.SheetNames.length}): ${workbook.SheetNames.join(', ')}\n`);
 
-  for (const sheetName of workbook.SheetNames) {
+  const sheetNames = onlySheet ? [onlySheet] : workbook.SheetNames;
+
+  for (const sheetName of sheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: null,
-      raw: true,
-    });
+    if (!sheet) {
+      console.log(`(no such sheet: "${sheetName}")\n`);
+      continue;
+    }
 
     const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1');
     const totalRows = range.e.r - range.s.r;
@@ -98,6 +113,33 @@ function main() {
 
     console.log(`━━━ Sheet: "${sheetName}"`);
     console.log(`    range: ${sheet['!ref']}   rows: ${totalRows}   cols: ${totalCols}\n`);
+
+    // Raw mode: dump first N rows as cell arrays — best for merged headers
+    if (rawRows !== null) {
+      const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: null,
+        raw: true,
+        blankrows: false,
+      });
+      const n = Math.min(rawRows, rawData.length);
+      console.log(`    RAW (first ${n} non-blank rows of ${rawData.length}):\n`);
+      for (let i = 0; i < n; i++) {
+        const row = rawData[i] as unknown[];
+        const cells = row.map((c, idx) => {
+          const col = XLSX.utils.encode_col(range.s.c + idx);
+          return `${col}=${formatCell(c)}`;
+        });
+        console.log(`    [${String(i + 1).padStart(3)}] ${cells.join('  ')}`);
+      }
+      console.log();
+      continue;
+    }
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: null,
+      raw: true,
+    });
 
     if (rows.length === 0) {
       console.log('    (empty)\n');
