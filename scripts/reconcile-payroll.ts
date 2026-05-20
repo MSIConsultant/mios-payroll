@@ -33,6 +33,7 @@ function parseArgs() {
   const args = argv.slice(2);
   let file: string | undefined;
   let sheet = '02';
+  let bpjsSheet: string | null = null;
   let bulan = 0;
   let tahun = 0;
   let csvOut: string | null = null;
@@ -41,6 +42,7 @@ function parseArgs() {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--sheet' && args[i + 1]) sheet = args[++i];
+    else if (a === '--bpjs-sheet' && args[i + 1]) bpjsSheet = args[++i];
     else if (a === '--bulan' && args[i + 1]) bulan = Number(args[++i]);
     else if (a === '--tahun' && args[i + 1]) tahun = Number(args[++i]);
     else if (a === '--csv' && args[i + 1]) csvOut = args[++i];
@@ -49,11 +51,38 @@ function parseArgs() {
   }
 
   if (!file || !bulan || !tahun) {
-    console.error('Usage: npx tsx scripts/reconcile-payroll.ts <workbook.xlsx> --sheet NAME --bulan N --tahun YYYY [--csv out.csv] [--verbose]');
+    console.error('Usage: npx tsx scripts/reconcile-payroll.ts <workbook.xlsx> --sheet NAME --bulan N --tahun YYYY [--bpjs-sheet NAME] [--csv out.csv] [--verbose]');
+    console.error('  --bpjs-sheet NAME  also read BPJS sheet for declared salary basis per employee');
     exit(2);
   }
 
-  return { file, sheet, bulan, tahun, csvOut, verbose };
+  return { file, sheet, bpjsSheet, bulan, tahun, csvOut, verbose };
+}
+
+// ── BPJS sheet mapping (NIK → declared bpjs_basis) ────────────────────────
+// Layout observed in samples/Grossup PPh 21 02-2026.xlsx "BPJS" sheet:
+//   col E (idx 4) = NIK
+//   col J (idx 9) = declared BPJS salary basis
+//   header rows 1-4, data row 5+
+function buildBpjsBasisMap(workbook: XLSX.WorkBook, sheetName: string): Map<string, number> {
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) {
+    throw new Error(`BPJS sheet "${sheetName}" not found`);
+  }
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false,
+  });
+  const map = new Map<string, number>();
+  for (let i = 4; i < rows.length; i++) {
+    const row = rows[i];
+    const nik = s(row[4]);
+    const basis = n(row[9]);
+    if (nik && basis > 0) map.set(nik, basis);
+  }
+  return map;
 }
 
 // ── Column mapping (0-indexed from sheet) ─────────────────────────────────
@@ -130,7 +159,7 @@ const flagDiff = (excel: number, engine: number, tolerance = 1): string => {
 };
 
 // ── Row → KaryawanTetap ───────────────────────────────────────────────────
-function buildInput(row: unknown[], bulan: number, tahun: number): KaryawanTetap | null {
+function buildInput(row: unknown[], bulan: number, tahun: number, bpjsBasisMap: Map<string, number>): KaryawanTetap | null {
   const nik = s(row[COL.NIK]);
   const nama = s(row[COL.NAMA]);
   if (!nik || !nama) return null;
@@ -161,6 +190,8 @@ function buildInput(row: unknown[], bulan: number, tahun: number): KaryawanTetap
   const allowPph = n(row[COL.ALLOW_PPH21]);
   const pphDitanggung = allowPph > 0;
 
+  const declaredBpjsBasis = bpjsBasisMap.get(nik);
+
   return {
     nama,
     nik,
@@ -173,6 +204,7 @@ function buildInput(row: unknown[], bulan: number, tahun: number): KaryawanTetap
     punya_npwp: hasNpwp(row[COL.NPWP]),
 
     gaji_pokok: gajiPokok,
+    bpjs_basis: declaredBpjsBasis ?? null,
     benefit: n(row[COL.ALLOW_BENEFIT]),
     kendaraan: n(row[COL.ALLOW_KENDARAAN]),
     pulsa: n(row[COL.ALLOW_PULSA]),
@@ -209,7 +241,7 @@ function buildInput(row: unknown[], bulan: number, tahun: number): KaryawanTetap
 
 // ── Main ──────────────────────────────────────────────────────────────────
 function main() {
-  const { file, sheet: sheetName, bulan, tahun, csvOut, verbose } = parseArgs();
+  const { file, sheet: sheetName, bpjsSheet, bulan, tahun, csvOut, verbose } = parseArgs();
   const absPath = resolve(file);
   const wb = XLSX.readFile(absPath, { cellDates: true });
   const sheet = wb.Sheets[sheetName];
@@ -217,6 +249,8 @@ function main() {
     console.error(`Sheet "${sheetName}" not found in workbook. Available: ${wb.SheetNames.join(', ')}`);
     exit(1);
   }
+
+  const bpjsBasisMap = bpjsSheet ? buildBpjsBasisMap(wb, bpjsSheet) : new Map<string, number>();
 
   const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
@@ -226,7 +260,13 @@ function main() {
   });
 
   console.log(`\nReconciling ${absPath}`);
-  console.log(`Sheet: "${sheetName}"   Period: ${bulan}/${tahun}   Data rows: ${raw.length - DATA_START_ROW}\n`);
+  console.log(`Sheet: "${sheetName}"   Period: ${bulan}/${tahun}   Data rows: ${raw.length - DATA_START_ROW}`);
+  if (bpjsSheet) {
+    console.log(`BPJS sheet: "${bpjsSheet}"   Declared-basis entries: ${bpjsBasisMap.size}`);
+  } else {
+    console.log(`BPJS sheet: (none — using gaji_pokok as basis)`);
+  }
+  console.log();
 
   type Diff = {
     nik: string;
@@ -240,7 +280,7 @@ function main() {
 
   for (let i = DATA_START_ROW; i < raw.length; i++) {
     const row = raw[i];
-    const input = buildInput(row, bulan, tahun);
+    const input = buildInput(row, bulan, tahun, bpjsBasisMap);
     if (!input) continue;
 
     let engineResult;
