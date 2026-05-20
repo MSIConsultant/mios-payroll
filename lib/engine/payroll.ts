@@ -11,6 +11,13 @@ export interface KaryawanTetap {
     status_ptkp: string;
     punya_npwp: boolean;
     gaji_pokok: number;
+    /**
+     * Optional BPJS-declared salary basis. When null/undefined, falls back to
+     * `gaji_pokok`. Set this when the company has registered a separate (usually
+     * lower) salary with BPJS than the actual gaji_pokok — very common in
+     * Indonesian payroll practice. Affects JKK, JKM, JHT, JP, and Kes basis.
+     */
+    bpjs_basis?: number | null;
     benefit: number;
     kendaraan: number;
     pulsa: number;
@@ -118,7 +125,9 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
 
 export function calculateMonthlySalary(k: KaryawanTetap) {
     const grup = PTKP_TER_GRUP[k.status_ptkp] as "A" | "B" | "C";
-    const basis = k.gaji_pokok;
+    // BPJS basis is the declared salary registered with BPJS, which is often
+    // separate from (lower than) gaji_pokok. Falls back to gaji_pokok when not set.
+    const basis = k.bpjs_basis ?? k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const irregular_total = k.thr + k.bonus;
@@ -236,7 +245,7 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
 
 export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: number = 0) {
     const ptkp = PTKP[k.status_ptkp];
-    const basis = k.gaji_pokok;
+    const basis = k.bpjs_basis ?? k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const bpjs = calculateBPJS(basis, k);

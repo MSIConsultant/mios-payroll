@@ -191,6 +191,59 @@ describe('calculateBPJS', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+describe('bpjs_basis override (PMK-aware: declared BPJS salary often != gaji)', () => {
+  it('null/undefined bpjs_basis: falls back to gaji_pokok (back-compat)', () => {
+    const r = calculateMonthlySalary(tetap({
+      gaji_pokok: 8_270_526,
+      ikut_jht: true, ikut_jp: true, ikut_kes: true,
+      jkk_rate: 0.0024,
+      status_ptkp: 'K0',
+      // bpjs_basis omitted → undefined → fallback
+    }));
+    // JKK = 8_270_526 × 0.0024 = 19_849.26 → rounded 19_849
+    expect(r.bpjs.jkk).toBe(19_849);
+    // KES_e = min(8_270_526, 12M) × 0.04 = 330_821.04 → 330_821
+    expect(r.bpjs.kes_e).toBe(330_821);
+  });
+
+  it('non-null bpjs_basis: BPJS calculated against declared basis, not gaji_pokok', () => {
+    const r = calculateMonthlySalary(tetap({
+      gaji_pokok: 8_270_526,
+      bpjs_basis: 5_729_876,           // accountant's declared BPJS salary
+      ikut_jht: true, ikut_jp: true, ikut_kes: true,
+      jkk_rate: 0.0024,
+      status_ptkp: 'K0',
+    }));
+    expect(r.bpjs.jkk).toBe(13_752);    // 5_729_876 × 0.0024
+    expect(r.bpjs.jkm).toBe(17_190);    // 5_729_876 × 0.003
+    expect(r.bpjs.kes_e).toBe(229_195); // 5_729_876 × 0.04
+    expect(r.bpjs.jht_e).toBe(212_005); // 5_729_876 × 0.037
+    expect(r.bpjs.jp_e).toBe(114_598);  // 5_729_876 × 0.02 (under JP cap)
+  });
+
+  it('REGRESSION (GABEMARITO Feb-2026): engine matches Excel PPh exactly', () => {
+    // Real employee from samples/Grossup PPh 21 02-2026.xlsx row 6.
+    // Excel had PPh = 127,960. Engine without bpjs_basis computed 151,198 (+15.37%
+    // overcount) because it used gaji_pokok as BPJS basis. With bpjs_basis passed
+    // through, this should now match the Excel value to the rupiah.
+    const r = calculateMonthlySalary(tetap({
+      gaji_pokok: 8_270_526,
+      bpjs_basis: 5_729_876,
+      ikut_jht: true, ikut_jp: true, ikut_kes: true,
+      jkk_rate: 0.0024,
+      status_ptkp: 'K0',
+      punya_npwp: true,
+      pph_ditanggung: false,
+    }));
+    // bruto = 8_270_526 + 0 + 0 + (JKK 13_752 + JKM 17_190 + KES_e 229_195) + 0
+    //       = 8_530_663
+    expect(r.bruto).toBe(8_530_663);
+    expect(r.ter).toBe(0.015); // TER A 7,500,001..8,550,000
+    expect(r.pph).toBe(127_960); // 0.015 × 8,530,663 = 127,959.945 → 127,960
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 describe('calculateMonthlySalary (non-grossup, TER)', () => {
   it('simple TER A: 5M gaji, no allowances, no BPJS, TK0', () => {
     const r = calculateMonthlySalary(tetap({ gaji_pokok: 5_000_000, jkk_rate: 0 }));
