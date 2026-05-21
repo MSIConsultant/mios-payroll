@@ -175,3 +175,94 @@ DROP TRIGGER IF EXISTS on_workspace_created ON workspaces;
 CREATE TRIGGER on_workspace_created
     AFTER INSERT ON workspaces
     FOR EACH ROW EXECUTE PROCEDURE handle_new_workspace();
+
+-- SECURITY DEFINER admin functions (bypass profiles_own_update RLS for dev-only mutations)
+-- Each verifies auth.uid() belongs to the dev email before proceeding.
+
+CREATE OR REPLACE FUNCTION admin_approve_user(target_id uuid, new_role text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  caller_email  text;
+  target_email  text;
+BEGIN
+  SELECT email INTO caller_email FROM auth.users WHERE id = auth.uid();
+  IF caller_email IS DISTINCT FROM 'msiconsultant.international@gmail.com' THEN
+    RETURN jsonb_build_object('error', 'Unauthorized');
+  END IF;
+
+  SELECT email INTO target_email FROM public.user_profiles WHERE id = target_id;
+
+  UPDATE public.user_profiles
+  SET status      = 'approved',
+      role        = new_role,
+      approved_by = auth.uid(),
+      approved_at = now()
+  WHERE id = target_id;
+
+  -- workspace_id is null at approval time; assigned during onboarding
+  INSERT INTO public.notifications (workspace_id, recipient_id, type, title, message, data)
+  VALUES (
+    NULL,
+    target_id,
+    'ACCOUNT_APPROVED',
+    'Akun Anda Disetujui',
+    'Selamat! Akun Anda telah disetujui sebagai ' ||
+      CASE WHEN new_role = 'accountant' THEN 'Akuntan' ELSE 'Staff' END || '.',
+    jsonb_build_object('role', new_role)
+  );
+
+  RETURN jsonb_build_object('success', true, 'email', target_email);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION admin_reject_user(target_id uuid, reason text DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  caller_email  text;
+  target_email  text;
+BEGIN
+  SELECT email INTO caller_email FROM auth.users WHERE id = auth.uid();
+  IF caller_email IS DISTINCT FROM 'msiconsultant.international@gmail.com' THEN
+    RETURN jsonb_build_object('error', 'Unauthorized');
+  END IF;
+
+  SELECT email INTO target_email FROM public.user_profiles WHERE id = target_id;
+
+  UPDATE public.user_profiles
+  SET status          = 'rejected',
+      rejected_reason = reason
+  WHERE id = target_id;
+
+  RETURN jsonb_build_object('success', true, 'email', target_email);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION admin_suspend_user(target_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  caller_email text;
+BEGIN
+  SELECT email INTO caller_email FROM auth.users WHERE id = auth.uid();
+  IF caller_email IS DISTINCT FROM 'msiconsultant.international@gmail.com' THEN
+    RETURN jsonb_build_object('error', 'Unauthorized');
+  END IF;
+
+  UPDATE public.user_profiles
+  SET status = 'suspended'
+  WHERE id = target_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;

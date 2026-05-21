@@ -16,31 +16,17 @@ async function assertDev() {
 }
 
 export async function approveUser(userId: string, role: 'accountant' | 'staff') {
-  const { supabase, user } = await assertDev();
+  const { supabase } = await assertDev();
 
-  const { data: profile } = await supabase
-    .from('user_profiles').select('email, workspace_id').eq('id', userId).single();
-
-  const { error } = await supabase.from('user_profiles').update({
-    status:      'approved',
-    role,
-    approved_by: user.id,
-    approved_at: new Date().toISOString(),
-  }).eq('id', userId);
+  const { data, error } = await supabase.rpc('admin_approve_user', {
+    target_id: userId,
+    new_role:  role,
+  });
 
   if (error) return { error: error.message };
+  if (data?.error) return { error: data.error as string };
 
-  // Send in-app notification to the user
-  await supabase.from('notifications').insert({
-    workspace_id: profile?.workspace_id ?? '00000000-0000-0000-0000-000000000000',
-    recipient_id: userId,
-    type:         'ACCOUNT_APPROVED',
-    title:        'Akun Anda Disetujui',
-    message:      `Selamat! Akun Anda telah disetujui sebagai ${role === 'accountant' ? 'Akuntan' : 'Staff'}.`,
-    data:         { role },
-  });
-  await notifyUserApproved(profile?.email ?? '', role);
-
+  await notifyUserApproved((data.email as string) ?? '', role);
   revalidatePath('/dev/admin');
   return { success: true };
 }
@@ -48,26 +34,24 @@ export async function approveUser(userId: string, role: 'accountant' | 'staff') 
 export async function rejectUser(userId: string, reason: string) {
   const { supabase } = await assertDev();
 
-  const { data: profile } = await supabase
-    .from('user_profiles').select('email').eq('id', userId).single();
-
-  const { error } = await supabase.from('user_profiles').update({
-    status:          'rejected',
-    rejected_reason: reason,
-  }).eq('id', userId);
+  const { data, error } = await supabase.rpc('admin_reject_user', {
+    target_id: userId,
+    reason:    reason || null,
+  });
 
   if (error) return { error: error.message };
+  if (data?.error) return { error: data.error as string };
 
-  await notifyUserRejected(profile?.email ?? '', reason);
+  await notifyUserRejected((data.email as string) ?? '', reason);
   revalidatePath('/dev/admin');
   return { success: true };
 }
 
 export async function suspendUser(userId: string) {
   const { supabase } = await assertDev();
-  const { error } = await supabase.from('user_profiles')
-    .update({ status: 'suspended' }).eq('id', userId);
+  const { data, error } = await supabase.rpc('admin_suspend_user', { target_id: userId });
   if (error) return { error: error.message };
+  if (data?.error) return { error: data.error as string };
   revalidatePath('/dev/admin');
   return { success: true };
 }

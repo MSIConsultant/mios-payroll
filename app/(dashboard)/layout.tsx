@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import NavLinks from '@/components/layout/NavLinks';
 import MiosLogo from '@/components/ui/MiosLogo';
-import { Toaster } from 'sonner';
 import { LogOut, Bell, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -179,8 +178,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </main>
 
-      <Toaster position="bottom-right" theme="dark"
-        toastOptions={{ style: { background: '#111114', border: '1px solid #1C1C1F', color: '#E4E4E7', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', borderRadius: '10px' } }} />
     </div>
   );
 }
