@@ -752,22 +752,96 @@ export default function PayrollRunPage() {
               footer: 'PMK 168/2023',
             } : undefined;
 
-            const calcPphDes: CalcTooltipData | undefined = (isTetap && res.ter == null) ? {
-              title: 'PPh 21 — Desember (Pasal 17)',
-              description: 'Equalisasi tarif progresif tahunan',
-              steps: [
-                { label: 'Bruto Setahun', value: rpFmt(res.bs ?? 0),  op: '+' },
-                { label: '− Biaya Jabatan', value: rpFmt(res.bj ?? 0), op: '-' },
-                { label: `− Iuran JP/JHT Karyawan`, value: rpFmt(res.jp_k_tahunan ?? 0), op: '-' },
-                { label: 'Netto Setahun',  value: rpFmt(res.netto ?? 0), muted: true },
-                { label: `− PTKP ${res.status_ptkp ?? ''}`, value: rpFmt(res.ptkp ?? 0), op: '-' },
-                { label: 'PKP (× tarif berlapis)', value: rpFmt(res.pkp ?? 0), muted: true },
-                { label: 'PPh Tahunan', value: rpFmt(res.pph_tahunan ?? 0) },
-                { label: '− PPh Jan–Nov', value: rpFmt(res.pph_jan_nov ?? 0), op: '-' },
-                { label: 'PPh Desember', value: rpFmt(res.pph ?? 0), highlight: true },
-              ],
-              footer: 'UU HPP Pasal 17 — pembulatan PKP ke ribuan',
-            } : undefined;
+            const calcPphDes: CalcTooltipData | undefined = (isTetap && res.ter == null) ? (() => {
+              const M = res.months_in_year ?? 12;
+              const isMidYear = res.is_last_month === true && res.bulan !== 12;
+              const periodTitle = isMidYear
+                ? `Bulan Terakhir Kerja (${M} bulan)`
+                : 'Desember (12 bulan)';
+
+              const steps: Array<{ label: string; value: string; op?: '+' | '-' | '×' | '÷' | '='; highlight?: boolean; muted?: boolean }> = [];
+
+              // Step 1: Bruto setahun
+              if (res.bulan === 12 && (res.proyeksi?.bruto_setahun ?? 0) > (res.base ?? 0)) {
+                // Show Jan-Nov + this month breakdown when accumulator data available
+                const akum = (res.bs ?? 0) - (res.base ?? 0);
+                steps.push({ label: `Bruto Jan–Nov (akumulasi)`, value: rpFmt(akum), op: '+', muted: true });
+                steps.push({ label: `Bruto bulan ini`, value: rpFmt(res.base ?? 0), op: '+', muted: true });
+              }
+              steps.push({ label: `Bruto setahun (${M} bulan)`, value: rpFmt(res.bs ?? 0) });
+
+              // Step 2: Biaya Jabatan
+              steps.push({
+                label: `− Biaya Jabatan (cap ${formatRupiah(500_000 * M)})`,
+                value: rpFmt(res.bj ?? 0),
+                op: '-',
+              });
+
+              // Step 3: Iuran karyawan (JHT + JP separately)
+              if ((res.jht_k_tahunan ?? 0) > 0) {
+                steps.push({ label: '− Iuran JHT Karyawan', value: rpFmt(res.jht_k_tahunan ?? 0), op: '-' });
+              }
+              if ((res.jp_k_tahunan ?? 0) > 0) {
+                steps.push({ label: '− Iuran JP Karyawan', value: rpFmt(res.jp_k_tahunan ?? 0), op: '-' });
+              }
+
+              // Netto + PTKP
+              steps.push({ label: 'Netto Setahun', value: rpFmt(res.netto ?? 0), muted: true });
+              steps.push({ label: `− PTKP ${res.status_ptkp ?? ''}`, value: rpFmt(res.ptkp ?? 0), op: '-' });
+              steps.push({ label: 'PKP (pembulatan ribuan)', value: rpFmt(res.pkp ?? 0), muted: true });
+
+              // Step 5: Pasal 17 progressive brackets — show portions actually used
+              const pkp = res.pkp ?? 0;
+              if (pkp > 0) {
+                const brackets: Array<{ width: number; rate: number }> = [
+                  { width: 60_000_000,    rate: 0.05 },
+                  { width: 190_000_000,   rate: 0.15 },
+                  { width: 250_000_000,   rate: 0.25 },
+                  { width: 4_500_000_000, rate: 0.30 },
+                  { width: Number.POSITIVE_INFINITY, rate: 0.35 },
+                ];
+                let remaining = pkp;
+                let cumLo = 0;
+                for (const b of brackets) {
+                  if (remaining <= 0) break;
+                  const portion = Math.min(remaining, b.width);
+                  const tax = portion * b.rate;
+                  const loM = Math.round(cumLo / 1_000_000);
+                  const hiM = Math.round((cumLo + portion) / 1_000_000);
+                  const label = b.width === Number.POSITIVE_INFINITY
+                    ? `> Rp ${loM}jt × ${(b.rate * 100).toFixed(0)}%`
+                    : `${loM}jt – ${hiM}jt × ${(b.rate * 100).toFixed(0)}%`;
+                  steps.push({ label, value: rpFmt(tax), muted: true });
+                  cumLo += portion;
+                  remaining -= portion;
+                }
+              }
+              if (res.punya_npwp === false) {
+                steps.push({ label: 'Non-NPWP (×1.2)', value: '', muted: true });
+              }
+              steps.push({ label: 'PPh Tahunan', value: rpFmt(res.pph_tahunan ?? 0) });
+
+              // Step 6: Selisih
+              steps.push({ label: '− PPh sudah dipotong', value: rpFmt(res.pph_jan_nov ?? 0), op: '-' });
+
+              if (res.is_refund) {
+                steps.push({
+                  label: 'Refund (kelebihan potong)',
+                  value: `−${rpFmt(res.refund_amount ?? 0)}`,
+                  highlight: true,
+                });
+              } else {
+                const finalLabel = isMidYear ? 'PPh Bulan Terakhir' : 'PPh Desember';
+                steps.push({ label: finalLabel, value: rpFmt(res.pph ?? 0), highlight: true });
+              }
+
+              return {
+                title: `PPh 21 — ${periodTitle}`,
+                description: 'Equalisasi tarif progresif Pasal 17',
+                steps,
+                footer: 'UU HPP Pasal 17 — pembulatan PKP ke ribuan bawah',
+              };
+            })() : undefined;
 
             const calcJKK: CalcTooltipData = {
               title: 'JKK — Jaminan Kecelakaan Kerja',
