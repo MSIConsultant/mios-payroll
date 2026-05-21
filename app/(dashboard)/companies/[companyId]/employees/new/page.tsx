@@ -6,96 +6,19 @@ import { ArrowLeft, Save, UserPlus, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
-import { calculateMonthlySalary } from '@/lib/engine/payroll';
-import type { KaryawanTetap } from '@/lib/engine/payroll';
+import { runProjection } from '@/lib/engine/projection';
+import { ProjectionTable } from '@/components/payroll/ProjectionTable';
 
-// ── Constants ────────────────────────────────────────────────────────────────
+const BULAN_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const INPUT_CLS  = 'w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all';
+const PCT_INPUT  = 'w-full px-2 py-2 pr-6 bg-white border border-[var(--border-default)] rounded-lg text-[13px] text-right outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
+const MONTH_SEL  = 'flex-1 px-2 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[13px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
 
-const BULAN_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-const BULAN_FULL  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-const INPUT_CLS   = 'w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all';
 const TYPE_LABEL: Record<string, string> = {
   tetap: 'Tetap',
   tidak_tetap_harian: 'Tidak Tetap · Harian',
   tidak_tetap_bulanan: 'Tidak Tetap · Bulanan',
 };
-
-function rpShort(n: number): string {
-  if (n === 0) return '-';
-  if (n >= 1_000_000) {
-    const m = n / 1_000_000;
-    return (m % 1 === 0 ? String(m) : m.toFixed(1)) + 'jt';
-  }
-  return Math.round(n / 1_000) + 'rb';
-}
-
-function rpFull(n: number): string {
-  return 'Rp ' + n.toLocaleString('id-ID');
-}
-
-// ── Projection ───────────────────────────────────────────────────────────────
-
-type ProjParams = {
-  gajiPokok: number; benefit: number; kendaraan: number;
-  pulsa: number; operasional: number; tunjLain: number;
-  statusPtkp: string; punyaNpwp: boolean; jkkRate: number;
-  ikutJht: boolean; ikutJp: boolean; ikutJkp: boolean;
-  tanggungJhtK: boolean; tanggungJpK: boolean;
-  ikutKes: boolean; tanggungKesK: boolean;
-  pphDitanggung: boolean;
-  thrBulan: number; thrPct: number;
-  bonusBulan: number; bonusPct: number;
-};
-
-type ProjRow = {
-  bulan: number; hasThr: boolean; hasBonus: boolean;
-  bruto: number; pph: number; thp: number; isRefund: boolean;
-};
-
-function runProjection(p: ProjParams): { rows: ProjRow[]; total: { bruto: number; pph: number; thp: number } } | null {
-  if (p.gajiPokok === 0) return null;
-  const tahun = new Date().getFullYear();
-  const rows: ProjRow[] = [];
-  let akum_bruto = 0;
-  let pph_jan_nov = 0;
-
-  for (let bulan = 1; bulan <= 12; bulan++) {
-    const thr   = bulan === p.thrBulan   ? Math.round(p.gajiPokok * p.thrPct / 100)   : 0;
-    const bonus = bulan === p.bonusBulan ? Math.round(p.gajiPokok * p.bonusPct / 100) : 0;
-    const k: KaryawanTetap = {
-      nama: '', nik: '', npwp: '', divisi: '', jenis_kelamin: 'L',
-      bulan, tahun,
-      status_ptkp: p.statusPtkp, punya_npwp: p.punyaNpwp,
-      gaji_pokok: p.gajiPokok, benefit: p.benefit, kendaraan: p.kendaraan,
-      pulsa: p.pulsa, operasional: p.operasional, tunj_lain: p.tunjLain,
-      thr, bonus,
-      ikut_jht: p.ikutJht, ikut_jp: p.ikutJp, ikut_jkp: p.ikutJkp,
-      jkk_rate: p.jkkRate,
-      tanggung_jht_k: p.tanggungJhtK, tanggung_jp_k: p.tanggungJpK,
-      ikut_kes: p.ikutKes, tanggung_kes_k: p.tanggungKesK,
-      pph_ditanggung: p.pphDitanggung,
-      kasbon: 0, alpha_telat: 0, pot_lain: 0,
-      pph_jan_nov, akum_bruto,
-    };
-    const res = calculateMonthlySalary(k) as {
-      bruto: number; pph: number; thp: number;
-      proyeksi: { pph_setahun: number };
-    };
-    const isRefund = bulan === 12 && (res.proyeksi.pph_setahun - pph_jan_nov) < 0;
-    rows.push({ bulan, hasThr: thr > 0, hasBonus: bonus > 0, bruto: res.bruto, pph: res.pph, thp: res.thp, isRefund });
-    if (bulan < 12) { akum_bruto += res.bruto; pph_jan_nov += res.pph; }
-  }
-
-  const total = rows.reduce((acc, r) => ({
-    bruto: acc.bruto + r.bruto,
-    pph:   acc.pph   + r.pph,
-    thp:   acc.thp   + r.thp,
-  }), { bruto: 0, pph: 0, thp: 0 });
-
-  return { rows, total };
-}
-
-// ── UI primitives ────────────────────────────────────────────────────────────
 
 function Label({ text, htmlFor }: { text: string; htmlFor?: string }) {
   return (
@@ -116,12 +39,12 @@ function TF({ label, name, placeholder, type = 'text', required }: {
   );
 }
 
-function CSel({ label, name, value, onChange, children, className }: {
+function CSel({ label, name, value, onChange, children }: {
   label?: string; name: string; value: string;
-  onChange: (v: string) => void; children: React.ReactNode; className?: string;
+  onChange: (v: string) => void; children: React.ReactNode;
 }) {
   return (
-    <div className={className}>
+    <div>
       {label && <Label text={label} htmlFor={name} />}
       <select id={name} name={name} value={value} onChange={(e) => onChange(e.target.value)} className={INPUT_CLS}>
         {children}
@@ -145,24 +68,16 @@ function Chk({ name, label, checked, onChange }: {
   );
 }
 
-function Section({ title, description, children }: {
-  title: string; description?: string; children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
       <header className="px-5 py-4 border-b border-[var(--border-subtle)]">
         <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">{title}</h2>
-        {description && <p className="text-[13px] text-[var(--text-muted)] mt-0.5">{description}</p>}
       </header>
       <div className="p-5">{children}</div>
     </section>
   );
 }
-
-const PCT_INPUT = 'w-full px-2 py-2 pr-6 bg-white border border-[var(--border-default)] rounded-lg text-[13px] text-right outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
-const MONTH_SEL = 'flex-1 px-2 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[13px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
-
-// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NewEmployeePage() {
   const router = useRouter();
@@ -170,7 +85,6 @@ export default function NewEmployeePage() {
   const [loading, setLoading] = useState(false);
   const [jenisKaryawan, setJenisKaryawan] = useState('tetap');
 
-  // Projection-driving state (tetap only)
   const [gajiPokok,    setGajiPokok]    = useState(0);
   const [benefit,      setBenefit]      = useState(0);
   const [kendaraan,    setKendaraan]    = useState(0);
@@ -188,9 +102,9 @@ export default function NewEmployeePage() {
   const [ikutKes,      setIkutKes]      = useState(true);
   const [tanggungKesK, setTanggungKesK] = useState(true);
   const [pphDitanggung,setPphDitanggung]= useState(true);
-  const [thrBulan,     setThrBulan]     = useState(3);   // March default
+  const [thrBulan,     setThrBulan]     = useState(3);
   const [thrPct,       setThrPct]       = useState(100);
-  const [bonusBulan,   setBonusBulan]   = useState(8);   // August default
+  const [bonusBulan,   setBonusBulan]   = useState(8);
   const [bonusPct,     setBonusPct]     = useState(50);
 
   const projection = useMemo(() => runProjection({
@@ -241,12 +155,9 @@ export default function NewEmployeePage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
-
-        {/* ── Form ── */}
         <form action={handleSubmit} className="space-y-4">
           <input type="hidden" name="company_id" value={String(companyId)} />
 
-          {/* Identitas */}
           <Section title="Identitas Diri">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -279,7 +190,6 @@ export default function NewEmployeePage() {
             </div>
           </Section>
 
-          {/* Kompensasi */}
           <Section title="Kompensasi & Gaji">
             <div className="mb-5">
               <p className="text-[12px] font-semibold text-[var(--text-secondary)] mb-2">Tipe Karyawan *</p>
@@ -313,7 +223,6 @@ export default function NewEmployeePage() {
                   <NominalInput label="Tunjangan Lain" name="tunj_lain" onChange={setTunjLain} />
                 </div>
 
-                {/* THR & Bonus defaults */}
                 <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">
                   <p className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
                     Default THR & Bonus
@@ -327,8 +236,7 @@ export default function NewEmployeePage() {
                         </select>
                         <div className="relative w-24">
                           <input type="number" min={0} max={500} step={10} value={thrPct}
-                            onChange={(e) => setThrPct(Number(e.target.value))}
-                            className={PCT_INPUT}
+                            onChange={(e) => setThrPct(Number(e.target.value))} className={PCT_INPUT}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
                         </div>
@@ -343,8 +251,7 @@ export default function NewEmployeePage() {
                         </select>
                         <div className="relative w-24">
                           <input type="number" min={0} max={500} step={10} value={bonusPct}
-                            onChange={(e) => setBonusPct(Number(e.target.value))}
-                            className={PCT_INPUT}
+                            onChange={(e) => setBonusPct(Number(e.target.value))} className={PCT_INPUT}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
                         </div>
@@ -371,15 +278,14 @@ export default function NewEmployeePage() {
             )}
           </Section>
 
-          {/* BPJS & PPh */}
           <Section title="BPJS & PPh 21">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="space-y-3">
                 <p className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Kepesertaan BPJS TK</p>
                 <div className="space-y-2.5">
-                  <Chk name="ikut_jht" label="JHT"  checked={ikutJht}  onChange={setIkutJht} />
-                  <Chk name="ikut_jp"  label="JP"   checked={ikutJp}   onChange={setIkutJp} />
-                  <Chk name="ikut_jkp" label="JKP"  checked={ikutJkp}  onChange={setIkutJkp} />
+                  <Chk name="ikut_jht" label="JHT" checked={ikutJht} onChange={setIkutJht} />
+                  <Chk name="ikut_jp"  label="JP"  checked={ikutJp}  onChange={setIkutJp} />
+                  <Chk name="ikut_jkp" label="JKP" checked={ikutJkp} onChange={setIkutJkp} />
                 </div>
                 <div className="pt-3 border-t border-[var(--border-subtle)]">
                   <CSel label="Tarif JKK" name="jkk_rate" value={String(jkkRate)} onChange={(v) => setJkkRate(Number(v))}>
@@ -429,7 +335,6 @@ export default function NewEmployeePage() {
           </div>
         </form>
 
-        {/* ── Projection panel ── */}
         <div className="lg:sticky lg:top-6">
           {jenisKaryawan !== 'tetap' ? (
             <div className="bg-white border border-[var(--border-default)] rounded-xl p-8 text-center">
@@ -440,93 +345,15 @@ export default function NewEmployeePage() {
                 Proyeksi tersedia untuk karyawan Tetap
               </p>
             </div>
-          ) : !projection ? (
-            <div className="bg-white border border-[var(--border-default)] rounded-xl p-8 text-center">
-              <div className="w-12 h-12 rounded-full bg-[var(--bg-subtle)] flex items-center justify-center mx-auto mb-3">
-                <TrendingUp size={20} className="text-[var(--text-muted)]" />
-              </div>
-              <p className="text-[14px] font-semibold text-[var(--text-secondary)] mb-1">Proyeksi Tahunan</p>
-              <p className="text-[13px] text-[var(--text-muted)]">Masukkan gaji pokok untuk simulasi 12 bulan</p>
-            </div>
           ) : (
-            <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
-              <header className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center gap-2">
-                <TrendingUp size={16} className="text-[var(--brand)]" />
-                <div>
-                  <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Proyeksi Tahunan</h2>
-                  <p className="text-[12px] text-[var(--text-muted)]">Real-time · {new Date().getFullYear()}</p>
-                </div>
-              </header>
-
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
-                    <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Bln</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Bruto</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">PPh</th>
-                    <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">THP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projection.rows.map((row) => {
-                    let rowBg = '';
-                    if (row.hasThr)        rowBg = 'bg-amber-50';
-                    else if (row.hasBonus) rowBg = 'bg-blue-50';
-                    else if (row.bulan === 12) rowBg = 'bg-purple-50';
-
-                    return (
-                      <tr key={row.bulan} className={`border-b border-[var(--border-subtle)] ${rowBg}`}>
-                        <td className="px-4 py-2 font-medium text-[var(--text-secondary)]">
-                          {BULAN_SHORT[row.bulan - 1]}
-                          {row.hasThr && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1 py-0.5 rounded">THR</span>
-                          )}
-                          {row.hasBonus && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-blue-700 bg-blue-100 px-1 py-0.5 rounded">Bon</span>
-                          )}
-                          {row.bulan === 12 && !row.hasThr && !row.hasBonus && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-purple-700 bg-purple-100 px-1 py-0.5 rounded">P17</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono text-[var(--text-primary)]">{rpShort(row.bruto)}</td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {row.isRefund
-                            ? <span className="text-amber-600 font-semibold text-[11px]">↩ refund</span>
-                            : <span className={row.pph > 0 ? 'text-red-500' : 'text-[var(--text-muted)]'}>{rpShort(row.pph)}</span>
-                          }
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono font-semibold text-emerald-700">{rpShort(row.thp)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-[var(--bg-subtle)] border-t-2 border-[var(--border-default)]">
-                    <td className="px-4 py-3 text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Total</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-[var(--text-primary)]">{rpShort(projection.total.bruto)}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-red-500">{rpShort(projection.total.pph)}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">{rpShort(projection.total.thp)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-
-              <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)] space-y-1">
-                <p className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-1">Asumsi</p>
-                <p className="text-[12px] text-[var(--text-muted)]">
-                  <span className="font-semibold text-amber-600">THR</span>
-                  {' '}{BULAN_FULL[thrBulan - 1]} · {thrPct}% gaji
-                  {gajiPokok > 0 && <> = <span className="text-[var(--text-primary)] font-semibold">{rpFull(Math.round(gajiPokok * thrPct / 100))}</span></>}
-                </p>
-                <p className="text-[12px] text-[var(--text-muted)]">
-                  <span className="font-semibold text-blue-600">Bonus</span>
-                  {' '}{BULAN_FULL[bonusBulan - 1]} · {bonusPct}% gaji
-                  {gajiPokok > 0 && <> = <span className="text-[var(--text-primary)] font-semibold">{rpFull(Math.round(gajiPokok * bonusPct / 100))}</span></>}
-                </p>
-              </div>
-            </div>
+            <ProjectionTable
+              projection={projection}
+              gajiPokok={gajiPokok}
+              thrBulan={thrBulan} thrPct={thrPct}
+              bonusBulan={bonusBulan} bonusPct={bonusPct}
+            />
           )}
         </div>
-
       </div>
     </div>
   );

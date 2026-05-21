@@ -11,6 +11,7 @@ import {
 import { formatRupiah } from '@/lib/format';
 import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/actions/employees';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
+import { PayrollSimulator } from '@/components/payroll/PayrollSimulator';
 import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -290,11 +291,14 @@ function EmployeeDetailPage() {
     );
   }
 
-  const tabs = [
+  const tabs: { id: string; label: string }[] = [
     { id: 'profil',  label: 'Profil' },
     { id: 'events',  label: 'Variasi' },
     { id: 'riwayat', label: 'Riwayat Payroll' },
   ];
+  if (employee.jenis_karyawan === 'tetap') {
+    tabs.splice(1, 0, { id: 'proyeksi', label: 'Proyeksi' });
+  }
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -475,6 +479,37 @@ function EmployeeDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* PROYEKSI */}
+      {activeTab === 'proyeksi' && employee.jenis_karyawan === 'tetap' && (
+        <PayrollSimulator
+          intro={
+            <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-[13px] text-sky-900">
+              <span className="font-semibold">Simulasi:</span> ubah angka apa pun untuk melihat dampak ke proyeksi 12 bulan.
+              Perubahan tidak disimpan ke profil karyawan — klik <span className="font-semibold">Edit</span> di atas untuk menyimpan.
+            </div>
+          }
+          initialValues={{
+            gajiPokok:    employee.gaji_pokok,
+            benefit:      employee.benefit ?? 0,
+            kendaraan:    employee.kendaraan ?? 0,
+            pulsa:        employee.pulsa ?? 0,
+            operasional:  employee.operasional ?? 0,
+            tunjLain:     employee.tunj_lain ?? 0,
+            statusPtkp:   employee.status_ptkp,
+            punyaNpwp:    !!employee.punya_npwp,
+            jkkRate:      employee.jkk_rate,
+            ikutJht:      !!employee.ikut_jht,
+            ikutJp:       !!employee.ikut_jp,
+            ikutJkp:      !!employee.ikut_jkp,
+            tanggungJhtK: !!employee.tanggung_jht_k,
+            tanggungJpK:  !!employee.tanggung_jp_k,
+            ikutKes:      !!employee.ikut_kes,
+            tanggungKesK: !!employee.tanggung_kes_k,
+            pphDitanggung:!!employee.pph_ditanggung,
+          }}
+        />
       )}
 
       {/* EVENTS */}

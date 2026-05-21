@@ -4,15 +4,16 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Layers, Settings,
   ChevronLeft, ChevronRight, Users, ScrollText,
-  Terminal, Upload,
+  Terminal, Upload, Calculator,
 } from 'lucide-react';
 import type { UserRole } from '@/lib/types/roles';
 
 function buildNav(role: UserRole) {
   const base = [
-    { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-    { href: '/batch',     label: 'Batch Run',  icon: Layers },
-    { href: '/companies', label: 'Perusahaan', icon: Building2 },
+    { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
+    { href: '/batch',      label: 'Batch Run',  icon: Layers },
+    { href: '/companies',  label: 'Perusahaan', icon: Building2 },
+    { href: '/kalkulator', label: 'Kalkulator', icon: Calculator },
   ];
   if (role === 'accountant' || role === 'dev') {
     base.push({ href: '/import',   label: 'Import',     icon: Upload     });
