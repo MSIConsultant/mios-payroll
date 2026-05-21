@@ -1,33 +1,36 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Bell, CheckCheck, Check } from 'lucide-react';
+import { Bell, CheckCheck } from 'lucide-react';
 
 interface Notification {
-  id:         string;
-  type:       string;
-  title:      string;
-  message:    string | null;
-  read:       boolean;
-  data:       any;
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  read: boolean;
+  data: any;
   created_at: string;
 }
 
-const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  ACCOUNT_APPROVED: { bg: 'rgba(34,197,94,0.1)',  text: '#4ADE80' },
-  ACCOUNT_REJECTED: { bg: 'rgba(239,68,68,0.1)',  text: '#EF4444' },
-  PAYROLL_LOCKED:   { bg: 'rgba(37,99,235,0.1)',  text: '#3B82F6' },
-  STAFF_JOINED:     { bg: 'rgba(167,139,250,0.1)', text: '#A78BFA' },
+const TYPE_CHIP: Record<string, string> = {
+  ACCOUNT_APPROVED: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  ACCOUNT_REJECTED: 'bg-red-50 text-red-700 ring-red-200',
+  PAYROLL_LOCKED: 'bg-sky-50 text-sky-700 ring-sky-200',
+  STAFF_JOINED: 'bg-violet-50 text-violet-700 ring-violet-200',
 };
-const DEFAULT_TYPE = { bg: 'rgba(113,113,122,0.1)', text: '#71717A' };
+
+function chipClass(type: string) {
+  return TYPE_CHIP[type] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
+}
 
 function timeAgo(dateStr: string): string {
-  const diff  = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60000);
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (mins  < 1)  return 'baru saja';
-  if (mins  < 60) return `${mins} menit lalu`;
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'baru saja';
+  if (mins < 60) return `${mins} menit lalu`;
   if (hours < 24) return `${hours} jam lalu`;
   return `${days} hari lalu`;
 }
@@ -57,7 +60,7 @@ export default function NotificationsPage() {
   async function markRead(id: string) {
     const supabase = createClient();
     await supabase.from('notifications').update({ read: true }).eq('id', id);
-    setNotifs(n => n.map(x => x.id === id ? { ...x, read: true } : x));
+    setNotifs((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
   }
 
   async function markAllRead() {
@@ -65,102 +68,102 @@ export default function NotificationsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from('notifications').update({ read: true }).eq('recipient_id', user.id);
-    setNotifs(n => n.map(x => ({ ...x, read: true })));
+    setNotifs((n) => n.map((x) => ({ ...x, read: true })));
   }
 
-  const unread = notifs.filter(n => !n.read).length;
+  const unread = notifs.filter((n) => !n.read).length;
 
-  if (loading) return (
-    <div className="space-y-3 max-w-2xl">
-      {[1,2,3].map(i => (
-        <div key={i} className="h-20 rounded-xl animate-pulse"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }} />
-      ))}
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="max-w-2xl space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-20 bg-white border border-[var(--border-default)] rounded-xl animate-pulse"
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl space-y-6 animate-fade-in-up">
-
-      {/* Header */}
-      <div className="flex items-center justify-between border-b pb-6"
-        style={{ borderColor: 'var(--border-default)' }}>
+      <header className="flex items-center justify-between gap-4 pb-5 border-b border-[var(--border-default)]">
         <div>
-          <h1 className="text-3xl font-black" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Notifikasi
           </h1>
           {unread > 0 && (
-            <p className="text-[14px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              {unread} belum dibaca
-            </p>
+            <p className="text-sm text-[var(--text-muted)] mt-1">{unread} belum dibaca</p>
           )}
         </div>
         {unread > 0 && (
-          <button onClick={markAllRead}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-[13px] transition-colors"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+          <button
+            onClick={markAllRead}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+          >
             <CheckCheck size={14} />
             Tandai semua dibaca
           </button>
         )}
-      </div>
+      </header>
 
       {notifs.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-          <Bell size={32} className="mx-auto mb-4" style={{ color: 'var(--text-ghost)' }} />
-          <p className="text-[15px]" style={{ color: 'var(--text-muted)' }}>
-            Tidak ada notifikasi.
-          </p>
+        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
+          <Bell size={32} className="mx-auto text-[var(--text-faint)]" />
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">Tidak ada notifikasi.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {notifs.map((n, i) => {
-            const cfg = TYPE_COLORS[n.type] ?? DEFAULT_TYPE;
-            return (
-              <div
-                key={n.id}
-                className="rounded-xl p-5 flex gap-4 animate-fade-in-up cursor-pointer transition-all"
-                style={{
-                  background:     n.read ? 'var(--bg-card)' : 'rgba(37,99,235,0.04)',
-                  border:         `1px solid ${n.read ? 'var(--border-default)' : 'rgba(37,99,235,0.2)'}`,
-                  animationDelay: `${i * 0.03}s`,
-                  opacity:        0,
-                }}
-                onClick={() => !n.read && markRead(n.id)}>
-
-                {/* Dot */}
-                <div className="mt-1 shrink-0">
-                  {n.read
-                    ? <div className="w-2 h-2 rounded-full" style={{ background: 'var(--border-strong)' }} />
-                    : <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-                  }
+        <ul className="space-y-2">
+          {notifs.map((n, i) => (
+            <li
+              key={n.id}
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${Math.min(i, 8) * 0.03}s`, opacity: 0 }}
+            >
+              <button
+                type="button"
+                onClick={() => !n.read && markRead(n.id)}
+                className={`w-full text-left flex gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+                  n.read
+                    ? 'bg-white border-[var(--border-default)] hover:border-[var(--border-strong)]'
+                    : 'bg-[var(--brand-soft)] border-blue-200 hover:border-blue-300'
+                }`}
+              >
+                <div className="mt-1.5 shrink-0">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      n.read ? 'bg-[var(--border-strong)]' : 'bg-[var(--brand)]'
+                    }`}
+                  />
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-bold text-[15px]" style={{ color: 'var(--text-primary)' }}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <p className="font-semibold text-[15px] text-[var(--text-primary)]">
                       {n.title}
                     </p>
-                    <span className="text-[11px] font-mono shrink-0" style={{ color: 'var(--text-ghost)' }}>
+                    <span className="text-[11px] font-mono text-[var(--text-muted)] shrink-0">
                       {timeAgo(n.created_at)}
                     </span>
                   </div>
                   {n.message && (
-                    <p className="text-[13px] mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
                       {n.message}
                     </p>
                   )}
-                  <span className="inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-widest"
-                    style={{ background: cfg.bg, color: cfg.text }}>
+                  <span
+                    className={`inline-block mt-2 text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${chipClass(
+                      n.type,
+                    )}`}
+                  >
                     {n.type.replace(/_/g, ' ')}
                   </span>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

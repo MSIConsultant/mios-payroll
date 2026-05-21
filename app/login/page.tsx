@@ -4,120 +4,129 @@ import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { MiosLogoAuth } from '@/components/ui/MiosLogo';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 function LoginForm() {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
-  const [focused, setFocused]   = useState<string | null>(null);
   const searchParams = useSearchParams();
   const next = searchParams.get('next');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     const supabase = createClient();
     const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    if (err) { setError(err.message); setLoading(false); }
-    else window.location.href = next || '/';
+    if (err) {
+      setError(err.message);
+      setLoading(false);
+    } else {
+      window.location.href = next || '/';
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#080809] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated scanline */}
-      <div className="animate-scanline absolute inset-0 w-full h-8 bg-white/[0.02] pointer-events-none z-0" />
-
-      {/* Grid background */}
-      <div className="absolute inset-0 z-0"
-        style={{ backgroundImage: 'linear-gradient(rgba(37,99,235,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-      <div className="relative z-10 w-full max-w-sm">
-        {/* Logo */}
+    <div className="min-h-screen bg-[var(--bg-app)] flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8 animate-fade-in-up stagger-1">
           <MiosLogoAuth />
         </div>
 
-        {/* Terminal card */}
-        <div className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg overflow-hidden animate-fade-in-up stagger-2"
-          style={{ boxShadow: '0 0 60px rgba(0,0,0,0.8)' }}>
-          {/* Terminal bar */}
-          <div className="px-4 py-2.5 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-            <span className="ml-3 text-[10px] text-zinc-700 font-mono uppercase tracking-widest">
-              auth.login
-            </span>
-            <span className="ml-1 text-[#2563EB] animate-blink font-mono text-xs">_</span>
+        <div className="bg-white border border-[var(--border-default)] rounded-2xl shadow-sm overflow-hidden animate-fade-in-up stagger-2">
+          <div className="px-6 pt-6 pb-2">
+            <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+              Masuk
+            </h1>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Selamat datang kembali. Silakan masuk untuk melanjutkan.
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} className="p-6 space-y-4 font-mono">
+          <form onSubmit={handleLogin} className="p-6 space-y-4">
             {error && (
-              <div className="p-3 bg-red-900/20 border border-red-800/30 rounded text-xs text-red-400 animate-fade-in">
-                <span className="text-red-600">ERR </span>{error}
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 animate-fade-in">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
-            <div className="animate-fade-in-up stagger-3">
-              <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
-                <span className="text-[#2563EB]">→</span> Email
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1.5"
+              >
+                Email
               </label>
-              <input type="email" value={email} required
-                onChange={e => setEmail(e.target.value)}
-                onFocus={() => setFocused('email')}
-                onBlur={() => setFocused(null)}
+              <input
+                id="email"
+                type="email"
+                value={email}
+                required
+                autoComplete="email"
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="nama@perusahaan.com"
-                className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
-                style={{ borderColor: focused === 'email' ? 'rgba(37,99,235,0.5)' : '#1A1A1C' }} />
+                className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all"
+              />
             </div>
 
-            <div className="animate-fade-in-up stagger-4">
-              <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
-                <span className="text-[#2563EB]">→</span> Password
-              </label>
-              <input type="password" value={password} required
-                onChange={e => setPassword(e.target.value)}
-                onFocus={() => setFocused('password')}
-                onBlur={() => setFocused(null)}
-                placeholder="••••••••"
-                className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
-                style={{ borderColor: focused === 'password' ? 'rgba(37,99,235,0.5)' : '#1A1A1C' }} />
-            </div>
-
-            <div className="pt-2 animate-fade-in-up stagger-5">
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all duration-300 relative overflow-hidden group disabled:opacity-50"
-                style={{ background: loading ? '#1A1A1C' : '#2563EB', color: loading ? '#666' : '#0A0A0B' }}>
-                {/* Shimmer */}
-                <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-                  style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)' }} />
-                <span className="relative">
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-3 h-3 border border-zinc-500 border-t-zinc-300 rounded-full animate-spin" />
-                      Memproses...
-                    </span>
-                  ) : '$ masuk →'}
-                </span>
-              </button>
-            </div>
-            <div className="pt-2 text-center animate-fade-in stagger-5 space-y-2">
-              <Link href="/forgot-password"
-                className="block text-[11px] text-zinc-700 hover:text-zinc-500 transition-colors font-mono">
-                Lupa password?
-              </Link>
-              <p className="text-[11px] text-zinc-700 font-mono">
-                Belum punya akun?{' '}
-                <Link href="/register" className="text-[#2563EB] hover:text-yellow-300 transition-colors">
-                  Daftar sekarang
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="password"
+                  className="text-[13px] font-semibold text-[var(--text-secondary)]"
+                >
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-[12px] font-semibold text-[var(--brand)] hover:underline"
+                >
+                  Lupa password?
                 </Link>
-              </p>
+              </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                required
+                autoComplete="current-password"
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all"
+              />
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold transition-colors disabled:opacity-60 shadow-sm cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Memproses…
+                </>
+              ) : (
+                'Masuk'
+              )}
+            </button>
+
+            <p className="text-center text-[13px] text-[var(--text-muted)] pt-2">
+              Belum punya akun?{' '}
+              <Link
+                href="/register"
+                className="font-semibold text-[var(--brand)] hover:underline"
+              >
+                Daftar sekarang
+              </Link>
+            </p>
           </form>
         </div>
 
-        <p className="text-center text-[10px] text-zinc-800 mt-6 font-mono animate-fade-in stagger-5">
+        <p className="text-center text-[11px] text-[var(--text-muted)] mt-6 font-mono">
           PP 58/2023 · PMK 168/2023 · PPh 21 TER
         </p>
       </div>
@@ -127,11 +136,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#080809] flex items-center justify-center">
-        <span className="text-zinc-700 font-mono text-xs animate-blink">Loading_</span>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--bg-app)] flex items-center justify-center">
+          <Loader2 size={20} className="animate-spin text-[var(--text-muted)]" />
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

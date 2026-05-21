@@ -12,22 +12,13 @@ import {
   CheckCircle2,
   Clock,
   ChevronRight,
+  Building2,
+  Users,
 } from 'lucide-react';
 
 const BULAN_SHORT = [
-  '',
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'Mei',
-  'Jun',
-  'Jul',
-  'Agu',
-  'Sep',
-  'Okt',
-  'Nov',
-  'Des',
+  '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ];
 
 type RunStatus = 'locked' | 'calculated' | 'draft' | 'none';
@@ -39,39 +30,74 @@ interface CompanyWithMeta extends Company {
   _runTahun?: number;
 }
 
-function StatusIcon({ status }: { status: RunStatus }) {
-  if (status === 'locked')
-    return <Lock size={10} className="text-green-400" />;
+const STATUS_CONFIG: Record<
+  RunStatus,
+  { label: string; icon: typeof Lock; ring: string; text: string; bg: string }
+> = {
+  locked: {
+    label: 'Terkunci',
+    icon: Lock,
+    ring: 'ring-emerald-200',
+    text: 'text-emerald-700',
+    bg: 'bg-emerald-50',
+  },
+  calculated: {
+    label: 'Dihitung',
+    icon: CheckCircle2,
+    ring: 'ring-sky-200',
+    text: 'text-sky-700',
+    bg: 'bg-sky-50',
+  },
+  draft: {
+    label: 'Draft',
+    icon: Clock,
+    ring: 'ring-amber-200',
+    text: 'text-amber-700',
+    bg: 'bg-amber-50',
+  },
+  none: {
+    label: 'Belum Run',
+    icon: Clock,
+    ring: 'ring-slate-200',
+    text: 'text-slate-500',
+    bg: 'bg-slate-50',
+  },
+};
 
-  if (status === 'calculated')
-    return <CheckCircle2 size={10} className="text-sky-400" />;
-
-  if (status === 'draft')
-    return <Clock size={10} className="text-amber-500" />;
-
-  return <Clock size={10} className="text-zinc-700" />;
+function StatusBadge({ status }: { status: RunStatus }) {
+  const cfg = STATUS_CONFIG[status];
+  const Icon = cfg.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${cfg.bg} ${cfg.text} ${cfg.ring}`}
+    >
+      <Icon size={11} />
+      {cfg.label}
+    </span>
+  );
 }
 
-const STATUS_BORDER: Record<RunStatus, string> = {
-  locked: 'rgba(34,197,94,0.7)',
-  calculated: 'rgba(56,189,248,0.6)',
-  draft: 'rgba(245,158,11,0.5)',
-  none: '#27272a',
-};
-
-const STATUS_LABEL: Record<RunStatus, string> = {
-  locked: 'locked',
-  calculated: 'calculated',
-  draft: 'draft',
-  none: 'no run',
-};
-
-const STATUS_COLOR: Record<RunStatus, string> = {
-  locked: 'text-green-400',
-  calculated: 'text-sky-400',
-  draft: 'text-amber-500',
-  none: 'text-zinc-700',
-};
+function CompanyAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+  // simple stable hue from name
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  const hue = Math.abs(hash) % 360;
+  return (
+    <div
+      className="shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-sm"
+      style={{ background: `hsl(${hue} 55% 45%)` }}
+      aria-hidden="true"
+    >
+      {initials || <Building2 size={18} />}
+    </div>
+  );
+}
 
 export default function CompaniesPage() {
   const now = new Date();
@@ -83,9 +109,7 @@ export default function CompaniesPage() {
   const [companies, setCompanies] = useState<CompanyWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<
-    RunStatus | 'all'
-  >('all');
+  const [filterStatus, setFilterStatus] = useState<RunStatus | 'all'>('all');
 
   useEffect(() => {
     async function fetchData() {
@@ -96,7 +120,6 @@ export default function CompaniesPage() {
 
       const supabase = createClient();
 
-      // Get authenticated user
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -106,7 +129,6 @@ export default function CompaniesPage() {
         return;
       }
 
-      // Get user profile / role
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('role, workspace_id')
@@ -118,15 +140,13 @@ export default function CompaniesPage() {
 
       let companiesData: Company[] = [];
 
-      // STAFF: only assigned companies
       if (isStaff) {
         const { data: access } = await supabase
           .from('company_staff_access')
           .select('company_id')
           .eq('staff_user_id', user.id);
 
-        const allowedIds =
-          (access ?? []).map((a) => a.company_id) ?? [];
+        const allowedIds = (access ?? []).map((a) => a.company_id) ?? [];
 
         if (allowedIds.length > 0) {
           const { data } = await supabase
@@ -140,7 +160,6 @@ export default function CompaniesPage() {
           companiesData = (data ?? []) as Company[];
         }
       } else {
-        // ACCOUNTANT / DEV / ADMIN
         const { data } = await supabase
           .from('companies')
           .select('*')
@@ -157,9 +176,7 @@ export default function CompaniesPage() {
         companyIds.length > 0
           ? supabase
               .from('payroll_runs')
-              .select(
-                'company_id, status, bulan, tahun'
-              )
+              .select('company_id, status, bulan, tahun')
               .in('company_id', companyIds)
               .eq('tahun', tahunIni)
               .eq('bulan', bulanIni)
@@ -175,17 +192,10 @@ export default function CompaniesPage() {
       ]);
 
       const runMap: Record<string, RunStatus> = {};
-
-      for (const r of runs ?? []) {
-        runMap[r.company_id] = r.status as RunStatus;
-      }
+      for (const r of runs ?? []) runMap[r.company_id] = r.status as RunStatus;
 
       const empMap: Record<string, number> = {};
-
-      for (const e of emps ?? []) {
-        empMap[e.company_id] =
-          (empMap[e.company_id] ?? 0) + 1;
-      }
+      for (const e of emps ?? []) empMap[e.company_id] = (empMap[e.company_id] ?? 0) + 1;
 
       setCompanies(
         companiesData.map((co) => ({
@@ -194,7 +204,7 @@ export default function CompaniesPage() {
           _runStatus: runMap[co.id] ?? 'none',
           _runBulan: bulanIni,
           _runTahun: tahunIni,
-        }))
+        })),
       );
 
       setLoading(false);
@@ -206,241 +216,215 @@ export default function CompaniesPage() {
   const filtered = companies.filter((c) => {
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.kota
-        ?.toLowerCase()
-        .includes(search.toLowerCase());
-
-    const matchStatus =
-      filterStatus === 'all' ||
-      c._runStatus === filterStatus;
-
+      c.kota?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'all' || c._runStatus === filterStatus;
     return matchSearch && matchStatus;
   });
 
   const counts = {
-    locked: companies.filter(
-      (c) => c._runStatus === 'locked'
-    ).length,
-
-    calculated: companies.filter(
-      (c) => c._runStatus === 'calculated'
-    ).length,
-
-    none: companies.filter(
-      (c) => c._runStatus === 'none'
-    ).length,
+    locked: companies.filter((c) => c._runStatus === 'locked').length,
+    calculated: companies.filter((c) => c._runStatus === 'calculated').length,
+    none: companies.filter((c) => c._runStatus === 'none').length,
   };
 
-  return (
-    <div className="max-w-4xl space-y-6 animate-fade-in-up">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-zinc-100 font-mono tracking-tight">
-            PERUSAHAAN
-          </h1>
+  const totalEmployees = companies.reduce((sum, c) => sum + (c._empCount ?? 0), 0);
 
-          <p className="text-[11px] text-zinc-700 mt-1 font-mono uppercase tracking-widest">
-            {companies.length} klien aktif · periode{' '}
-            {BULAN_SHORT[bulanIni]} {tahunIni}
+  return (
+    <div className="space-y-7 animate-fade-in-up">
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+            Perusahaan
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            {companies.length} klien aktif · {totalEmployees} karyawan · periode{' '}
+            <span className="font-semibold text-[var(--text-secondary)]">
+              {BULAN_SHORT[bulanIni]} {tahunIni}
+            </span>
           </p>
         </div>
 
         <Link
           href="/companies/new"
-          className="inline-flex items-center gap-2 bg-[#2563EB] text-[#0A0A0B] px-4 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-[#1D4ED8] transition-colors relative overflow-hidden group"
-          style={{
-            boxShadow:
-              '0 0 20px rgba(37,99,235,0.2)',
-          }}
+          className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm cursor-pointer"
         >
-          <div
-            className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"
-            style={{
-              background:
-                'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-            }}
-          />
-
-          <Plus size={13} />
-
-          <span className="relative">Tambah</span>
+          <Plus size={16} />
+          Tambah Perusahaan
         </Link>
-      </div>
+      </header>
 
       {/* Status summary */}
       {companies.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            {
-              key: 'locked',
-              label: 'Terkunci',
-              count: counts.locked,
-              color:
-                'border-green-900/40 bg-green-900/10',
-            },
-            {
-              key: 'calculated',
-              label: 'Dihitung',
-              count: counts.calculated,
-              color:
-                'border-sky-900/40 bg-sky-900/10',
-            },
-            {
-              key: 'none',
-              label: 'Belum Run',
-              count: counts.none,
-              color:
-                'border-zinc-800 bg-zinc-900/30',
-            },
-          ].map((s) => (
-            <button
-              key={s.key}
-              onClick={() =>
-                setFilterStatus(
-                  filterStatus ===
-                    (s.key as RunStatus)
-                    ? 'all'
-                    : (s.key as RunStatus)
-                )
-              }
-              className={`border rounded-lg px-4 py-3 text-left transition-all ${s.color} ${
-                filterStatus === s.key
-                  ? 'ring-1 ring-[#2563EB]/40'
-                  : 'hover:border-zinc-600'
-              }`}
-            >
-              <p className="text-3xl font-black font-mono text-zinc-100">
-                {s.count}
-              </p>
-
-              <p className="text-[10px] uppercase tracking-widest font-mono text-zinc-600 mt-1">
-                {s.label}
-              </p>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatBox
+            label="Total"
+            value={companies.length}
+            active={filterStatus === 'all'}
+            onClick={() => setFilterStatus('all')}
+            accent="slate"
+          />
+          <StatBox
+            label="Terkunci"
+            value={counts.locked}
+            active={filterStatus === 'locked'}
+            onClick={() => setFilterStatus(filterStatus === 'locked' ? 'all' : 'locked')}
+            accent="emerald"
+          />
+          <StatBox
+            label="Dihitung"
+            value={counts.calculated}
+            active={filterStatus === 'calculated'}
+            onClick={() => setFilterStatus(filterStatus === 'calculated' ? 'all' : 'calculated')}
+            accent="sky"
+          />
+          <StatBox
+            label="Belum Run"
+            value={counts.none}
+            active={filterStatus === 'none'}
+            onClick={() => setFilterStatus(filterStatus === 'none' ? 'all' : 'none')}
+            accent="amber"
+          />
         </div>
       )}
 
       {/* Search */}
       <div className="relative">
         <Search
-          size={12}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-700"
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
         />
-
         <input
           type="text"
-          placeholder="$ cari perusahaan..."
+          placeholder="Cari nama perusahaan atau kota…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-8 pr-4 py-2.5 bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg text-sm text-zinc-300 placeholder:text-zinc-800 outline-none focus:border-[#2563EB]/30 transition-colors font-mono"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all"
         />
       </div>
 
       {/* Company list */}
       {loading || wsLoading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-16 bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg animate-pulse"
+              className="h-[76px] bg-white border border-[var(--border-default)] rounded-xl animate-pulse"
             />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-[#0A0A0B] border border-dashed border-[#1A1A1C] rounded-lg p-16 text-center">
-          <p className="text-xs text-zinc-700 font-mono">
-            $ tidak ada hasil
+        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
+          <Building2 size={32} className="mx-auto text-[var(--text-faint)]" />
+          <p className="mt-3 text-sm font-medium text-[var(--text-secondary)]">
+            {companies.length === 0 ? 'Belum ada perusahaan' : 'Tidak ada hasil yang cocok'}
           </p>
-
           {companies.length === 0 && (
             <Link
               href="/companies/new"
-              className="mt-3 inline-block text-xs text-[#2563EB] hover:underline font-mono"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--brand)] hover:underline"
             >
-              tambah perusahaan pertama →
+              <Plus size={14} />
+              Tambah perusahaan pertama
             </Link>
           )}
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <ul className="space-y-2">
           {filtered.map((co, i) => {
             const status = co._runStatus ?? 'none';
-
             return (
-              <Link
+              <li
                 key={co.id}
-                href={`/companies/${co.id}`}
-                className="flex items-center justify-between bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg px-5 py-4 hover:bg-[#0F0F11] transition-all group animate-fade-in-up"
-                style={{
-                  borderLeftColor:
-                    STATUS_BORDER[status],
-                  borderLeftWidth: '3px',
-                  animationDelay: `${i * 0.04}s`,
-                  opacity: 0,
-                }}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${Math.min(i, 8) * 0.03}s`, opacity: 0 }}
               >
-                <div className="flex items-center gap-5 min-w-0 flex-1">
-                  {/* Status icon */}
-                  <div className="shrink-0">
-                    <StatusIcon status={status} />
-                  </div>
+                <Link
+                  href={`/companies/${co.id}`}
+                  className="group flex items-center gap-4 bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-md rounded-xl px-4 py-3.5 transition-all"
+                >
+                  <CompanyAvatar name={co.name} />
 
-                  {/* Company name */}
+                  {/* Name + meta */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-zinc-200 group-hover:text-zinc-100 transition-colors font-mono uppercase tracking-tight truncate">
-                      {co.name}
-                    </p>
-
-                    <p className="text-[10px] text-zinc-700 mt-0.5 font-mono">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-[15px] sm:text-base font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors truncate">
+                        {co.name}
+                      </h2>
+                      <span className="sm:hidden">
+                        <StatusBadge status={status} />
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-[var(--text-muted)] mt-0.5 truncate">
                       {co.kota ?? '—'}
-                      {co.industri
-                        ? ` · ${co.industri}`
-                        : ''}
+                      {co.industri ? ` · ${co.industri}` : ''}
                     </p>
                   </div>
 
-                  {/* Meta */}
-                  <div className="flex items-center gap-6 shrink-0">
-                    <div className="text-right hidden sm:block">
-                      <p className="text-lg font-black text-zinc-400 font-mono leading-none">
-                        {co._empCount ?? 0}
-                      </p>
-
-                      <p className="text-[9px] text-zinc-800 uppercase tracking-widest">
-                        karyawan
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="flex items-center gap-1.5">
-                        <StatusIcon status={status} />
-
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-widest font-mono ${STATUS_COLOR[status]}`}
-                        >
-                          {STATUS_LABEL[status]}
-                        </span>
-                      </div>
-
-                      <p className="text-[9px] text-zinc-800 font-mono">
-                        {BULAN_SHORT[bulanIni]}{' '}
-                        {tahunIni}
-                      </p>
-                    </div>
+                  {/* Employee count */}
+                  <div className="hidden sm:flex flex-col items-end shrink-0 pr-2">
+                    <span className="inline-flex items-center gap-1 text-[15px] font-semibold text-[var(--text-primary)] font-mono">
+                      <Users size={13} className="text-[var(--text-muted)]" />
+                      {co._empCount ?? 0}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-muted)] mt-0.5">karyawan</span>
                   </div>
-                </div>
 
-                <ChevronRight
-                  size={13}
-                  className="text-zinc-800 group-hover:text-zinc-600 transition-colors ml-4 shrink-0"
-                />
-              </Link>
+                  {/* Status */}
+                  <div className="hidden sm:flex flex-col items-end shrink-0">
+                    <StatusBadge status={status} />
+                    <span className="text-[11px] text-[var(--text-muted)] mt-1 font-mono">
+                      {BULAN_SHORT[bulanIni]} {tahunIni}
+                    </span>
+                  </div>
+
+                  <ChevronRight
+                    size={18}
+                    className="text-[var(--text-faint)] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all shrink-0"
+                  />
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
+  );
+}
+
+function StatBox({
+  label,
+  value,
+  active,
+  onClick,
+  accent,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+  accent: 'slate' | 'emerald' | 'sky' | 'amber';
+}) {
+  const accentMap = {
+    slate: 'text-slate-900',
+    emerald: 'text-emerald-700',
+    sky: 'text-sky-700',
+    amber: 'text-amber-700',
+  } as const;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left bg-white rounded-xl border px-4 py-3 transition-all cursor-pointer ${
+        active
+          ? 'border-[var(--brand)] ring-2 ring-[var(--brand-ring)] shadow-sm'
+          : 'border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-sm'
+      }`}
+    >
+      <p className={`text-2xl font-bold font-mono ${accentMap[accent]}`}>{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mt-1">
+        {label}
+      </p>
+    </button>
   );
 }

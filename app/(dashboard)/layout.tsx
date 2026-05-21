@@ -8,20 +8,32 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/types/roles';
 
+const ROLE_LABEL: Record<string, string> = {
+  dev: 'Developer',
+  accountant: 'Akuntan',
+  staff: 'Staff',
+};
+
+const ROLE_CLASSES: Record<string, string> = {
+  dev: 'bg-red-50 text-red-700 ring-red-200',
+  accountant: 'bg-blue-50 text-blue-700 ring-blue-200',
+  staff: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+};
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser]           = useState<any>(null);
-  const [profile, setProfile]     = useState<UserProfile | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [ready, setReady]         = useState(false);
+  const [user, setUser]               = useState<any>(null);
+  const [profile, setProfile]         = useState<UserProfile | null>(null);
+  const [collapsed, setCollapsed]     = useState(false);
+  const [mobileOpen, setMobileOpen]   = useState(false);
+  const [ready, setReady]             = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isMobile, setIsMobile]   = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
 
   useEffect(() => {
-    // Detect mobile
     function checkMobile() {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) setCollapsed(true);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setCollapsed(true);
     }
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -56,29 +68,43 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     }
   }
 
-  if (!ready) return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {[['M','#E02020'],['I','#1B4FA8'],['O','#2DB44A'],['S','#1C1C1F']].map(([l, c], i) => (
-          <div key={l} style={{ width: 28, height: 28, background: c, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 900, animation: `pulse 1.5s ease-in-out ${i * 0.12}s infinite` }}>{l}</div>
-        ))}
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-app)] flex items-center justify-center">
+        <div className="flex gap-1.5">
+          {[['M','#E02020'],['I','#1B4FA8'],['O','#2DB44A'],['S','#0F172A']].map(([l, c], i) => (
+            <div
+              key={l}
+              className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-extrabold animate-pulse"
+              style={{ background: c, animationDelay: `${i * 0.12}s` }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  const sw   = isMobile ? 0 : (collapsed ? 56 : 220);
+  const sidebarWidth = isMobile ? 0 : (collapsed ? 64 : 240);
   const role = profile?.role ?? 'staff';
+  const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
 
   const sidebarContent = (
     <>
-      {/* RGB line */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, #E02020 0%, #1B4FA8 50%, #2DB44A 100%)' }} />
-
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed && !isMobile ? 'center' : 'flex-start', padding: collapsed && !isMobile ? '16px 8px' : '16px', borderBottom: '1px solid #1C1C1F', gap: 8 }}>
+      <div
+        className={`flex items-center border-b border-[var(--border-subtle)] ${
+          collapsed && !isMobile ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'
+        }`}
+      >
         <MiosLogo size="sm" showWordmark collapsed={collapsed && !isMobile} />
         {isMobile && (
-          <button onClick={() => setMobileOpen(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#71717A', cursor: 'pointer', padding: 4 }}>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-md cursor-pointer"
+            aria-label="Tutup menu"
+          >
             <X size={18} />
           </button>
         )}
@@ -86,41 +112,52 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Role badge */}
       {(!collapsed || isMobile) && (
-        <div style={{ margin: '8px 12px 4px', padding: '4px 10px', borderRadius: 6, background: role === 'dev' ? 'rgba(239,68,68,0.1)' : role === 'accountant' ? 'rgba(37,99,235,0.1)' : 'rgba(34,197,94,0.08)', border: `1px solid ${role === 'dev' ? 'rgba(239,68,68,0.2)' : role === 'accountant' ? 'rgba(37,99,235,0.2)' : 'rgba(34,197,94,0.15)'}`, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: role === 'dev' ? '#EF4444' : role === 'accountant' ? '#3B82F6' : '#22C55E', display: 'inline-block' }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: role === 'dev' ? '#EF4444' : role === 'accountant' ? '#3B82F6' : '#22C55E' }}>
-            {role === 'dev' ? 'Developer' : role === 'accountant' ? 'Akuntan' : 'Staff'}
+        <div className="px-3 pt-3 pb-1">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset ${ROLE_CLASSES[role] ?? ROLE_CLASSES.staff}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {ROLE_LABEL[role] ?? 'User'}
           </span>
         </div>
       )}
 
+      {/* Nav */}
       <NavLinks collapsed={collapsed && !isMobile} onToggle={toggleSidebar} userRole={role} />
 
       {/* Footer */}
-      <div style={{ borderTop: '1px solid #1C1C1F', padding: collapsed && !isMobile ? '8px 4px' : '8px 12px' }}>
+      <div className="border-t border-[var(--border-subtle)] px-2 py-3">
         {(!collapsed || isMobile) && (
-          <div style={{ padding: '4px 8px 8px' }}>
-            <p style={{ fontSize: 10, fontWeight: 500, color: '#3A3A3E', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-              {profile?.full_name ?? user?.email?.split('@')[0]}
+          <div className="px-2 pb-2">
+            <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+              {displayName}
             </p>
-            <p style={{ fontSize: 11, color: '#52525B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p className="text-[11px] text-[var(--text-muted)] truncate">
               {user?.email}
             </p>
           </div>
         )}
+
         {(!collapsed || isMobile) && unreadCount > 0 && (
-          <Link href="/notifications" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, marginBottom: 4, background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)', textDecoration: 'none' }}>
-            <Bell size={13} style={{ color: '#3B82F6' }} />
-            <span style={{ fontSize: 12, color: '#3B82F6', fontWeight: 600 }}>{unreadCount} notifikasi</span>
+          <Link
+            href="/notifications"
+            className="flex items-center gap-2 px-2.5 py-2 rounded-md mb-1 bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-blue-100 transition-colors"
+          >
+            <Bell size={14} />
+            <span className="text-[12px] font-semibold">{unreadCount} notifikasi</span>
           </Link>
         )}
+
         <form action="/auth/signout" method="post">
-          <button type="submit"
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: collapsed && !isMobile ? 'center' : 'flex-start', gap: collapsed && !isMobile ? 0 : 8, padding: collapsed && !isMobile ? '8px 0' : '8px', borderRadius: 8, border: 'none', background: 'transparent', color: '#3A3A3E', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}
-            onMouseEnter={e => { (e.currentTarget as any).style.color = '#EF4444'; (e.currentTarget as any).style.background = '#1A0F0F'; }}
-            onMouseLeave={e => { (e.currentTarget as any).style.color = '#3A3A3E'; (e.currentTarget as any).style.background = 'transparent'; }}>
-            <LogOut size={14} />
-            {(!collapsed || isMobile) && <span>Keluar</span>}
+          <button
+            type="submit"
+            className={`w-full flex items-center rounded-md transition-colors cursor-pointer text-[var(--text-muted)] hover:bg-red-50 hover:text-red-600 ${
+              collapsed && !isMobile ? 'justify-center py-2' : 'justify-start gap-2 px-2.5 py-2'
+            }`}
+            title="Keluar"
+          >
+            <LogOut size={15} />
+            {(!collapsed || isMobile) && <span className="text-[13px] font-medium">Keluar</span>}
           </button>
         </form>
       </div>
@@ -128,42 +165,51 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   );
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0A0A0C' }}>
-
+    <div className="flex h-screen overflow-hidden bg-[var(--bg-app)]">
       {/* Desktop sidebar */}
       {!isMobile && (
-        <aside style={{ width: sw, minWidth: sw, maxWidth: sw, height: '100vh', background: '#09090B', borderRight: '1px solid #1C1C1F', display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'relative', transition: 'width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease', zIndex: 20 }}>
+        <aside
+          className="h-screen bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] flex flex-col flex-shrink-0 relative z-20 transition-[width,min-width,max-width] duration-200"
+          style={{
+            width: sidebarWidth,
+            minWidth: sidebarWidth,
+            maxWidth: sidebarWidth,
+          }}
+        >
           {sidebarContent}
         </aside>
       )}
 
-      {/* Mobile: hamburger + drawer */}
+      {/* Mobile: top bar + drawer */}
       {isMobile && (
         <>
-          {/* Top bar */}
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 52, background: '#09090B', borderBottom: '1px solid #1C1C1F', zIndex: 30, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
-            <button onClick={() => setMobileOpen(true)}
-              style={{ background: 'none', border: 'none', color: '#71717A', cursor: 'pointer', padding: 6 }}>
+          <div className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[var(--border-default)] z-30 flex items-center px-4 gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1.5 rounded-md cursor-pointer"
+              aria-label="Buka menu"
+            >
               <Menu size={20} />
             </button>
             <MiosLogo size="sm" showWordmark={false} />
-            <div style={{ flex: 1 }} />
+            <div className="flex-1" />
             {unreadCount > 0 && (
-              <Link href="/notifications" style={{ position: 'relative', color: '#71717A', textDecoration: 'none' }}>
+              <Link href="/notifications" className="relative text-[var(--text-secondary)] hover:text-[var(--brand)] p-1.5">
                 <Bell size={18} />
-                <span style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#EF4444', fontSize: 8, color: '#fff', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {unreadCount}
+                <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               </Link>
             )}
           </div>
 
-          {/* Drawer overlay */}
           {mobileOpen && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }}
-                onClick={() => setMobileOpen(false)} />
-              <aside style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 260, background: '#09090B', borderRight: '1px solid #1C1C1F', display: 'flex', flexDirection: 'column', zIndex: 50, animation: 'slideInLeft 0.25s ease' }}>
+            <div className="fixed inset-0 z-40">
+              <div
+                className="absolute inset-0 bg-[var(--bg-overlay)]"
+                onClick={() => setMobileOpen(false)}
+              />
+              <aside className="absolute top-0 left-0 bottom-0 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] flex flex-col z-50 animate-slide-left shadow-xl">
                 {sidebarContent}
               </aside>
             </div>
@@ -171,16 +217,31 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </>
       )}
 
-      {/* Main content */}
-      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', minWidth: 0, marginTop: isMobile ? 52 : 0 }}>
-        <div style={{ position: 'fixed', top: isMobile ? 52 : 0, bottom: 0, right: 0, left: sw, backgroundImage: 'linear-gradient(rgba(37,99,235,0.008) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.008) 1px, transparent 1px)', backgroundSize: '52px 52px', pointerEvents: 'none', zIndex: 0, transition: 'left 0.3s' }} />
-        <div style={{ position: 'relative', zIndex: 1, padding: isMobile ? '16px' : '32px', maxWidth: 1400, margin: '0 auto', minHeight: '100%' }}>
+      {/* Main */}
+      <main
+        className="flex-1 overflow-y-auto overflow-x-hidden relative min-w-0"
+        style={{ marginTop: isMobile ? 56 : 0 }}
+      >
+        <div className="relative z-10 px-4 py-6 md:px-8 md:py-10 max-w-[1400px] mx-auto min-h-full">
           {children}
         </div>
       </main>
 
-      <Toaster position="bottom-right" theme="dark"
-        toastOptions={{ style: { background: '#111114', border: '1px solid #1C1C1F', color: '#E4E4E7', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '13px', borderRadius: '10px' } }} />
+      <Toaster
+        position="bottom-right"
+        theme="light"
+        toastOptions={{
+          style: {
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            color: 'var(--text-primary)',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: '13px',
+            borderRadius: '10px',
+            boxShadow: 'var(--shadow-lg)',
+          },
+        }}
+      />
     </div>
   );
 }
