@@ -600,3 +600,118 @@ describe('calculateFreelance harian (TER method per PMK 168/2023)', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+describe('calculateLastMonth — mid-year exit Pasal 17 reconciliation', () => {
+  it('isLastMonth=true on non-December routes to Pasal 17 (jenis = BULAN TERAKHIR)', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 8,             // August exit
+      isLastMonth: true,
+      months_in_year: 3,    // worked Jun-Aug
+      gaji_pokok: 10_000_000,
+      jkk_rate: 0.0024,
+      akum_bruto: 20_000_000,   // Jun + Jul
+      pph_jan_nov: 500_000,
+    }));
+    expect(r.ter).toBeNull();
+    expect(r.jenis).toContain('BULAN TERAKHIR');
+    expect((r as any).is_last_month).toBe(true);
+    expect((r as any).months_in_year).toBe(3);
+  });
+
+  it('default (no flag) on December still produces DESEMBER jenis with monthsInYear=12', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      jkk_rate: 0.0024,
+      akum_bruto: 110_000_000,
+      pph_jan_nov: 1_500_000,
+    }));
+    expect(r.jenis).toContain('DESEMBER');
+    expect((r as any).months_in_year).toBe(12);
+  });
+
+  it('biaya jabatan cap scales with months_in_year (3 mo → cap Rp 1.5M, not 6M)', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 8,
+      isLastMonth: true,
+      months_in_year: 3,
+      gaji_pokok: 30_000_000,         // forces 5% × 90M = 4.5M which exceeds 3-month cap
+      jkk_rate: 0,
+      akum_bruto: 60_000_000,
+      pph_jan_nov: 0,
+    }));
+    // 5% × 90M = 4.5M, but cap = 500k × 3 = 1.5M → bj clamps to 1.5M
+    expect((r as any).bj).toBe(1_500_000);
+  });
+
+  it('JHT_K iuran karyawan IS deducted from netto when not company-tanggung (bugfix)', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      ikut_jht: true,
+      tanggung_jht_k: false,    // employee pays JHT_K from gaji
+      ikut_jp: false,
+      ikut_kes: false,
+      jkk_rate: 0,
+      akum_bruto: 110_000_000,
+      pph_jan_nov: 0,
+    }));
+    // JHT_K monthly = 10M × 2% = 200,000 → annual = 2,400,000
+    expect((r as any).jht_k_tahunan).toBe(2_400_000);
+  });
+
+  it('JHT_K tanggung by company: NOT deducted from netto (it was already in bruto as tunjangan)', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      ikut_jht: true,
+      tanggung_jht_k: true,
+      jkk_rate: 0,
+      akum_bruto: 110_000_000,
+      pph_jan_nov: 0,
+    }));
+    expect((r as any).jht_k_tahunan).toBe(0);
+  });
+
+  it('Refund: when pph_jan_nov exceeds annual liability, is_refund=true and refund_amount set', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 5_000_000,
+      jkk_rate: 0,
+      akum_bruto: 55_000_000,    // ~60M bruto setahun, low PPh
+      pph_jan_nov: 5_000_000,    // way over-withheld
+    }));
+    expect((r as any).is_refund).toBe(true);
+    expect((r as any).refund_amount).toBeGreaterThan(0);
+    expect((r as any).raw_pph).toBeLessThan(0);
+    expect(r.pph).toBe(0); // on-slip pph still clamped to 0
+  });
+
+  it('No refund: when pph_jan_nov is below annual liability', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      jkk_rate: 0.0024,
+      akum_bruto: 110_000_000,
+      pph_jan_nov: 500_000,    // under-withheld
+    }));
+    expect((r as any).is_refund).toBe(false);
+    expect((r as any).refund_amount).toBe(0);
+    expect((r as any).raw_pph).toBeGreaterThanOrEqual(0);
+  });
+
+  it('months_in_year clamps to [1, 12]', () => {
+    const r1 = calculateMonthlySalary(tetap({
+      bulan: 1, isLastMonth: true, months_in_year: 0,
+      gaji_pokok: 5_000_000, jkk_rate: 0, akum_bruto: 1, pph_jan_nov: 0,
+    }));
+    expect((r1 as any).months_in_year).toBe(1);
+
+    const r2 = calculateMonthlySalary(tetap({
+      bulan: 12, isLastMonth: true, months_in_year: 99,
+      gaji_pokok: 5_000_000, jkk_rate: 0, akum_bruto: 1, pph_jan_nov: 0,
+    }));
+    expect((r2 as any).months_in_year).toBe(12);
+  });
+});

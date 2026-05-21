@@ -39,6 +39,22 @@ export interface KaryawanTetap {
     pot_lain: number;
     pph_jan_nov: number;
     akum_bruto: number;
+    /**
+     * Mark this month as the employee's LAST month of employment in the tax
+     * year. Triggers a Pasal 17 reconciliation calculation (same shape as
+     * December) regardless of which calendar month it is. Use when an employee
+     * exits mid-year — the accountant rule is that the final paycheck must
+     * reconcile annual PPh, not continue with TER. Combine with `months_in_year`
+     * to scale biaya jabatan and iuran caps.
+     */
+    isLastMonth?: boolean;
+    /**
+     * Number of months the employee actually worked in this tax year. Used to
+     * scale the biaya jabatan annual cap (Rp 500,000 × months_in_year) and the
+     * iuran JHT/JP karyawan deduction in the Pasal 17 netto calculation.
+     * Defaults to 12 when omitted (e.g. full-year employee in December).
+     */
+    months_in_year?: number;
 }
 
 export interface KaryawanTidakTetap {
@@ -137,8 +153,9 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     // Bruto = Regular + Irregular + BPJS Employer (Taxable) + Tunjangan BPJS Employee
     const base = k.gaji_pokok + allowance_total + irregular_total + bpjs.employer_in_bruto + bpjs.karyawan_tunj;
 
-    if (k.bulan === 12) {
-        return calculateDecember(k, bpjs, allowance_total, base, grup, k.akum_bruto);
+    if (k.bulan === 12 || k.isLastMonth === true) {
+        const monthsInYear = k.months_in_year ?? 12;
+        return calculateLastMonth(k, bpjs, allowance_total, base, grup, k.akum_bruto, monthsInYear);
     }
 
     const npwp_mult = !k.punya_npwp ? 1.2 : 1.0;
@@ -252,27 +269,64 @@ function computeAnnualProjection(
     };
 }
 
-export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calculateBPJS>, allowance_total: number, base: number, grup: "A" | "B" | "C", akum_bruto: number = 0) {
+/**
+ * Pasal 17 reconciliation for an employee's LAST month of work in the tax year.
+ *
+ * - December (full-year employee): pass `monthsInYear = 12` (default).
+ * - Mid-year exit (e.g. starts Jun, ends Aug): pass `monthsInYear = 3`. Biaya
+ *   jabatan cap and iuran karyawan annual figures scale accordingly.
+ *
+ * Per accountant spec & UU HPP Pasal 17:
+ *   Netto = Bruto setahun − Biaya Jabatan − Iuran JHT karyawan − Iuran JP karyawan
+ *   PKP   = max(0, floor((Netto − PTKP) / 1000) × 1000)
+ *   PPh   = Pasal 17 brackets (5/15/25/30/35) × PKP
+ *   This month's PPh = PPh setahun − PPh Jan–Nov (or whatever was already paid)
+ *
+ * When already-withheld PPh exceeds the annual liability, `raw_pph` is negative
+ * and `is_refund` is true with `refund_amount` set. The on-slip `pph` is still
+ * clamped to 0 (you can't deduct negative tax from gaji); the refund must be
+ * handled separately by the employer.
+ */
+export function calculateLastMonth(
+    k: KaryawanTetap,
+    bpjs: ReturnType<typeof calculateBPJS>,
+    allowance_total: number,
+    base: number,
+    grup: "A" | "B" | "C",
+    akum_bruto: number = 0,
+    monthsInYear: number = 12,
+) {
     const ptkp = PTKP[k.status_ptkp];
-    const bs = akum_bruto > 0 ? (akum_bruto + base) : (base * 12);
-    const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * 12);
-    const jp_k_tahunan = !k.tanggung_jp_k ? bpjs.jp_k * 12 : 0;
-    const netto = bs - bj - jp_k_tahunan;
+    const M = Math.max(1, Math.min(12, Math.round(monthsInYear)));
+
+    const bs = akum_bruto > 0 ? (akum_bruto + base) : (base * M);
+    const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
+
+    // Iuran karyawan = what the employee actually pays out of pocket (dipotong
+    // dari gaji). Only deduct when the company isn't covering it as tunjangan,
+    // AND when the employee participates in that program. Per UU HPP, both JHT
+    // and JP karyawan iuran are deductible — earlier code deducted only JP.
+    const jht_k_tahunan = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * M : 0;
+    const jp_k_tahunan  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
+
+    const netto = bs - bj - jht_k_tahunan - jp_k_tahunan;
     const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
     let pth = getPasal17Tax(pkp);
     if (!k.punya_npwp) {
         pth = Math.round(pth * 1.2);
     }
-    const pd = Math.max(0, Math.round(pth - k.pph_jan_nov));
+
+    // Raw can be negative (over-withholding → refund); on-slip pph is clamped.
+    const rawPph = Math.round(pth - k.pph_jan_nov);
+    const isRefund = rawPph < 0;
+    const refundAmount = isRefund ? -rawPph : 0;
+    const pd = Math.max(0, rawPph);
 
     const tunj_pph = k.pph_ditanggung ? pd : 0;
     const pot_pph = k.pph_ditanggung ? 0 : pd;
 
     const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
-    // Mirror the same `proyeksi` shape used in Jan-Nov so the UI can read one
-    // field path regardless of period. For December these are actual (not
-    // projected) values.
     const proyeksi = {
         bruto_setahun: bs,
         biaya_jabatan_setahun: bj,
@@ -283,22 +337,39 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
         pph_desember_proyeksi: pd,
     };
 
+    const jenis = M === 12 && k.bulan === 12
+        ? "GAJI — DESEMBER (Equalisasi Pasal 17)"
+        : "GAJI — BULAN TERAKHIR (Equalisasi Pasal 17)";
+
     return {
-        jenis: "GAJI — DESEMBER (Equalisasi Pasal 17)",
-        bulan: 12, tahun: k.tahun,
+        jenis,
+        bulan: k.bulan, tahun: k.tahun,
         grup, ter: null, status_ptkp: k.status_ptkp,
         basis: k.gaji_pokok, bpjs,
         gaji_pokok: k.gaji_pokok, allowance_total,
         benefit: k.benefit, kendaraan: k.kendaraan,
         pulsa: k.pulsa, operasional: k.operasional, tunj_lain: k.tunj_lain,
         tunj_pph, base, bruto: base + tunj_pph,
-        bs, bj, jp_k_tahunan, netto, pkp, ptkp, pph_tahunan: pth,
+        bs, bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, ptkp, pph_tahunan: pth,
         pph_jan_nov: k.pph_jan_nov,
         pph: pd, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
         proyeksi,
+        is_last_month: true,
+        months_in_year: M,
+        raw_pph: rawPph,
+        is_refund: isRefund,
+        refund_amount: refundAmount,
     };
+}
+
+/**
+ * Backward-compat alias: full-year December reconciliation (monthsInYear=12).
+ * Existing callers don't need to change.
+ */
+export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calculateBPJS>, allowance_total: number, base: number, grup: "A" | "B" | "C", akum_bruto: number = 0) {
+    return calculateLastMonth(k, bpjs, allowance_total, base, grup, akum_bruto, 12);
 }
 
 export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: number = 0) {
