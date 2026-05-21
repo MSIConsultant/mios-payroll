@@ -342,14 +342,35 @@ export default function PayrollRunPage() {
         const benefit_extra = empEvents.filter((e) => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
         let calcResult: any = {};
         if (emp.jenis_karyawan === 'tetap') {
+          // Mid-year exit detection: if this run's month matches the employee's
+          // tanggal_keluar month/year, route through Pasal 17 reconciliation
+          // (isLastMonth) and scale annual caps to actual months worked.
+          const runYear  = Number(tahun);
+          const runMonth = Number(bulan);
+          const exitDate  = emp.tanggal_keluar ? new Date(`${emp.tanggal_keluar}T00:00:00`) : null;
+          const entryDate = emp.tanggal_masuk  ? new Date(`${emp.tanggal_masuk}T00:00:00`)  : null;
+          const isLastMonth =
+            !!exitDate &&
+            exitDate.getFullYear() === runYear &&
+            (exitDate.getMonth() + 1) === runMonth;
+          let months_in_year = 12;
+          if (isLastMonth) {
+            const startMonth = entryDate && entryDate.getFullYear() === runYear
+              ? (entryDate.getMonth() + 1)
+              : 1;
+            months_in_year = Math.max(1, Math.min(12, runMonth - startMonth + 1));
+          }
+
           calcResult = calculateMonthlySalary({
-            ...emp, bulan: Number(bulan), tahun: Number(tahun),
+            ...emp, bulan: runMonth, tahun: runYear,
             kasbon, alpha_telat,
             pot_lain: pot_lain + (emp.pot_lain || 0),
             tunj_lain: (emp.tunj_lain ?? 0) + benefit_extra,
             thr, bonus,
             pph_jan_nov: emp._pph_jan_nov ?? 0,
             akum_bruto: emp._akum_bruto ?? 0,
+            isLastMonth,
+            months_in_year,
           });
         } else {
           calcResult = calculateFreelance({
@@ -1013,6 +1034,14 @@ export default function PayrollRunPage() {
                         Grossup
                       </span>
                     )}
+                    {res.is_last_month && (
+                      <span
+                        title={`Bulan terakhir kerja — perhitungan Pasal 17 (${res.months_in_year ?? 12} bulan)`}
+                        className="inline-flex text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-purple-50 text-purple-700 ring-purple-200"
+                      >
+                        Bulan Terakhir · {res.months_in_year ?? 12}m
+                      </span>
+                    )}
                     <button
                       onClick={() => printSlipGaji(res, company, Number(bulan), Number(tahun))}
                       title="Cetak Slip Gaji"
@@ -1025,6 +1054,20 @@ export default function PayrollRunPage() {
 
                 {/* Ledger body */}
                 <div className="px-5 sm:px-6 py-5">
+                  {res.is_refund && (
+                    <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                      <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-[13px] text-amber-900 leading-relaxed">
+                        <p className="font-semibold">Kelebihan potong PPh — karyawan berhak refund</p>
+                        <p className="mt-0.5">
+                          PPh tahunan ({formatRupiah(res.pph_tahunan ?? 0)}) lebih kecil dari PPh yang sudah dipotong
+                          {' '}({formatRupiah(res.pph_jan_nov ?? 0)}). Selisih:
+                          {' '}<span className="font-semibold font-mono">{formatRupiah(res.refund_amount ?? 0)}</span>
+                          {' '}harus dikembalikan tunai kepada karyawan di luar slip ini.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {isTetap ? (
                     <>
                       <LedgerSectionLabel text="Pendapatan" />
