@@ -1,4 +1,4 @@
-import { PTKP, PTKP_TER_GRUP, PASAL17, TER, BPJS, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from "./constants";
+import { PTKP, PTKP_TER_GRUP, PASAL17, PESANGON_BRACKETS, TER, BPJS, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from "./constants";
 
 export interface KaryawanTetap {
     nama: string;
@@ -11,6 +11,13 @@ export interface KaryawanTetap {
     status_ptkp: string;
     punya_npwp: boolean;
     gaji_pokok: number;
+    /**
+     * Optional BPJS-declared salary basis. When null/undefined, falls back to
+     * `gaji_pokok`. Set this when the company has registered a separate (usually
+     * lower) salary with BPJS than the actual gaji_pokok — very common in
+     * Indonesian payroll practice. Affects JKK, JKM, JHT, JP, and Kes basis.
+     */
+    bpjs_basis?: number | null;
     benefit: number;
     kendaraan: number;
     pulsa: number;
@@ -118,7 +125,9 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
 
 export function calculateMonthlySalary(k: KaryawanTetap) {
     const grup = PTKP_TER_GRUP[k.status_ptkp] as "A" | "B" | "C";
-    const basis = k.gaji_pokok;
+    // BPJS basis is the declared salary registered with BPJS, which is often
+    // separate from (lower than) gaji_pokok. Falls back to gaji_pokok when not set.
+    const basis = k.bpjs_basis ?? k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const irregular_total = k.thr + k.bonus;
@@ -180,6 +189,12 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
 
     const thp = k.gaji_pokok + allowance_total + irregular_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
+    // Annual projection: matches the accountant's standard Excel layout where
+    // every monthly worksheet shows "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES" as
+    // a forecast assuming the current month's bruto continues for the rest of
+    // the year. Useful as a reconciliation aid and December surprise prevention.
+    const proyeksi = computeAnnualProjection(k, bruto, pph, bpjs);
+
     return {
         jenis: "GAJI BULANAN INTEGRATED",
         bulan: k.bulan,
@@ -196,6 +211,44 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
+        proyeksi,
+    };
+}
+
+/**
+ * Annual projection if the current month's bruto continued for all 12 months.
+ * Mirrors the accountant's spreadsheet "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES"
+ * forecast columns. Used as a reconciliation aid on Jan-Nov payroll pages.
+ *
+ * For an isolated month where no prior data exists this is a hypothetical:
+ * "if you stay at this rate, December's equalization will look like this".
+ */
+function computeAnnualProjection(
+    k: KaryawanTetap,
+    monthlyBruto: number,
+    monthlyPph: number,
+    bpjs: ReturnType<typeof calculateBPJS>,
+) {
+    const ptkp = PTKP[k.status_ptkp];
+    const bruto_setahun = monthlyBruto * 12;
+    const biaya_jabatan_setahun = Math.min(bruto_setahun * BIAYA_JAB_RATE, BIAYA_JAB_MAX * 12);
+    const jp_k_tahunan = !k.tanggung_jp_k ? bpjs.jp_k * 12 : 0;
+    const netto_setahun = bruto_setahun - biaya_jabatan_setahun - jp_k_tahunan;
+    const pkp_setahun = Math.max(0, Math.floor((netto_setahun - ptkp) / 1000) * 1000);
+    let pph_setahun = getPasal17Tax(pkp_setahun);
+    if (!k.punya_npwp) {
+        pph_setahun = Math.round(pph_setahun * 1.2);
+    }
+    const pph_jan_nov_proyeksi = Math.round(monthlyPph * 11);
+    const pph_desember_proyeksi = Math.max(0, pph_setahun - pph_jan_nov_proyeksi);
+    return {
+        bruto_setahun,
+        biaya_jabatan_setahun,
+        netto_setahun,
+        pkp_setahun,
+        pph_setahun,
+        pph_jan_nov_proyeksi,
+        pph_desember_proyeksi,
     };
 }
 
@@ -217,6 +270,19 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
 
     const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
+    // Mirror the same `proyeksi` shape used in Jan-Nov so the UI can read one
+    // field path regardless of period. For December these are actual (not
+    // projected) values.
+    const proyeksi = {
+        bruto_setahun: bs,
+        biaya_jabatan_setahun: bj,
+        netto_setahun: netto,
+        pkp_setahun: pkp,
+        pph_setahun: pth,
+        pph_jan_nov_proyeksi: k.pph_jan_nov,
+        pph_desember_proyeksi: pd,
+    };
+
     return {
         jenis: "GAJI — DESEMBER (Equalisasi Pasal 17)",
         bulan: 12, tahun: k.tahun,
@@ -231,12 +297,13 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
         pph: pd, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
+        proyeksi,
     };
 }
 
 export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: number = 0) {
     const ptkp = PTKP[k.status_ptkp];
-    const basis = k.gaji_pokok;
+    const basis = k.bpjs_basis ?? k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const bpjs = calculateBPJS(basis, k);
@@ -286,37 +353,131 @@ export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: numb
     return hasil;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Kompensasi (pesangon / penghargaan masa kerja / penggantian hak / manfaat
+// pensiun) — PPh 21 final per PP 68/2009 progressive brackets.
+// ───────────────────────────────────────────────────────────────────────────
+
+export type KompensasiKategori = 'pesangon' | 'penghargaan' | 'manfaat_pensiun' | 'penggantian_hak' | 'other';
+
+export interface KompensasiInput {
+    nama: string;
+    nik: string;
+    npwp: string;
+    punya_npwp: boolean;
+    status_ptkp?: string;     // for reporting; PP 68/2009 doesn't consume PTKP
+    divisi?: string;
+    kategori: KompensasiKategori;
+    jumlah_bruto: number;     // gross severance amount in Rp
+}
+
+export interface KompensasiBracketApplied {
+    bracket_lo: number;   // lower bound of this bracket
+    bracket_hi: number;   // upper bound (Infinity for top bracket)
+    rate: number;         // 0, 0.05, 0.15, 0.25
+    taxable: number;      // portion of jumlah_bruto falling in this bracket
+    tax: number;          // = taxable × rate (before non-NPWP multiplier)
+}
+
+/**
+ * Compute PPh 21 final on a one-off kompensasi payment using PP 68/2009
+ * brackets. Returns the full bracket-by-bracket breakdown for transparency
+ * (stored in result_json).
+ *
+ * Brackets are cumulative widths:
+ *   first  Rp 50,000,000 → 0%
+ *   next   Rp 50,000,000 → 5%   (50M..100M)
+ *   next   Rp 400,000,000 → 15% (100M..500M)
+ *   above  Rp 500,000,000 → 25%
+ *
+ * Non-NPWP: PPh × 1.2 per UU PPh Pasal 17 ayat (5). Applied to the final
+ * total (not to each bracket individually).
+ */
+export function calculateSeverance(k: KompensasiInput) {
+    const jumlah = Math.max(0, Math.floor(k.jumlah_bruto));
+    const breakdown: KompensasiBracketApplied[] = [];
+
+    let lo = 0;
+    let remaining = jumlah;
+    let pph_before_npwp = 0;
+
+    for (const [width, rate] of PESANGON_BRACKETS) {
+        const hi = lo + width;
+        if (remaining <= 0) break;
+        const taxable = Math.min(remaining, width);
+        const tax = taxable * rate;
+        breakdown.push({
+            bracket_lo: lo,
+            bracket_hi: hi === Infinity ? Infinity : hi,
+            rate,
+            taxable,
+            tax,
+        });
+        pph_before_npwp += tax;
+        remaining -= taxable;
+        lo = hi;
+    }
+
+    const npwp_mult = k.punya_npwp ? 1.0 : 1.2;
+    const pph = Math.round(pph_before_npwp * npwp_mult);
+    const thp = jumlah - pph;
+
+    return {
+        jenis: 'KOMPENSASI (PPh 21 Final — PP 68/2009)',
+        kategori: k.kategori,
+        nama: k.nama,
+        nik: k.nik,
+        npwp: k.npwp,
+        punya_npwp: k.punya_npwp,
+        status_ptkp: k.status_ptkp ?? null,
+        divisi: k.divisi ?? null,
+        jumlah_bruto: jumlah,
+        breakdown,
+        pph_before_npwp_multiplier: Math.round(pph_before_npwp),
+        npwp_multiplier: npwp_mult,
+        pph,
+        thp,
+    };
+}
+
 export function calculateFreelance(k: KaryawanTidakTetap) {
     const ptkp = PTKP[k.status_ptkp];
 
     if (k.mode === "harian") {
-        const BATAS_HARIAN = 450_000;
+        // Per PMK 168/2023, pegawai tidak tetap harian use the TER method
+        // on the cumulative monthly bruto, looked up by PTKP grup. The
+        // accountant's HARIAN sheet confirms this — e.g., bruto Rp 6,310,559
+        // with TK0 (TER A) at the 0.01 bracket → PPh Rp 63,106.
+        const grup = PTKP_TER_GRUP[k.status_ptkp] as "A" | "B" | "C";
         const upah_reg = k.upah_harian * k.hari_kerja;
         const total_upah = upah_reg + (k.thr || 0) + (k.bonus || 0);
-        let pph_per_hari = 0;
-        let keterangan = "";
-        
-        if (k.upah_harian <= BATAS_HARIAN) {
-            keterangan = `Upah harian Rp ${k.upah_harian} <= Rp ${BATAS_HARIAN} -> PPh Nihil`;
-        } else {
-            const ptkp_per_hari = ptkp / 360;
-            const pkp_per_hari = Math.max(0, k.upah_harian - ptkp_per_hari);
-            pph_per_hari = pkp_per_hari * 0.05;
-            keterangan = "5% x (upah harian - PTKP/360)";
-        }
-        
+        const ter = getTerRate(total_upah, grup);
+
+        let total_pph = Math.round(total_upah * ter);
         if (!k.punya_npwp) {
-            pph_per_hari *= 1.2;
+            total_pph = Math.round(total_pph * 1.2);
         }
-        
-        const total_pph = Math.round(pph_per_hari * k.hari_kerja);
+
+        const pph_per_hari = k.hari_kerja > 0
+            ? Math.round(total_pph / k.hari_kerja)
+            : 0;
+
+        const keterangan = total_upah === 0
+            ? "Tidak ada upah"
+            : ter === 0
+                ? `TER ${grup} bracket 0 → PPh nihil`
+                : `TER ${grup} ${(ter * 100).toFixed(2)}% × bruto`;
+
         const thp = total_upah - total_pph - k.kasbon - k.pot_lain;
-        
+
         return {
             mode: "harian", status_ptkp: k.status_ptkp,
+            grup, ter,
             upah_harian: k.upah_harian, hari_kerja: k.hari_kerja,
-            total_upah, ptkp_harian: +(ptkp / 360).toFixed(2),
-            pph_per_hari: Math.round(pph_per_hari), total_pph,
+            total_upah,
+            // legacy field kept for backward compat — no longer meaningful under TER
+            ptkp_harian: 0,
+            pph_per_hari, total_pph,
             kasbon: k.kasbon, pot_lain: k.pot_lain, thp, keterangan,
         };
     } else {
