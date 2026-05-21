@@ -26,7 +26,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { argv, exit } from 'node:process';
 
-import { calculateMonthlySalary, type KaryawanTetap } from '../lib/engine/payroll.ts';
+import { calculateMonthlySalary, type KaryawanTetap } from '../lib/engine/payroll';
 
 // ── CLI args ──────────────────────────────────────────────────────────────
 function parseArgs() {
