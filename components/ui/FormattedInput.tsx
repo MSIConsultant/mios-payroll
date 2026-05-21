@@ -128,12 +128,13 @@ export function NikInput({
 }
 
 export function NominalInput({
-  name, defaultValue = 0, label, required,
+  name, defaultValue = 0, label, required, onChange,
 }: {
   name: string;
   defaultValue?: number;
   label: string;
   required?: boolean;
+  onChange?: (val: number) => void;
 }) {
   const [display, setDisplay] = useState(
     defaultValue ? defaultValue.toLocaleString('id-ID') : '',
@@ -159,6 +160,7 @@ export function NominalInput({
             const fmt = digits ? parseInt(digits, 10).toLocaleString('id-ID') : '';
             setDisplay(fmt);
             setRaw(digits || '0');
+            onChange?.(digits ? parseInt(digits, 10) : 0);
           }}
           className={`${BASE} pl-9 text-[15px] font-mono font-semibold`}
         />
