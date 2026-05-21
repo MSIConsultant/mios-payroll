@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getImportHistory } from '@/lib/actions/import';
 import Link from 'next/link';
 import {
-  Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ChevronRight,
+  Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ChevronRight, Layers,
 } from 'lucide-react';
 
 const BULAN = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -35,13 +35,22 @@ export default async function ImportPage() {
             Impor data payroll dari Excel akuntan. Riwayat import tersimpan permanen.
           </p>
         </div>
-        <Link
-          href="/import/new"
-          className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
-        >
-          <Upload size={16} />
-          Import Baru
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/import/bulk"
+            className="inline-flex items-center gap-2 bg-white border border-[var(--border-default)] hover:border-[var(--brand)] hover:text-[var(--brand)] text-[var(--text-secondary)] px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+          >
+            <Layers size={16} />
+            Import Bulk
+          </Link>
+          <Link
+            href="/import/new"
+            className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Upload size={16} />
+            Import Baru
+          </Link>
+        </div>
       </header>
 
       {history.length === 0 ? (
