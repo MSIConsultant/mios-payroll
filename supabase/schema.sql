@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS employees (
   jabatan text,
   jenis_kelamin text CHECK (jenis_kelamin IN ('L','P')),
   tanggal_masuk date,
+  tanggal_keluar date,
   status_ptkp text CHECK (status_ptkp IN ('TK0','TK1','TK2','TK3','K0','K1','K2','K3')),
   punya_npwp boolean DEFAULT true,
   jenis_karyawan text CHECK (jenis_karyawan IN ('tetap','tidak_tetap_harian','tidak_tetap_bulanan')),

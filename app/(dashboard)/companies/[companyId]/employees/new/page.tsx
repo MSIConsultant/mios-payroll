@@ -185,6 +185,7 @@ export default function NewEmployeePage() {
                 ))}
               </CSel>
               <DateInput label="Tanggal Masuk" name="tanggal_masuk" />
+              <DateInput label="Tanggal Keluar (Opsional)" name="tanggal_keluar" />
               <TF label="Divisi" name="divisi" placeholder="Engineering" />
               <TF label="Jabatan" name="jabatan" placeholder="Staff Akuntansi" />
             </div>
