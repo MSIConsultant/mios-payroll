@@ -1,103 +1,111 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { ScrollText, Search, Building2, User, Clock, Download } from 'lucide-react';
+import {
+  ScrollText, Search, Building2, User, Clock, Download, ChevronDown,
+} from 'lucide-react';
 
 interface AuditLog {
-  id:          string;
-  company_id:  string | null;
+  id: string;
+  company_id: string | null;
   actor_email: string;
-  actor_role:  string;
-  action:      string;
+  actor_role: string;
+  action: string;
   entity_type: string | null;
   entity_name: string | null;
-  old_values:  any;
-  new_values:  any;
-  metadata:    any;
-  created_at:  string;
+  old_values: any;
+  new_values: any;
+  metadata: any;
+  created_at: string;
 }
 
-interface Company { id: string; name: string; }
+interface Company {
+  id: string;
+  name: string;
+}
 
 interface Props {
-  logs:        AuditLog[];
-  companies:   Company[];
+  logs: AuditLog[];
+  companies: Company[];
   workspaceId: string;
 }
 
-const ACTION_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  PAYROLL_LOCKED:     { bg: 'rgba(34,197,94,0.1)',   text: '#4ADE80', label: 'Dikunci' },
-  PAYROLL_SAVED:      { bg: 'rgba(56,189,248,0.1)',  text: '#38BDF8', label: 'Disimpan' },
-  PAYROLL_CALCULATED: { bg: 'rgba(37,99,235,0.1)',   text: '#3B82F6', label: 'Dihitung' },
-  PAYROLL_DELETED:    { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'Dihapus' },
-  EMPLOYEE_CREATED:   { bg: 'rgba(167,139,250,0.1)', text: '#A78BFA', label: 'Karyawan Dibuat' },
-  EMPLOYEE_UPDATED:   { bg: 'rgba(167,139,250,0.1)', text: '#A78BFA', label: 'Karyawan Diubah' },
-  EMPLOYEE_DELETED:   { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'Karyawan Dihapus' },
-  SALARY_UPDATED:     { bg: 'rgba(251,176,64,0.1)',  text: '#FBB040', label: 'Gaji Diubah' },
-  IMPORT_COMPLETED:   { bg: 'rgba(34,197,94,0.1)',   text: '#4ADE80', label: 'Import Selesai' },
-  EXPORT_SPT:         { bg: 'rgba(56,189,248,0.1)',  text: '#38BDF8', label: 'Export SPT' },
-  COMPANY_CREATED:    { bg: 'rgba(251,176,64,0.1)',  text: '#FBB040', label: 'Perusahaan Dibuat' },
-  COMPANY_UPDATED:    { bg: 'rgba(251,176,64,0.1)',  text: '#FBB040', label: 'Perusahaan Diubah' },
-  PERMISSION_CHANGED: { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'Hak Akses Diubah' },
-  USER_APPROVED:      { bg: 'rgba(34,197,94,0.1)',   text: '#4ADE80', label: 'User Disetujui' },
-  USER_REJECTED:      { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'User Ditolak' },
-  STAFF_REMOVED:      { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'Staff Dihapus' },
+const ACTION_META: Record<string, { chip: string; label: string }> = {
+  PAYROLL_LOCKED:     { chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', label: 'Dikunci' },
+  PAYROLL_SAVED:      { chip: 'bg-sky-50 text-sky-700 ring-sky-200',             label: 'Disimpan' },
+  PAYROLL_CALCULATED: { chip: 'bg-blue-50 text-blue-700 ring-blue-200',          label: 'Dihitung' },
+  PAYROLL_DELETED:    { chip: 'bg-red-50 text-red-700 ring-red-200',             label: 'Dihapus' },
+  EMPLOYEE_CREATED:   { chip: 'bg-violet-50 text-violet-700 ring-violet-200',    label: 'Karyawan Dibuat' },
+  EMPLOYEE_UPDATED:   { chip: 'bg-violet-50 text-violet-700 ring-violet-200',    label: 'Karyawan Diubah' },
+  EMPLOYEE_DELETED:   { chip: 'bg-red-50 text-red-700 ring-red-200',             label: 'Karyawan Dihapus' },
+  SALARY_UPDATED:     { chip: 'bg-amber-50 text-amber-700 ring-amber-200',       label: 'Gaji Diubah' },
+  IMPORT_COMPLETED:   { chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', label: 'Import Selesai' },
+  EXPORT_SPT:         { chip: 'bg-sky-50 text-sky-700 ring-sky-200',             label: 'Export SPT' },
+  COMPANY_CREATED:    { chip: 'bg-amber-50 text-amber-700 ring-amber-200',       label: 'Perusahaan Dibuat' },
+  COMPANY_UPDATED:    { chip: 'bg-amber-50 text-amber-700 ring-amber-200',       label: 'Perusahaan Diubah' },
+  PERMISSION_CHANGED: { chip: 'bg-red-50 text-red-700 ring-red-200',             label: 'Hak Akses Diubah' },
+  USER_APPROVED:      { chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', label: 'User Disetujui' },
+  USER_REJECTED:      { chip: 'bg-red-50 text-red-700 ring-red-200',             label: 'User Ditolak' },
+  STAFF_REMOVED:      { chip: 'bg-red-50 text-red-700 ring-red-200',             label: 'Staff Dihapus' },
 };
 
-const DEFAULT_ACTION = { bg: 'rgba(113,113,122,0.1)', text: '#71717A', label: '' };
-
-// Pure helper functions — safe outside component (no hooks, no props)
 function getActionConfig(action: string) {
-  return ACTION_COLORS[action] ?? { ...DEFAULT_ACTION, label: action.replace(/_/g, ' ') };
+  return (
+    ACTION_META[action] ?? {
+      chip: 'bg-slate-100 text-slate-600 ring-slate-200',
+      label: action.replace(/_/g, ' '),
+    }
+  );
 }
 
 function timeAgo(dateStr: string): string {
-  const diff  = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60000);
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (mins  < 1)  return 'baru saja';
-  if (mins  < 60) return `${mins} menit lalu`;
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'baru saja';
+  if (mins < 60) return `${mins} menit lalu`;
   if (hours < 24) return `${hours} jam lalu`;
-  if (days  < 7)  return `${days} hari lalu`;
+  if (days < 7) return `${days} hari lalu`;
   return new Date(dateStr).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'short', year: 'numeric',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Component — everything that touches props/state is INSIDE here
-// ─────────────────────────────────────────────────────────────────
-export default function LogsClient({ logs, companies, workspaceId }: Props) {
-
-  // ── State ──────────────────────────────────────────────────────
-  const [search,        setSearch]        = useState('');
-  const [filterAction,  setFilterAction]  = useState('');
+export default function LogsClient({ logs, companies }: Props) {
+  const [search, setSearch] = useState('');
+  const [filterAction, setFilterAction] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
-  const [expanded,      setExpanded]      = useState<Set<string>>(new Set());
-  const [exporting,     setExporting]     = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
-  // ── Derived data ───────────────────────────────────────────────
-  const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
+  const companyMap = Object.fromEntries(companies.map((c) => [c.id, c.name]));
 
-  const uniqueActions = useMemo(() =>
-    [...new Set(logs.map(l => l.action))].sort(), [logs]);
+  const uniqueActions = useMemo(
+    () => [...new Set(logs.map((l) => l.action))].sort(),
+    [logs],
+  );
 
-  const filtered = useMemo(() => logs.filter(log => {
-    if (filterAction  && log.action     !== filterAction)  return false;
-    if (filterCompany && log.company_id !== filterCompany) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        log.actor_email?.toLowerCase().includes(q) ||
-        log.action?.toLowerCase().includes(q)      ||
-        log.entity_name?.toLowerCase().includes(q) ||
-        log.entity_type?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  }), [logs, filterAction, filterCompany, search]);
+  const filtered = useMemo(
+    () =>
+      logs.filter((log) => {
+        if (filterAction && log.action !== filterAction) return false;
+        if (filterCompany && log.company_id !== filterCompany) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          return (
+            log.actor_email?.toLowerCase().includes(q) ||
+            log.action?.toLowerCase().includes(q) ||
+            log.entity_name?.toLowerCase().includes(q) ||
+            log.entity_type?.toLowerCase().includes(q)
+          );
+        }
+        return true;
+      }),
+    [logs, filterAction, filterCompany, search],
+  );
 
-  // ── Handlers ───────────────────────────────────────────────────
   function handleExport() {
     setExporting(true);
     try {
@@ -105,22 +113,26 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
         'Tanggal', 'Aksi', 'Aktor', 'Role',
         'Entitas', 'Nama Entitas', 'Perusahaan', 'Detail',
       ];
-      const rows = logs.map(log => [
-        new Date(log.created_at).toLocaleString('id-ID'),
-        log.action,
-        log.actor_email  ?? '',
-        log.actor_role   ?? '',
-        log.entity_type  ?? '',
-        log.entity_name  ?? '',
-        log.company_id ? (companyMap[log.company_id] ?? log.company_id) : '',
-        log.metadata ? JSON.stringify(log.metadata) : '',
-      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      const rows = logs.map((log) =>
+        [
+          new Date(log.created_at).toLocaleString('id-ID'),
+          log.action,
+          log.actor_email ?? '',
+          log.actor_role ?? '',
+          log.entity_type ?? '',
+          log.entity_name ?? '',
+          log.company_id ? companyMap[log.company_id] ?? log.company_id : '',
+          log.metadata ? JSON.stringify(log.metadata) : '',
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(','),
+      );
 
-      const csv  = [headers.join(','), ...rows].join('\n');
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
       a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
@@ -131,198 +143,216 @@ export default function LogsClient({ logs, companies, workspaceId }: Props) {
   }
 
   function toggleExpand(id: string) {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
-  // ── Render ─────────────────────────────────────────────────────
-  return (
-    <div className="max-w-5xl space-y-6 animate-fade-in-up">
+  const today = new Date().toDateString();
+  const todayCount = logs.filter((l) => new Date(l.created_at).toDateString() === today).length;
 
+  return (
+    <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
-      <div className="flex items-start justify-between border-b pb-6"
-        style={{ borderColor: 'var(--border-default)' }}>
+      <header className="flex items-start justify-between gap-4 pb-5 border-b border-[var(--border-default)] flex-wrap">
         <div>
-          <h1 className="text-3xl font-black" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Audit Log
           </h1>
-          <p className="text-[14px] mt-1" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             Rekam jejak seluruh aktivitas penting dalam workspace.
           </p>
         </div>
-        <button onClick={handleExport} disabled={exporting}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-[13px] disabled:opacity-50 transition-colors shrink-0"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50 cursor-pointer"
+        >
           <Download size={14} />
-          {exporting ? 'Mengekspor...' : 'Export CSV'}
+          {exporting ? 'Mengekspor…' : 'Export CSV'}
         </button>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Total Entri', value: logs.length, color: 'var(--text-primary)' },
-          { label: 'Hari Ini',    value: logs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length, color: '#3B82F6' },
-          { label: 'Ditampilkan', value: filtered.length, color: '#4ADE80' },
-        ].map(s => (
-          <div key={s.label} className="rounded-xl p-4"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-muted)' }}>{s.label}</p>
-            <p className="text-3xl font-black font-mono" style={{ color: s.color }}>{s.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Total Entri" value={logs.length} />
+        <StatCard label="Hari Ini" value={todayCount} accent="brand" />
+        <StatCard label="Ditampilkan" value={filtered.length} accent="emerald" />
       </div>
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2"
-            style={{ color: 'var(--text-ghost)' }} />
-          <input type="text" placeholder="Cari email, aksi, entitas..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }} />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
+          />
+          <input
+            type="text"
+            placeholder="Cari email, aksi, entitas…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all"
+          />
         </div>
-        <select value={filterAction} onChange={e => setFilterAction(e.target.value)}
-          className="px-4 py-2.5 rounded-xl text-[13px] outline-none"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+        <select
+          value={filterAction}
+          onChange={(e) => setFilterAction(e.target.value)}
+          className="px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm text-[var(--text-secondary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
+        >
           <option value="">Semua Aksi</option>
-          {uniqueActions.map(a => (
-            <option key={a} value={a}>{getActionConfig(a).label || a}</option>
+          {uniqueActions.map((a) => (
+            <option key={a} value={a}>
+              {getActionConfig(a).label || a}
+            </option>
           ))}
         </select>
-        <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)}
-          className="px-4 py-2.5 rounded-xl text-[13px] outline-none"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+        <select
+          value={filterCompany}
+          onChange={(e) => setFilterCompany(e.target.value)}
+          className="px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm text-[var(--text-secondary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
+        >
           <option value="">Semua Perusahaan</option>
-          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
       </div>
 
-      {/* Log entries */}
+      {/* List */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center"
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-          <ScrollText size={32} className="mx-auto mb-4" style={{ color: 'var(--text-ghost)' }} />
-          <p className="text-[15px]" style={{ color: 'var(--text-muted)' }}>
-            Tidak ada log ditemukan.
-          </p>
+        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
+          <ScrollText size={32} className="mx-auto text-[var(--text-faint)]" />
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">Tidak ada log ditemukan.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {filtered.map((log, i) => {
-            const cfg        = getActionConfig(log.action);
+            const cfg = getActionConfig(log.action);
             const isExpanded = expanded.has(log.id);
             const hasDetails = log.old_values || log.new_values || log.metadata;
 
             return (
-              <div key={log.id}
-                className="rounded-xl overflow-hidden animate-fade-in-up"
-                style={{
-                  background:     'var(--bg-card)',
-                  border:         '1px solid var(--border-default)',
-                  animationDelay: `${Math.min(i, 20) * 0.02}s`,
-                  opacity:        0,
-                }}>
-                <div
-                  className={`px-5 py-4 flex items-center gap-4 ${hasDetails ? 'cursor-pointer' : ''}`}
-                  onClick={() => hasDetails && toggleExpand(log.id)}>
+              <li
+                key={log.id}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${Math.min(i, 12) * 0.02}s`, opacity: 0 }}
+              >
+                <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => hasDetails && toggleExpand(log.id)}
+                    className={`w-full px-4 py-3.5 flex items-center gap-3 text-left ${
+                      hasDetails ? 'hover:bg-[var(--bg-subtle)] cursor-pointer' : 'cursor-default'
+                    } transition-colors`}
+                  >
+                    <span
+                      className={`shrink-0 text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${cfg.chip}`}
+                    >
+                      {cfg.label}
+                    </span>
 
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0 whitespace-nowrap"
-                    style={{ background: cfg.bg, color: cfg.text }}>
-                    {cfg.label}
-                  </span>
-
-                  <div className="flex-1 min-w-0">
-                    {log.entity_name && (
-                      <p className="font-semibold text-[14px] truncate" style={{ color: 'var(--text-primary)' }}>
-                        {log.entity_name}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <User size={10} style={{ color: 'var(--text-ghost)' }} />
-                        <span className="text-[12px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                    <div className="flex-1 min-w-0">
+                      {log.entity_name && (
+                        <p className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
+                          {log.entity_name}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)] font-mono">
+                          <User size={11} />
                           {log.actor_email}
                         </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ background: 'var(--bg-input)', color: 'var(--text-ghost)' }}>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-muted)]">
                           {log.actor_role}
                         </span>
+                        {log.company_id && companyMap[log.company_id] && (
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                            <Building2 size={11} />
+                            {companyMap[log.company_id]}
+                          </span>
+                        )}
                       </div>
-                      {log.company_id && companyMap[log.company_id] && (
-                        <>
-                          <span style={{ color: 'var(--text-ghost)' }}>·</span>
-                          <div className="flex items-center gap-1.5">
-                            <Building2 size={10} style={{ color: 'var(--text-ghost)' }} />
-                            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
-                              {companyMap[log.company_id]}
-                            </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex items-center gap-1 text-[12px] font-mono text-[var(--text-muted)]">
+                        <Clock size={11} />
+                        {timeAgo(log.created_at)}
+                      </span>
+                      {hasDetails && (
+                        <ChevronDown
+                          size={14}
+                          className={`text-[var(--text-muted)] transition-transform ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`}
+                        />
+                      )}
+                    </div>
+                  </button>
+
+                  {isExpanded && hasDetails && (
+                    <div className="px-4 pb-4 border-t border-[var(--border-subtle)]">
+                      <div className="mt-3 rounded-lg p-4 bg-[var(--bg-subtle)] font-mono text-[12px] overflow-x-auto">
+                        {log.old_values && (
+                          <div className="mb-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-red-700 mb-2">
+                              Sebelum
+                            </p>
+                            <pre className="text-[var(--text-secondary)] whitespace-pre-wrap">
+                              {JSON.stringify(log.old_values, null, 2)}
+                            </pre>
                           </div>
-                        </>
-                      )}
+                        )}
+                        {log.new_values && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 mb-2">
+                              Sesudah
+                            </p>
+                            <pre className="text-[var(--text-secondary)] whitespace-pre-wrap">
+                              {JSON.stringify(log.new_values, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-mono mt-2 text-[var(--text-muted)]">
+                        {new Date(log.created_at).toLocaleString('id-ID')}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Clock size={11} style={{ color: 'var(--text-ghost)' }} />
-                    <span className="text-[12px] font-mono" style={{ color: 'var(--text-ghost)' }}>
-                      {timeAgo(log.created_at)}
-                    </span>
-                    {hasDetails && (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-                        style={{
-                          color:      'var(--text-ghost)',
-                          transform:  isExpanded ? 'rotate(180deg)' : 'none',
-                          transition: 'transform 0.2s',
-                        }}>
-                        <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5"
-                          strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </div>
+                  )}
                 </div>
-
-                {isExpanded && hasDetails && (
-                  <div className="px-5 pb-4 pt-1"
-                    style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    <div className="rounded-xl p-4 font-mono text-[12px] overflow-x-auto"
-                      style={{ background: 'var(--bg-deep)' }}>
-                      {log.old_values && (
-                        <div className="mb-3">
-                          <p className="text-[10px] uppercase tracking-widest mb-2 text-red-400">
-                            Sebelum
-                          </p>
-                          <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                            {JSON.stringify(log.old_values, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                      {log.new_values && (
-                        <div>
-                          <p className="text-[10px] uppercase tracking-widest mb-2 text-green-400">
-                            Sesudah
-                          </p>
-                          <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                            {JSON.stringify(log.new_values, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[11px] font-mono mt-2" style={{ color: 'var(--text-ghost)' }}>
-                      {new Date(log.created_at).toLocaleString('id-ID')}
-                    </p>
-                  </div>
-                )}
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
+    </div>
+  );
+}
+
+function StatCard({
+  label, value, accent,
+}: {
+  label: string;
+  value: number;
+  accent?: 'brand' | 'emerald';
+}) {
+  const accentMap = {
+    brand: 'text-[var(--brand)]',
+    emerald: 'text-emerald-700',
+  } as const;
+  const text = accent ? accentMap[accent] : 'text-[var(--text-primary)]';
+  return (
+    <div className="bg-white border border-[var(--border-default)] rounded-xl p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {label}
+      </p>
+      <p className={`mt-2 text-2xl font-bold font-mono ${text}`}>{value}</p>
     </div>
   );
 }
