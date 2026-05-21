@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Layers, Settings,
   ChevronLeft, ChevronRight, Users, ScrollText,
-  Terminal, Upload, Calculator,
+  Terminal, Upload, FlaskConical,
 } from 'lucide-react';
 import type { UserRole } from '@/lib/types/roles';
 
@@ -13,7 +13,7 @@ function buildNav(role: UserRole) {
     { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
     { href: '/batch',      label: 'Batch Run',  icon: Layers },
     { href: '/companies',  label: 'Perusahaan', icon: Building2 },
-    { href: '/kalkulator', label: 'Kalkulator', icon: Calculator },
+    { href: '/simulasi', label: 'Simulasi', icon: FlaskConical },
   ];
   if (role === 'accountant' || role === 'dev') {
     base.push({ href: '/import',   label: 'Import',     icon: Upload     });

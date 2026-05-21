@@ -47,11 +47,15 @@ export type ProjRow = {
   pph: number;
   thp: number;
   isRefund: boolean;
+  ter: number;
+  ctc: number;
+  bpjs_employer: number;
+  bpjs_karyawan: number;
 };
 
 export type ProjResult = {
   rows: ProjRow[];
-  total: { bruto: number; pph: number; thp: number };
+  total: { bruto: number; pph: number; thp: number; ctc: number };
 };
 
 export function runProjection(p: ProjParams): ProjResult | null {
@@ -81,16 +85,25 @@ export function runProjection(p: ProjParams): ProjResult | null {
     };
     const res = calculateMonthlySalary(k) as {
       bruto: number; pph: number; thp: number;
+      ter: number;
+      bpjs: { employer_total: number; employer_offslip: number; karyawan_potong: number };
       proyeksi: { pph_setahun: number };
     };
     const isRefund = bulan === 12 && (res.proyeksi.pph_setahun - pph_jan_nov) < 0;
-    rows.push({ bulan, hasThr: thr > 0, hasBonus: bonus > 0, bruto: res.bruto, pph: res.pph, thp: res.thp, isRefund });
+    rows.push({
+      bulan, hasThr: thr > 0, hasBonus: bonus > 0,
+      bruto: res.bruto, pph: res.pph, thp: res.thp, isRefund,
+      ter: res.ter ?? 0,
+      ctc: res.bruto + (res.bpjs?.employer_offslip ?? 0),
+      bpjs_employer: res.bpjs?.employer_total ?? 0,
+      bpjs_karyawan: res.bpjs?.karyawan_potong ?? 0,
+    });
     if (bulan < 12) { akum_bruto += res.bruto; pph_jan_nov += res.pph; }
   }
 
   const total = rows.reduce(
-    (acc, r) => ({ bruto: acc.bruto + r.bruto, pph: acc.pph + r.pph, thp: acc.thp + r.thp }),
-    { bruto: 0, pph: 0, thp: 0 },
+    (acc, r) => ({ bruto: acc.bruto + r.bruto, pph: acc.pph + r.pph, thp: acc.thp + r.thp, ctc: acc.ctc + r.ctc }),
+    { bruto: 0, pph: 0, thp: 0, ctc: 0 },
   );
 
   return { rows, total };
