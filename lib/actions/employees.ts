@@ -32,6 +32,10 @@ const BOOLEAN_FIELDS = [
   'aktif',
 ];
 
+// Date fields submitted as ISO strings; empty string must become NULL for
+// PostgreSQL `date` columns (otherwise insert fails with invalid date).
+const DATE_FIELDS = ['tanggal_masuk', 'tanggal_keluar'];
+
 function parseFields(formData: FormData): Record<string, any> {
   const fields: Record<string, any> = {};
 
@@ -48,6 +52,9 @@ function parseFields(formData: FormData): Record<string, any> {
       fields[key] = Number(value) || 0;
     } else if (BOOLEAN_FIELDS.includes(key)) {
       fields[key] = value === 'on' || value === 'true';
+    } else if (DATE_FIELDS.includes(key)) {
+      const s = String(value).trim();
+      fields[key] = s === '' ? null : s;
     } else {
       fields[key] = value;
     }

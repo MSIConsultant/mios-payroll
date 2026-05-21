@@ -424,6 +424,13 @@ function EmployeeDetailPage() {
                   : '—'
               }
             />
+            {employee.tanggal_keluar && (
+              <Row
+                label="Tanggal Keluar"
+                value={new Date(employee.tanggal_keluar).toLocaleDateString('id-ID')}
+                highlight="amber"
+              />
+            )}
           </div>
 
           <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
@@ -677,6 +684,7 @@ function EmployeeDetailPage() {
                     <option value="P">Perempuan</option>
                   </SF>
                   <DateInput label="Tanggal Masuk" name="tanggal_masuk" defaultValue={employee.tanggal_masuk ?? ''} />
+                  <DateInput label="Tanggal Keluar (Opsional)" name="tanggal_keluar" defaultValue={employee.tanggal_keluar ?? ''} />
                   <TF label="Jabatan" name="jabatan" defaultValue={employee.jabatan ?? ''} />
                   <div className="sm:col-span-2">
                     <TF label="Divisi" name="divisi" defaultValue={employee.divisi ?? ''} />

@@ -48,6 +48,7 @@ export interface Employee {
   jabatan: string | null;
   jenis_kelamin: 'L' | 'P';
   tanggal_masuk: string | null;
+  tanggal_keluar: string | null;
   status_ptkp: 'TK0'|'TK1'|'TK2'|'TK3'|'K0'|'K1'|'K2'|'K3';
   punya_npwp: boolean;
   jenis_karyawan: 'tetap'|'tidak_tetap_harian'|'tidak_tetap_bulanan';
