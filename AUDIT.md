@@ -1,5 +1,28 @@
 # MIOS Payroll — Audit & Recommendations
 
+> **⚠ Partially superseded by the 2026-05-21 audit plan and `feat/audit-hardening` (PR #14).**
+>
+> Items already addressed since this doc was written:
+> - **UI section** — the dark CLI/terminal aesthetic critique no longer applies; `globals.css` is now Design System v3 (light, WCAG-anchored). Most "WCAG contrast failures" listed below are resolved by the v3 palette.
+> - **`text-zinc-700..900` mapped to `--text-ghost`** — the variable was renamed `--text-faint` and contrast was raised from ~1.7:1 to ~3:1 (still fails AA for body text; see updated CLAUDE.md Design System).
+> - **Engine test suite missing** — `lib/engine/payroll.test.ts` now exists (~700 lines).
+> - **Engine features** — `calculateLastMonth` (mid-year exit), `calculateSeverance` (PP 68/2009), `is_refund`, and the annual `proyeksi.*` block have all landed since this audit.
+> - **PR #14 (`feat/audit-hardening`)** added `assertCompanyAccess`/`assertWorkspaceAccess` helpers across companies/employees/payroll actions, HTML-escaped `/api/notify-registration`, raised the password floor to 12 chars with complexity, and wired `lib/cache.ts` into the dashboard route (only).
+>
+> Still open (treat the 2026-05-21 audit plan as the live tracker):
+> - Server-side payroll calc + Zod (§4.1)
+> - Audit log coverage in payroll/companies/share actions (§4.6)
+> - Case-insensitive email in `acceptInvite`/`sendInvite` (§4.7)
+> - `audit()` errors silently swallowed (§4.10)
+> - Share-link RLS expiry (§4.11)
+> - Rate limiting (§4.12)
+> - Schema/types regeneration (§5.2, §5.4)
+> - Duplicate `useWorkspace` hooks (§5.3)
+> - Column drift `run_by` vs `calculated_by`/`locked_by` (§5.5)
+> - Engine warnings: `_converged`, `is_estimate` (§5.9, §5.10)
+> - `lib/cache.ts` wiring on companies/batch pages (§5.1)
+> - Payroll page server-component shift, Tabel view, ConfirmDialog (§7.3–7.5)
+
 **Date:** 2026-05-20
 **Scope:** Code quality, architecture, UI/UX. No code changes; this document is recommendations only.
 **Methodology:** Three parallel subagent audits against the live `main` branch, plus a separate verification pass. Convergent findings (spotted independently by 2+ audits) are flagged with **⇢ convergent**.

@@ -185,8 +185,10 @@ app/
 
 lib/
 ├── engine/
-│   ├── payroll.ts              — calculateMonthlySalary, calculateDecember, calculateFreelance
-│   └── constants.ts            — TER A/B/C tables, PTKP, BPJS rates
+│   ├── payroll.ts              — calculateMonthlySalary, calculateLastMonth (full-year + mid-year exit), calculateDecember (alias), calculateFreelance, calculateTHRBonus, calculateSeverance (PP 68/2009)
+│   ├── projection.ts           — proyeksi.* helpers (annual forecast block on every result)
+│   ├── payroll.test.ts         — Vitest, ~700 lines, locks current math
+│   └── constants.ts            — TER A/B/C tables, PTKP, BPJS rates, severance brackets
 ├── export/
 │   ├── slip-gaji.ts            — Print window PDF
 │   └── spt-masa.ts             — SPT Masa PPh 21 CSV (BOM-encoded)
@@ -265,8 +267,12 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
 
 ### Karyawan Tetap — TER Method (PP 58/2023 + PMK 168/2023)
 - **Jan–Nov**: `pph = TER_rate × bruto`
-- **December**: Pasal 17 equalization using `akum_bruto` from saved results. Without prior data: silently falls back to `base × 12` — known hazard (AUDIT.md MEDIUM #4, to add warning).
-- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations.
+- **Last month (`calculateLastMonth`)**: Pasal 17 equalization using `akum_bruto` from saved results.
+  - Full-year December: caller passes `monthsInYear = 12` (default; legacy `calculateDecember` is a thin alias).
+  - Mid-year exit (e.g. starts Jun, ends Aug → 3 months): caller passes `isLastMonth: true` and `months_in_year: 3`. Engine scales `biaya_jabatan` cap and per-month iuran by `M`, annualizes the partial-year base correctly.
+  - **Fallback hazard**: if `akum_bruto === 0`, falls back to `base × M` with no warning surfaced yet. Known gap (AUDIT.md MEDIUM #4) — should set `proyeksi.is_estimate: true` when this path triggers.
+- **Refund case (over-withholding)**: if `pph_jan_nov > pph_setahun`, the on-slip `pph` is clamped to `0` and the engine sets `is_refund: true`, `refund_amount: <positive>`, `raw_pph: <negative>`. Note: these fields are returned in `result_json` but not yet persisted as columns on `payroll_results`.
+- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter × non-NPWP-multiplier ≥ 1`, the loop breaks with a stale value — no warning surfaced yet (AUDIT.md HIGH #3).
 - **Non-NPWP**: ×1.2 multiplier on PPh.
 
 ### Karyawan Tidak Tetap
@@ -306,34 +312,45 @@ For Jan–Nov these are forecasts (current bruto × 12); for December they are a
 ## Design System
 
 > Source of truth: `app/globals.css`. If this section drifts, the CSS wins.
+> Current iteration: **v3 — Light, modern SaaS aesthetic, WCAG AA throughout.**
+> The earlier dark/terminal aesthetic (`#0A0A0C` surfaces, Courier New) was retired.
 
 ### Colors
-- App background: `#0A0A0C` (`--bg-app`)
-- Sidebar: `#0C0C0F` (`--bg-sidebar`)
-- Page base: `#0E0E11` (`--bg-base`)
-- Cards: `#141417` (`--bg-card`), hover `#1A1A1E` (`--bg-card-hover`)
-- Inputs: `#111114` (`--bg-input`)
-- Terminal/deep: `#080809` (`--bg-deep`)
-- Primary accent: `#3B82F6` (`--accent`), dim `#2563EB` (`--accent-dim`), glow `rgba(59,130,246,0.15)` (`--accent-glow`)
-- Semantic: green `#4ADE80`, amber `#FBB040`, red `#F87171`, sky `#38BDF8` (each has a `*-dim` companion)
-- MSI brand: red `#E02020`, blue `#1B4FA8`, green `#2DB44A`
+- App background: `#F6F7F9` (`--bg-app`)
+- Surfaces: `#FFFFFF` (`--bg-base`, `--bg-sidebar`, `--bg-card`, `--bg-input`)
+- Subtle/hover blocks: `#F3F4F6` (`--bg-subtle`)
+- Borders: `#D1D5DB` strong, `#E5E7EB` default, `#EEF0F3` subtle
+- Brand: `#2563EB` (`--brand`), hover `#1D4ED8` (`--brand-hover`), tinted bg `#EFF4FF` (`--brand-soft`), focus ring `rgba(37,99,235,0.18)` (`--brand-ring`)
+- Text (all WCAG AA verified on white): `#0F172A` primary (17:1), `#334155` secondary (11:1), `#64748B` muted (4.8:1), `#94A3B8` faint (3:1 — decorative only, never body)
+- Semantic, each with paired `*-soft` + `*-border`: green `#16A34A`, amber `#B45309`, red `#DC2626`, sky `#0369A1`
+- MSI brand (logo only): red `#E02020`, blue `#1B4FA8`, green `#2DB44A`
 
 ### Typography
 - UI text: Plus Jakarta Sans via `next/font/google` (variable `--font-jakarta`, weights 400–800)
-- Data/terminal: `font-mono` → Courier New only
-- Never use monospace for UI labels, nav, or body text
+- Tabular data: `font-mono` → `ui-monospace, JetBrains Mono, SF Mono, Consolas` with `tabular-nums`
+- Use `font-mono` **only** for amounts (rupiah), NPWP/NIK, period codes. Not for UI labels, nav, or body.
 
 ### CSS Variables (in globals.css)
 ```css
---bg-app, --bg-sidebar, --bg-base, --bg-card, --bg-card-hover, --bg-input, --bg-deep
+--bg-app, --bg-base, --bg-sidebar, --bg-card, --bg-subtle, --bg-input, --bg-overlay
 --border-strong, --border-default, --border-subtle
---text-primary, --text-secondary, --text-muted, --text-ghost
---accent, --accent-dim, --accent-glow
---green, --green-dim, --amber, --amber-dim, --red, --red-dim, --sky, --sky-dim
+--text-primary, --text-secondary, --text-muted, --text-faint
+--brand, --brand-hover, --brand-soft, --brand-ring
+--green, --green-soft, --green-border
+--amber, --amber-soft, --amber-border
+--red,   --red-soft,   --red-border
+--sky,   --sky-soft,   --sky-border
+--shadow-sm, --shadow-md, --shadow-lg, --shadow-xl, --shadow-focus
 --mios-red, --mios-blue, --mios-green
 ```
 
-Global Tailwind overrides in `globals.css` remap `text-zinc-*` to the semantic text vars so contrast stays AA — don't undo these.
+### Compatibility shims (in globals.css)
+Legacy dark-themed classes used by unconverted pages are remapped to v3 vars so they remain legible:
+- `text-zinc-100..900` → various `--text-*` vars (note: `zinc-700..900` map to `--text-faint`, which is **3:1** — fine for large/decorative text, fails AA for body. Audit per page before treating as final.)
+- Dark backgrounds (`#0A0A0B`, `#141417`, etc.) → `--bg-card` (white)
+- Dark borders (`#1A1A1C`, etc.) → `--border-default`
+
+Don't undo these shims; rewrite the legacy classes instead when touching a page.
 
 ---
 
@@ -343,7 +360,7 @@ Global Tailwind overrides in `globals.css` remap `text-zinc-*` to the semantic t
 
 2. **Boolean parsing**: `parseFields` in `employees.ts` defaults all booleans to `false`. Unchecked checkboxes don't appear in FormData.
 
-3. **December equalization**: fetches Jan–Nov saved `payroll_results` from DB. Must have saved those months first.
+3. **Last-month equalization** (`calculateLastMonth`): fetches Jan–(M-1) saved `payroll_results` from DB. Must have saved those months first. When `akum_bruto === 0`, the engine silently annualizes from the current month alone (`base × M`) — outputs will be plausible but likely wrong. Surface `proyeksi.is_estimate` to the UI as a follow-up.
 
 4. **Share link RLS**: `payroll_share_links` has `for select using (true)` — fully public. Uses `result_json` for employee names (avoids RLS on employees table).
 
