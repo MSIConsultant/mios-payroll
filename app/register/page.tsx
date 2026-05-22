@@ -20,8 +20,12 @@ export default function RegisterPage() {
       setError('Password tidak cocok.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password minimal 6 karakter.');
+    if (password.length < 12) {
+      setError('Password minimal 12 karakter.');
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password harus mengandung huruf besar, huruf kecil, dan angka.');
       return;
     }
     setLoading(true);

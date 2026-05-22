@@ -124,17 +124,17 @@ export async function saveImport(payload: SaveImportPayload) {
         company_id: companyId, tahun, bulan,
         status: 'locked',
         calculated_at: new Date().toISOString(),
-        calculated_by: user.id,
         locked_at:     new Date().toISOString(),
-        locked_by:     user.id,
+        run_by:        user.id,
       })
       .select('id').single();
     if (runErr || !newRun) return { error: runErr?.message ?? 'Gagal membuat payroll run' };
     runId = newRun.id;
   } else {
-    await supabase.from('payroll_runs').update({
-      status: 'locked', locked_at: new Date().toISOString(), locked_by: user.id,
+    const { error: lockErr } = await supabase.from('payroll_runs').update({
+      status: 'locked', locked_at: new Date().toISOString(), run_by: user.id,
     }).eq('id', runId);
+    if (lockErr) return { error: lockErr.message };
   }
 
   // ── 4. Insert payroll results ─────────────────────────────────────

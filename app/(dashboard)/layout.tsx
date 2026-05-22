@@ -6,6 +6,7 @@ import { LogOut, Bell, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/types/roles';
+import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 
 const ROLE_LABEL: Record<string, string> = {
   dev: 'Developer',
@@ -222,7 +223,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         style={{ marginTop: isMobile ? 56 : 0 }}
       >
         <div className="relative z-10 px-4 py-6 md:px-8 md:py-10 max-w-[1400px] mx-auto min-h-full">
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
         </div>
       </main>
 

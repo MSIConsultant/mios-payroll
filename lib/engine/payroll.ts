@@ -162,34 +162,44 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     let pph = 0;
     let tunj_pph = 0;
     let pot_pph = 0;
+    // Grossup convergence diagnostics. _converged === false on:
+    //   1. `mt >= 1.0` early break — the TER × non-NPWP multiplier saturates
+    //      (impossible/extreme PKP); the loop bails with stale `pph`.
+    //   2. The 200-iteration fall-through path with no convergence detected.
+    // Calling code (UI) should surface a warning in these cases.
+    let _converged = !k.pph_ditanggung; // non-grossup branch is trivially converged
+    let _iterations = 0;
 
     if (k.pph_ditanggung) {
         let prev = -1.0;
-        let iterConverged = false;
         for (let i = 0; i < 200; i++) {
+            _iterations = i + 1;
             const t = getTerRate(base + pph, grup);
             if (t === 0) {
                 pph = 0.0;
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             const mt = npwp_mult * t;
-            if (mt >= 1.0) break;
+            if (mt >= 1.0) {
+                // mt saturation — leave _converged false and exit
+                break;
+            }
             const n = (mt * base) / (1 - mt);
             if (Math.abs(n - prev) < 0.01) {
                 pph = Math.round((n + prev) / 2);
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             if (Math.abs(n - pph) < 0.01) {
                 pph = Math.round(n);
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             prev = pph;
             pph = n;
         }
-        if (!iterConverged) {
+        if (!_converged) {
             pph = Math.round(pph);
         }
         tunj_pph = Math.round(pph);
@@ -229,6 +239,8 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
         proyeksi,
+        _converged,
+        _iterations,
     };
 }
 
@@ -299,7 +311,13 @@ export function calculateLastMonth(
     const ptkp = PTKP[k.status_ptkp];
     const M = Math.max(1, Math.min(12, Math.round(monthsInYear)));
 
-    const bs = akum_bruto > 0 ? (akum_bruto + base) : (base * M);
+    // When akum_bruto is 0 (no prior runs persisted for this employee/year),
+    // we annualize from the current month alone — plausible-looking but likely
+    // wrong if the employee actually worked prior months. Surface as
+    // `proyeksi.is_estimate: true` so the UI can render a stronger warning
+    // than the standard "Equalisasi Desember" info card.
+    const is_estimate = !(akum_bruto > 0);
+    const bs = is_estimate ? (base * M) : (akum_bruto + base);
     const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
 
     // Iuran karyawan = what the employee actually pays out of pocket (dipotong
@@ -335,6 +353,7 @@ export function calculateLastMonth(
         pph_setahun: pth,
         pph_jan_nov_proyeksi: k.pph_jan_nov,
         pph_desember_proyeksi: pd,
+        is_estimate,
     };
 
     const jenis = M === 12 && k.bulan === 12

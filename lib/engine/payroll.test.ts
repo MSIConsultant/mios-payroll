@@ -715,3 +715,61 @@ describe('calculateLastMonth — mid-year exit Pasal 17 reconciliation', () => {
     expect((r2 as any).months_in_year).toBe(12);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+describe('engine warning flags (audit-hardening)', () => {
+  it('proyeksi.is_estimate is true when calculateLastMonth runs with akum_bruto=0', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+      akum_bruto: 0,    // no prior runs persisted
+      pph_jan_nov: 0,
+    }));
+    expect(r.proyeksi.is_estimate).toBe(true);
+  });
+
+  it('proyeksi.is_estimate is false when akum_bruto>0 (real prior data)', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+      akum_bruto: 88_000_000,   // Jan-Nov real data
+      pph_jan_nov: 1_323_960,
+    }));
+    expect(r.proyeksi.is_estimate).toBe(false);
+  });
+
+  it('proyeksi.is_estimate is undefined on Jan-Nov non-last-month results', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 5,
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+    }));
+    // Jan-Nov forecast block doesn't set is_estimate; it's a forecast by definition.
+    expect((r.proyeksi as any).is_estimate).toBeUndefined();
+  });
+
+  it('_converged true and _iterations small for a normal grossup', () => {
+    const r = calculateMonthlySalary(tetap({
+      gaji_pokok: 8_000_000,
+      ikut_jht: true, ikut_jp: true, ikut_kes: true,
+      jkk_rate: 0.0024,
+      pph_ditanggung: true,
+    }));
+    expect((r as any)._converged).toBe(true);
+    expect((r as any)._iterations).toBeGreaterThan(0);
+    expect((r as any)._iterations).toBeLessThan(50);
+  });
+
+  it('_converged true (trivial) for non-grossup tetap path', () => {
+    const r = calculateMonthlySalary(tetap({
+      gaji_pokok: 8_000_000,
+      jkk_rate: 0,
+      pph_ditanggung: false,
+    }));
+    // Non-grossup branch sets _converged true trivially (no iteration needed)
+    expect((r as any)._converged).toBe(true);
+    expect((r as any)._iterations).toBe(0);
+  });
+});

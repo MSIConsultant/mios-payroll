@@ -1,8 +1,10 @@
 'use server';
 
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { audit } from '@/lib/audit';
+import { assertCompanyAccess } from '@/lib/auth/assertAccess';
 
 const NUMERIC_FIELDS = [
   'gaji_pokok',
@@ -36,13 +38,26 @@ const BOOLEAN_FIELDS = [
 // PostgreSQL `date` columns (otherwise insert fails with invalid date).
 const DATE_FIELDS = ['tanggal_masuk', 'tanggal_keluar'];
 
-function parseFields(formData: FormData): Record<string, any> {
+/**
+ * Parse a FormData submission into an employee-fields object.
+ *
+ * On CREATE the form always renders every checkbox, so missing keys mean
+ * "unchecked" and should become `false`. On UPDATE the form *might* be partial
+ * (e.g. QuickEdit modal touching only gaji_pokok) and pre-defaulting all
+ * booleans to false would silently wipe BPJS flags. Pass `defaultBooleans:
+ * false` from update callers so only booleans explicitly present in FormData
+ * are written.
+ */
+function parseFields(
+  formData: FormData,
+  opts: { defaultBooleans: boolean } = { defaultBooleans: true }
+): Record<string, any> {
   const fields: Record<string, any> = {};
 
-  // Default all boolean fields to false first
-  // unchecked checkboxes do not exist in FormData
-  for (const key of BOOLEAN_FIELDS) {
-    fields[key] = false;
+  if (opts.defaultBooleans) {
+    for (const key of BOOLEAN_FIELDS) {
+      fields[key] = false;
+    }
   }
 
   formData.forEach((value, key) => {
@@ -64,31 +79,16 @@ function parseFields(formData: FormData): Record<string, any> {
 }
 
 export async function createEmployee(formData: FormData) {
-  const supabase = await createClient();
-
-  const fields = parseFields(formData);
-
+  const fields = parseFields(formData, { defaultBooleans: true });
   fields.aktif = true;
 
-  // Get workspace_id from company
-  const { data: company } = await supabase
-    .from('companies')
-    .select('workspace_id')
-    .eq('id', fields.company_id)
-    .single();
+  const access = await assertCompanyAccess(fields.company_id as string);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
 
-  const workspaceId = company?.workspace_id;
+  const { error } = await supabase.from('employees').insert(fields);
+  if (error) return { error: error.message };
 
-  const { error } = await supabase
-    .from('employees')
-    .insert(fields);
-
-  if (error) {
-    console.error(error);
-    return { error: error.message };
-  }
-
-  // Audit log
   await audit({
     workspace_id: workspaceId,
     company_id: fields.company_id,
@@ -111,33 +111,24 @@ export async function updateEmployee(
   companyId: string,
   formData: FormData
 ) {
-  const supabase = await createClient();
+  const access = await assertCompanyAccess(companyId);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
 
-  const fields = parseFields(formData);
+  // defaultBooleans:false → callers that send a partial form (e.g. QuickEdit)
+  // don't silently reset BPJS/PPh flags.
+  const fields = parseFields(formData, { defaultBooleans: false });
 
   // Never change aktif status during edit
   delete fields.aktif;
-
-  // Get workspace_id from company
-  const { data: company } = await supabase
-    .from('companies')
-    .select('workspace_id')
-    .eq('id', companyId)
-    .single();
-
-  const workspaceId = company?.workspace_id;
 
   const { error } = await supabase
     .from('employees')
     .update(fields)
     .eq('id', id);
 
-  if (error) {
-    console.error(error);
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
 
-  // Audit log
   await audit({
     workspace_id: workspaceId,
     company_id: companyId,
@@ -161,63 +152,78 @@ export async function deleteEmployee(
   id: string,
   companyId: string
 ) {
-  const supabase = await createClient();
+  const access = await assertCompanyAccess(companyId);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
+
+  const { data: existing } = await supabase
+    .from('employees').select('nama').eq('id', id).maybeSingle();
 
   const { error } = await supabase
     .from('employees')
     .delete()
     .eq('id', id);
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: companyId,
+    action: 'EMPLOYEE_DELETED',
+    entity_type: 'employee',
+    entity_id: id,
+    entity_name: (existing?.nama as string | undefined) ?? undefined,
+  });
 
   revalidatePath(`/companies/${companyId}`);
 
   return { success: true };
 }
 
+const EventSchema = z.object({
+  employee_id: z.string().uuid(),
+  company_id:  z.string().uuid(),
+  tahun:       z.coerce.number().int().min(2020).max(2100),
+  bulan:       z.coerce.number().int().min(1).max(12),
+  tipe:        z.enum(['thr', 'bonus', 'kasbon', 'pot_lain', 'benefit_extra']),
+  nilai:       z.coerce.number().finite().nonnegative(),
+  keterangan:  z.string().max(500).optional(),
+});
+
 export async function addEvent(formData: FormData) {
-  const supabase = await createClient();
+  const raw = Object.fromEntries(formData) as Record<string, string>;
+  const parsed = EventSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Input tidak valid.' };
+  }
+  const event = parsed.data;
 
-  const employee_id = formData.get(
-    'employee_id'
-  ) as string;
-
-  const company_id = formData.get(
-    'company_id'
-  ) as string;
-
-  const tahun = Number(formData.get('tahun'));
-
-  const bulan = Number(formData.get('bulan'));
-
-  const tipe = formData.get('tipe') as string;
-
-  const nilai = Number(formData.get('nilai'));
-
-  const keterangan = formData.get(
-    'keterangan'
-  ) as string;
+  const access = await assertCompanyAccess(event.company_id);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
 
   const { error } = await supabase
     .from('employee_events')
-    .insert({
-      employee_id,
-      company_id,
-      tahun,
-      bulan,
-      tipe,
-      nilai,
-      keterangan,
-    });
+    .insert(event);
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: event.company_id,
+    action: 'EVENT_ADDED',
+    entity_type: 'employee_event',
+    new_values: {
+      employee_id: event.employee_id,
+      tipe: event.tipe,
+      nilai: event.nilai,
+      tahun: event.tahun,
+      bulan: event.bulan,
+    },
+  });
 
   revalidatePath(
-    `/companies/${company_id}/employees/${employee_id}`
+    `/companies/${event.company_id}/employees/${event.employee_id}`
   );
 
   return { success: true };
@@ -228,16 +234,25 @@ export async function deleteEvent(
   companyId: string,
   employeeId: string
 ) {
-  const supabase = await createClient();
+  const access = await assertCompanyAccess(companyId);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
 
   const { error } = await supabase
     .from('employee_events')
     .delete()
     .eq('id', id);
 
-  if (error) {
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: companyId,
+    action: 'EVENT_DELETED',
+    entity_type: 'employee_event',
+    entity_id: id,
+    new_values: { employee_id: employeeId },
+  });
 
   revalidatePath(
     `/companies/${companyId}/employees/${employeeId}`

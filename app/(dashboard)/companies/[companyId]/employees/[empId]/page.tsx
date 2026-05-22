@@ -12,6 +12,7 @@ import { formatRupiah } from '@/lib/format';
 import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/actions/employees';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
 import { PayrollSimulator } from '@/components/payroll/PayrollSimulator';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -155,6 +156,7 @@ function EmployeeDetailPage() {
   const { companyId, empId } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const confirm = useConfirm();
 
   const fromPayroll = searchParams.get('from') === 'payroll';
   const fromTahun   = searchParams.get('tahun');
@@ -204,7 +206,11 @@ function EmployeeDetailPage() {
   async function handleToggleActive() {
     if (!employee) return;
     const action = employee.aktif ? 'menonaktifkan' : 'mengaktifkan';
-    if (!confirm(`Yakin ingin ${action} karyawan ini?`)) return;
+    if (!(await confirm({
+      title: `${employee.aktif ? 'Nonaktifkan' : 'Aktifkan'} karyawan?`,
+      message: `${employee.nama} akan di-${action}.`,
+      severity: 'warn',
+    }))) return;
     setIsToggling(true);
     const supabase = createClient();
     const { error } = await supabase.from('employees')
@@ -219,7 +225,14 @@ function EmployeeDetailPage() {
   }
 
   async function handleDeleteEmployee() {
-    if (!confirm('Hapus karyawan ini? Semua riwayat akan hilang.')) return;
+    if (!employee) return;
+    if (!(await confirm({
+      title: 'Hapus karyawan?',
+      message: 'Semua riwayat payroll dan event karyawan akan hilang. Tindakan ini tidak bisa dibatalkan.',
+      severity: 'danger',
+      retypeToConfirm: employee.nama,
+      confirmLabel: 'Hapus',
+    }))) return;
     setIsDeleting(true);
     const res = await deleteEmployee(empId as string, companyId as string);
     if (res.error) {
@@ -242,7 +255,12 @@ function EmployeeDetailPage() {
   }
 
   async function handleDeleteEvent(id: string) {
-    if (!confirm('Hapus event ini?')) return;
+    if (!(await confirm({
+      title: 'Hapus event?',
+      message: 'Variasi (THR / bonus / kasbon / dll.) akan dihapus dari periode ini.',
+      severity: 'warn',
+      confirmLabel: 'Hapus',
+    }))) return;
     const res = await deleteEvent(id, companyId as string, empId as string);
     if (res.error) toast.error(res.error);
     else {

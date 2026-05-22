@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { createShareLink } from '@/lib/actions/share';
 import { NominalInput } from '@/components/ui/FormattedInput';
 import { CalcTooltipPopover, InfoDot, type CalcTooltipData } from '@/components/payroll/CalcTooltip';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { BPJS as BPJS_RATES, JP_MAX_BASIS, KES_MAX_BASIS } from '@/lib/engine/constants';
 
 const BULAN_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -236,6 +237,7 @@ function QuickEditModal({
 
 export default function PayrollRunPage() {
   const { companyId, tahun, bulan } = useParams();
+  const confirm = useConfirm();
   const [employees, setEmployees]         = useState<any[]>([]);
   const [events, setEvents]               = useState<any[]>([]);
   const [existingRun, setExistingRun]     = useState<any>(null);
@@ -396,6 +398,13 @@ export default function PayrollRunPage() {
   }
 
   function handleCalculate() {
+    // Skip recompute for locked runs — saved values are authoritative and the
+    // "Hitung Ulang" button is hidden when locked, but guard here too in case
+    // some path triggers calculate (auto-calc effect, accidental click).
+    if (existingRun?.status === 'locked') {
+      toast.error('Run sudah dikunci — tidak dapat dihitung ulang.');
+      return;
+    }
     runCalculation(employees, events).then((newResults) => {
       setResults(newResults);
       setIsCalculated(true);
@@ -470,7 +479,12 @@ export default function PayrollRunPage() {
 
   async function handleLock() {
     if (!existingRun?.id) return;
-    if (!confirm('Kunci payroll? Data tidak bisa diubah lagi.')) return;
+    if (!(await confirm({
+      title: `Kunci payroll ${BULAN_NAMES[Number(bulan) - 1]} ${tahun}?`,
+      message: 'Setelah dikunci, data tidak bisa diubah atau dihapus lagi.',
+      severity: 'danger',
+      confirmLabel: 'Kunci',
+    }))) return;
     setSaving(true);
     const res = await lockPayrollRun(existingRun.id, companyId as string, Number(tahun), Number(bulan));
     if (res.error) {
