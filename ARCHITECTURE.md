@@ -110,22 +110,25 @@ staff user → company_staff_access → company_id
 
 ## Caching Strategy
 
-| Data | TTL | Invalidation |
-|---|---|---|
-| workspace | 300s | on workspace update |
-| companies | 60s | on company CRUD |
-| employees | 60s | on employee CRUD |
-| payroll runs | 30s | on calculate/save/lock |
-| dashboard | 20s | on any payroll change |
+`lib/cache.ts` exposes `unstable_cache` wrappers with these TTLs:
 
-Cache keys use workspace/company IDs to prevent cross-tenant data leaks.
+| Wrapper | TTL | Cache tag |
+|---|---|---|
+| `getCachedWorkspace` | 300s | `workspace-{userId}` |
+| `getCachedCompanies` | 60s  | `companies-{workspaceId}` |
+| `getCachedEmployeeCount` | 60s | `employees-{workspaceId}` |
+| `getCachedPayrollRuns` | 30s | `payroll-{tahun}-{bulan}` |
+
+Cache keys include workspace/company IDs to prevent cross-tenant data leaks.
+
+**Adoption status (post `feat/audit-hardening` / PR #14):** only `app/(dashboard)/dashboard/page.tsx` consumes the wrappers. `companies`, `batch`, and other pages still issue raw Supabase queries on every render. The `revalidateTag` calls in the server actions are therefore mostly no-ops outside of the dashboard route. Wiring the remaining pages is tracked under Phase 4 of the 2026-05-21 audit plan.
 
 ## Payroll Engine Architecture
 
 ```
 calculateMonthlySalary(input: KaryawanTetap)
      │
-     ├── calculateBPJS(input)
+     ├── calculateBPJS(input)               // optional bpjs_basis overrides gaji_pokok
      │        ├── employer: JKK, JKM, Kes_e (→ in bruto)
      │        ├── employee tunj: JHT_k, JP_k, Kes_k (→ in bruto if tanggung)
      │        └── employee pot: JHT_k, JP_k, Kes_k (→ potong from gaji)
@@ -136,12 +139,22 @@ calculateMonthlySalary(input: KaryawanTetap)
      │        iterate: pph = (ter × base) / (1 − ter)
      │        until |pph_new − pph_old| < 0.01 (max 200 iterations)
      │        bruto = base + tunj_pph
+     │        ⚠ Stale value returned if ter × non-NPWP-multiplier ≥ 1 (no warning yet)
      │
-     ├── if December:
-     │        fetch akum_bruto + pph_jan_nov from payroll_results
-     │        annualize, apply Pasal 17 brackets, subtract pph_jan_nov
+     ├── if bulan === 12 OR isLastMonth === true:
+     │        delegate to calculateLastMonth(..., monthsInYear = months_in_year ?? 12)
+     │        fetch akum_bruto + pph_jan_to_M-1 from payroll_results
+     │        annualize over M months, apply Pasal 17 brackets, subtract prior PPh
+     │        ⚠ Falls back to base × M when akum_bruto === 0 (no warning yet)
+     │        if over-withheld: clamp on-slip pph to 0, set is_refund/refund_amount
      │
-     └── return { bruto, pph, thp, bpjs, ter, ... }
+     └── return { bruto, pph, thp, bpjs, ter, proyeksi, is_refund?, refund_amount?, ... }
+
+Other engine entry points (in lib/engine/payroll.ts):
+- calculateFreelance({ mode: 'harian' | 'bulanan' }) — TER for harian, Pasal 17/12 for bulanan
+- calculateTHRBonus(...)                              — Selisih Pasal 17 method
+- calculateSeverance(KompensasiInput)                 — PP 68/2009 progressive brackets (0/5/15/25%)
+                                                       returns full bracket-by-bracket breakdown[]
 ```
 
 ## Security Model
@@ -232,6 +245,10 @@ saveImport(payload) — server action
 - **Server**: data fetching, auth checks, initial render
 - **Client**: interactivity, realtime subscriptions, modals, form state
 - **Pattern**: server fetches → passes as props → client handles interaction
+
+**Current exceptions** (flagged for refactor in the 2026-05-21 audit plan):
+- `app/(dashboard)/layout.tsx` is a ~230-line client component that re-runs `auth.getUser()` + a `user_profiles` lookup + an unread-notification count on every navigation. Middleware already verified the session — these three round-trips are redundant and visible as a "MIOS letter pulse" spinner.
+- `app/(dashboard)/companies/[companyId]/payroll/[tahun]/[bulan]/page.tsx` is a 1,200+ line client component that fetches data and runs the engine in the browser even for `locked` runs. Server-side calculation (Phase 2 of the audit plan) and a server-component shell + small client islands are both pending.
 
 ### Why Not tRPC/React Query
 Current scale (1–5 users) doesn't need the complexity. Server actions + `unstable_cache` covers the use case. Add React Query if concurrent users exceed 20.
