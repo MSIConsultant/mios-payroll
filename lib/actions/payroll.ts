@@ -1,6 +1,7 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { assertCompanyAccess } from '@/lib/actions/access';
 
 export async function savePayrollRun(
   companyId: string,
@@ -9,6 +10,12 @@ export async function savePayrollRun(
   results: any[],
   status: 'draft' | 'calculated' | 'locked' = 'calculated'
 ) {
+  try {
+    await assertCompanyAccess(companyId);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -60,6 +67,12 @@ export async function savePayrollRun(
 }
 
 export async function lockPayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
+  try {
+    await assertCompanyAccess(companyId);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.from('payroll_runs').update({
     status: 'locked', locked_at: new Date().toISOString(),
@@ -70,9 +83,14 @@ export async function lockPayrollRun(runId: string, companyId: string, tahun: nu
 }
 
 export async function deletePayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
+  try {
+    await assertCompanyAccess(companyId);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
 
-  // Delete results first (FK constraint)
   const { error: resErr } = await supabase.from('payroll_results').delete().eq('run_id', runId);
   if (resErr) return { error: resErr.message };
 

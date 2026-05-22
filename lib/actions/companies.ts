@@ -1,15 +1,22 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { assertWorkspaceAccess, assertCompanyAccess } from '@/lib/actions/access';
 
 export async function createCompany(formData: FormData) {
-  const supabase     = await createClient();
   const workspace_id = formData.get('workspace_id') as string;
   const name         = formData.get('name')         as string;
 
   if (!name || !workspace_id)
     return { error: 'Nama perusahaan dan workspace wajib diisi.' };
 
+  try {
+    await assertWorkspaceAccess(workspace_id);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
+  const supabase = await createClient();
   const { error } = await supabase.from('companies').insert({
     workspace_id,
     name,
@@ -28,14 +35,18 @@ export async function createCompany(formData: FormData) {
 }
 
 export async function updateCompany(id: string, formData: FormData) {
-  const supabase = await createClient();
-  const name     = formData.get('name') as string;
+  const name = formData.get('name') as string;
   if (!name) return { error: 'Nama perusahaan wajib diisi.' };
 
-  // Get workspace_id from existing company
-  const { data: existing } = await supabase
-    .from('companies').select('workspace_id').eq('id', id).single();
+  let workspaceId: string;
+  try {
+    const access = await assertCompanyAccess(id);
+    workspaceId = access.workspaceId;
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
 
+  const supabase = await createClient();
   const { error } = await supabase.from('companies').update({
     name,
     npwp_perusahaan: formData.get('npwp_perusahaan') as string,
@@ -46,13 +57,19 @@ export async function updateCompany(id: string, formData: FormData) {
 
   if (error) return { error: error.message };
 
-  if (existing?.workspace_id) revalidateTag(`companies-${existing.workspace_id}`);
+  revalidateTag(`companies-${workspaceId}`);
   revalidatePath('/companies');
   revalidatePath(`/companies/${id}`);
   return { success: true };
 }
 
 export async function archiveCompany(id: string, aktif: boolean) {
+  try {
+    await assertCompanyAccess(id);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.from('companies').update({ aktif }).eq('id', id);
   if (error) return { error: error.message };
@@ -61,6 +78,12 @@ export async function archiveCompany(id: string, aktif: boolean) {
 }
 
 export async function deleteCompany(id: string) {
+  try {
+    await assertCompanyAccess(id);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
 
   const { data: runs } = await supabase

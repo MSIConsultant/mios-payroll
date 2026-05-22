@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { audit } from '@/lib/audit';
+import { assertCompanyAccess } from '@/lib/actions/access';
 
 const NUMERIC_FIELDS = [
   'gaji_pokok',
@@ -64,27 +65,21 @@ function parseFields(formData: FormData): Record<string, any> {
 }
 
 export async function createEmployee(formData: FormData) {
-  const supabase = await createClient();
-
   const fields = parseFields(formData);
-
   fields.aktif = true;
 
-  // Get workspace_id from company
-  const { data: company } = await supabase
-    .from('companies')
-    .select('workspace_id')
-    .eq('id', fields.company_id)
-    .single();
+  let workspaceId: string;
+  try {
+    const access = await assertCompanyAccess(fields.company_id as string);
+    workspaceId = access.workspaceId;
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
 
-  const workspaceId = company?.workspace_id;
-
-  const { error } = await supabase
-    .from('employees')
-    .insert(fields);
+  const supabase = await createClient();
+  const { error } = await supabase.from('employees').insert(fields);
 
   if (error) {
-    console.error(error);
     return { error: error.message };
   }
 
@@ -111,29 +106,24 @@ export async function updateEmployee(
   companyId: string,
   formData: FormData
 ) {
-  const supabase = await createClient();
-
   const fields = parseFields(formData);
-
-  // Never change aktif status during edit
   delete fields.aktif;
 
-  // Get workspace_id from company
-  const { data: company } = await supabase
-    .from('companies')
-    .select('workspace_id')
-    .eq('id', companyId)
-    .single();
+  let workspaceId: string;
+  try {
+    const access = await assertCompanyAccess(companyId);
+    workspaceId = access.workspaceId;
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
 
-  const workspaceId = company?.workspace_id;
-
+  const supabase = await createClient();
   const { error } = await supabase
     .from('employees')
     .update(fields)
     .eq('id', id);
 
   if (error) {
-    console.error(error);
     return { error: error.message };
   }
 
@@ -161,8 +151,13 @@ export async function deleteEmployee(
   id: string,
   companyId: string
 ) {
-  const supabase = await createClient();
+  try {
+    await assertCompanyAccess(companyId);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from('employees')
     .delete()
@@ -178,28 +173,21 @@ export async function deleteEmployee(
 }
 
 export async function addEvent(formData: FormData) {
+  const employee_id = formData.get('employee_id') as string;
+  const company_id  = formData.get('company_id')  as string;
+  const tahun       = Number(formData.get('tahun'));
+  const bulan       = Number(formData.get('bulan'));
+  const tipe        = formData.get('tipe')        as string;
+  const nilai       = Number(formData.get('nilai'));
+  const keterangan  = formData.get('keterangan')  as string;
+
+  try {
+    await assertCompanyAccess(company_id);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
+
   const supabase = await createClient();
-
-  const employee_id = formData.get(
-    'employee_id'
-  ) as string;
-
-  const company_id = formData.get(
-    'company_id'
-  ) as string;
-
-  const tahun = Number(formData.get('tahun'));
-
-  const bulan = Number(formData.get('bulan'));
-
-  const tipe = formData.get('tipe') as string;
-
-  const nilai = Number(formData.get('nilai'));
-
-  const keterangan = formData.get(
-    'keterangan'
-  ) as string;
-
   const { error } = await supabase
     .from('employee_events')
     .insert({
@@ -228,8 +216,13 @@ export async function deleteEvent(
   companyId: string,
   employeeId: string
 ) {
-  const supabase = await createClient();
+  try {
+    await assertCompanyAccess(companyId);
+  } catch {
+    return { error: 'Akses ditolak.' };
+  }
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from('employee_events')
     .delete()
