@@ -1,6 +1,8 @@
 'use server';
-import { createClient } from '@/lib/supabase/server';
 import { randomBytes } from 'crypto';
+import { assertRunAccess } from '@/lib/auth/assertAccess';
+import { audit } from '@/lib/audit';
+import { getAppUrl } from '@/lib/env';
 
 export async function createShareLink(
   runId: string,
@@ -8,7 +10,10 @@ export async function createShareLink(
   tahun: number,
   bulan: number
 ) {
-  const supabase = await createClient();
+  const access = await assertRunAccess(runId);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
+
   const token = randomBytes(24).toString('hex');
   const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -18,6 +23,18 @@ export async function createShareLink(
   });
 
   if (error) return { error: error.message };
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/share/${token}`;
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: companyId,
+    action: 'SHARE_LINK_CREATED',
+    entity_type: 'payroll_share_link',
+    entity_name: `${tahun}-${String(bulan).padStart(2, '0')}`,
+    new_values: { run_id: runId, expires_at },
+  });
+
+  const appUrl = getAppUrl();
+  if (!appUrl) return { error: 'NEXT_PUBLIC_APP_URL atau VERCEL_URL belum dikonfigurasi.' };
+  const url = `${appUrl}/share/${token}`;
   return { success: true, url };
 }

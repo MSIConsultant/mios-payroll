@@ -26,7 +26,8 @@ export type AuditAction =
   | 'EXPORT_SPT'
   | 'PERMISSION_CHANGED'
   | 'STAFF_INVITED'
-  | 'STAFF_REMOVED';
+  | 'STAFF_REMOVED'
+  | 'SHARE_LINK_CREATED';
 
 export interface AuditParams {
   workspace_id:  string;
@@ -63,7 +64,10 @@ export async function audit(params: AuditParams) {
       new_values:   params.new_values,
       metadata:     params.metadata ?? {},
     });
-  } catch {
-    // Audit never blocks main operation
+  } catch (err) {
+    // Audit never blocks main operation, but surface failures via server logs
+    // so a misconfigured RLS policy on audit_logs doesn't silently lose every
+    // write. Shows up in `vercel logs` / Vercel Function logs.
+    console.error('[audit] failed to write audit log:', err);
   }
 }

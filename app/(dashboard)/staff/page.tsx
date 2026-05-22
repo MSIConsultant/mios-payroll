@@ -1,11 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   grantCompanyAccess, revokeCompanyAccess, removeStaffFromWorkspace,
 } from '@/lib/actions/staff';
 import { sendInvite } from '@/lib/actions/workspace';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 import {
   Users, Building2, Plus, Mail, Trash2, ChevronDown, ChevronRight, Check, Loader2,
@@ -30,6 +31,7 @@ interface AccessMap {
 
 export default function StaffPage() {
   const { workspace } = useWorkspace();
+  const confirm = useConfirm();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accessMap, setAccessMap] = useState<AccessMap>({});
@@ -122,7 +124,12 @@ export default function StaffPage() {
 
   async function handleRemoveStaff(staffId: string, staffEmail: string) {
     if (!workspace?.id) return;
-    if (!confirm(`Hapus ${staffEmail} dari workspace?`)) return;
+    if (!(await confirm({
+      title: 'Hapus staff?',
+      message: `${staffEmail} akan kehilangan akses ke seluruh perusahaan di workspace ini.`,
+      severity: 'danger',
+      confirmLabel: 'Hapus',
+    }))) return;
     const res = await removeStaffFromWorkspace(workspace.id, staffId, staffEmail);
     if (res.error) toast.error(res.error);
     else {

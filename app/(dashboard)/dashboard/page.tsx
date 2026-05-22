@@ -6,6 +6,7 @@ import {
   ArrowRight, TrendingUp,
 } from 'lucide-react';
 import DashboardRealtime from './DashboardRealtime';
+import { getCachedCompanies, getCachedEmployeeCount, getCachedPayrollRuns } from '@/lib/cache';
 
 const BULAN_ID    = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -34,27 +35,25 @@ export default async function DashboardPage() {
   const ws          = membership?.workspaces;
   const wsName      = (Array.isArray(ws) ? ws[0]?.name : (ws as any)?.name) ?? '—';
 
-  const { data: companies } = await supabase
-    .from('companies').select('id, name, kota')
-    .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
+  // Cached server reads via lib/cache.ts wrappers. revalidateTag calls in the
+  // mutating actions (companies/employees/payroll) bust these caches.
+  const allCompanies = workspaceId ? await getCachedCompanies(workspaceId) : [];
+  const companies = allCompanies.filter((c) => c.aktif);
+  const companyIds = companies.map((c) => c.id);
 
-  const companyIds = (companies ?? []).map((c) => c.id);
+  const empCount = workspaceId && companyIds.length > 0
+    ? await getCachedEmployeeCount(workspaceId, companyIds)
+    : 0;
 
-  const { count: empCount } = companyIds.length > 0
-    ? await supabase.from('employees').select('*', { count: 'exact', head: true })
-        .in('company_id', companyIds).eq('aktif', true)
-    : { count: 0 };
+  const thisMonthRuns = companyIds.length > 0
+    ? await getCachedPayrollRuns(companyIds, tahunIni, bulanIni)
+    : [];
 
-  const { data: thisMonthRuns } = companyIds.length > 0
-    ? await supabase.from('payroll_runs').select('company_id, status')
-        .in('company_id', companyIds).eq('tahun', tahunIni).eq('bulan', bulanIni)
-    : { data: [] };
-
-  const runMap     = Object.fromEntries((thisMonthRuns ?? []).map((r) => [r.company_id, r.status]));
-  const locked     = (thisMonthRuns ?? []).filter((r) => r.status === 'locked').length;
-  const calculated = (thisMonthRuns ?? []).filter((r) => r.status === 'calculated').length;
-  const pending    = (companies?.length ?? 0) - locked - calculated;
-  const lockedPct  = (companies?.length ?? 0) > 0 ? (locked / (companies?.length ?? 1)) * 100 : 0;
+  const runMap     = Object.fromEntries(thisMonthRuns.map((r) => [r.company_id, r.status]));
+  const locked     = thisMonthRuns.filter((r) => r.status === 'locked').length;
+  const calculated = thisMonthRuns.filter((r) => r.status === 'calculated').length;
+  const pending    = companies.length - locked - calculated;
+  const lockedPct  = companies.length > 0 ? (locked / companies.length) * 100 : 0;
 
   const { data: recentRuns } = companyIds.length > 0
     ? await supabase.from('payroll_runs')
@@ -76,8 +75,8 @@ export default async function DashboardPage() {
     totalsMap[r.run_id].pph   += r.pph   ?? 0;
     totalsMap[r.run_id].count += 1;
   }
-  const companyMap = Object.fromEntries((companies ?? []).map((c) => [c.id, c]));
-  const isEmpty    = (companies?.length ?? 0) === 0;
+  const companyMap = Object.fromEntries(companies.map((c) => [c.id, c]));
+  const isEmpty    = companies.length === 0;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -218,22 +217,22 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KpiCard
               label="Perusahaan Aktif"
-              value={companies?.length ?? 0}
+              value={companies.length}
               sub="klien terdaftar"
               accent="brand"
               icon={Building2}
             />
             <KpiCard
               label="Karyawan Aktif"
-              value={empCount ?? 0}
+              value={empCount}
               sub="seluruh perusahaan"
               accent="emerald"
               icon={Users}
             />
             <KpiCard
               label={`Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`}
-              value={(thisMonthRuns ?? []).length}
-              sub={`dari ${companies?.length ?? 0} perusahaan`}
+              value={thisMonthRuns.length}
+              sub={`dari ${companies.length} perusahaan`}
               accent="amber"
               icon={TrendingUp}
             />
@@ -254,7 +253,7 @@ export default async function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {(companies ?? []).map((co, i) => {
+              {companies.map((co, i) => {
                 const status = (runMap[co.id] as string) ?? 'pending';
                 const chipClass = STATUS_CHIP[status] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
                 return (

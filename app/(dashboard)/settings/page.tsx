@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { archiveCompany, deleteCompany } from '@/lib/actions/companies';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import {
   sendInvite, removeMember, revokeInvite, getWorkspaceActivity, createWorkspace,
 } from '@/lib/actions/workspace';
@@ -47,6 +48,7 @@ function Tab({
 
 export default function SettingsPage() {
   const { workspace, workspaces, switchWorkspace } = useWorkspace();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<'members' | 'companies' | 'activity'>('members');
 
   const [members, setMembers] = useState<any[]>([]);
@@ -144,7 +146,12 @@ export default function SettingsPage() {
 
   async function handleRemoveMember(userId: string, email: string) {
     if (!workspace) return;
-    if (!confirm(`Hapus ${email} dari workspace?`)) return;
+    if (!(await confirm({
+      title: 'Hapus anggota dari workspace?',
+      message: `${email} akan kehilangan akses ke workspace ini.`,
+      severity: 'danger',
+      confirmLabel: 'Hapus',
+    }))) return;
     const res = await removeMember(workspace.id, userId, email);
     if (res.error) toast.error(res.error);
     else await fetchAll();

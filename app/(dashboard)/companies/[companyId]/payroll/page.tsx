@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { deletePayrollRun } from '@/lib/actions/payroll';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -26,6 +27,7 @@ const STATUS_ICON: Record<string, typeof Lock> = {
 
 export default function PayrollOverviewPage() {
   const { companyId } = useParams();
+  const confirm = useConfirm();
   const [runs, setRuns]           = useState<any[]>([]);
   const [company, setCompany]     = useState<any>(null);
   const [totalsMap, setTotalsMap] = useState<Record<string, any>>({});
@@ -72,12 +74,12 @@ export default function PayrollOverviewPage() {
       toast.error('Run yang sudah dikunci tidak bisa dihapus.');
       return;
     }
-    if (
-      !confirm(
-        `Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}? Semua hasil kalkulasi akan hilang.`,
-      )
-    )
-      return;
+    if (!(await confirm({
+      title: `Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}?`,
+      message: 'Semua hasil kalkulasi untuk periode ini akan hilang. Tindakan ini tidak bisa dibatalkan.',
+      severity: 'danger',
+      confirmLabel: 'Hapus',
+    }))) return;
     setDeleting(run.id);
     const res = await deletePayrollRun(run.id, companyId as string, run.tahun, run.bulan);
     if (res.error) {

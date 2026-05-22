@@ -202,8 +202,8 @@ lib/
 │   ├── import.ts               — saveImport, getImportHistory, getImportSession
 │   ├── notify.ts               — Resend email (approval, rejection, payroll lock)
 │   └── share.ts                — createShareLink
-├── hooks/
-│   └── useWorkspace.ts         — workspace from user_profiles  (NOTE: also a copy in /hooks/ at repo root)
+├── auth/
+│   └── assertAccess.ts         — assertAuth, assertWorkspaceAccess, assertCompanyAccess, assertRunAccess (defense-in-depth gates for server actions)
 ├── supabase/
 │   ├── client.ts               — createClient (browser)
 │   ├── server.ts               — createClient (server)
@@ -212,16 +212,16 @@ lib/
 │   └── roles.ts                — UserRole, UserStatus, UserProfile, CAN helper
 ├── audit.ts                    — audit() helper, AuditAction type
 ├── cache.ts                    — unstable_cache wrappers
-├── env.ts                      — hasSupabaseEnv() guard (accepts PUBLISHABLE_KEY or ANON_KEY)
+├── env.ts                      — hasSupabaseEnv() guard, getAppUrl() canonical app URL
 ├── format.ts                   — formatRupiah
 ├── formatters.ts               — NPWP, NIK, nominal, date formatting
 ├── types.ts                    — Company, Employee, EmployeeEvent types
 └── utils.ts                    — General helpers (cn, etc.)
 
-hooks/                          — Root-level hooks (separate from lib/hooks/)
+hooks/                          — Root-level hooks (sole location post audit-hardening)
 ├── use-mobile.ts
 ├── useUserProfile.ts           — profile + role + canDo
-└── useWorkspace.ts             — duplicate of lib/hooks/useWorkspace.ts (consolidate when touching)
+└── useWorkspace.ts             — workspace + workspaces[] + switchWorkspace (from workspace_members)
 
 components/
 ├── SetupRequired.tsx           — Renders when Supabase env vars missing

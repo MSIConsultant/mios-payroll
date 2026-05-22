@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
+import { getAppUrl } from '@/lib/env';
 
 async function logActivity(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -53,24 +54,28 @@ export async function sendInvite(workspaceId: string, invitedEmail: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
+  const normalizedEmail = invitedEmail.trim().toLowerCase();
+
   const { data: pendingInvite } = await supabase.from('workspace_invitations')
     .select('id').eq('workspace_id', workspaceId)
-    .eq('invited_email', invitedEmail).is('accepted_at', null).single();
+    .eq('invited_email', normalizedEmail).is('accepted_at', null).maybeSingle();
   if (pendingInvite) return { error: 'Undangan sudah dikirim ke email ini.' };
 
   const token = randomBytes(32).toString('hex');
   const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await supabase.from('workspace_invitations').insert({
-    workspace_id: workspaceId, invited_email: invitedEmail,
+    workspace_id: workspaceId, invited_email: normalizedEmail,
     token, invited_by: user.id, role: 'member', expires_at,
   });
   if (error) return { error: error.message };
 
-  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', invitedEmail,
+  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', normalizedEmail,
     { invited_by: user.email });
 
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://mios-payroll-v5.vercel.app'}/invite?token=${token}`;
+  const appUrl = getAppUrl();
+  if (!appUrl) return { error: 'NEXT_PUBLIC_APP_URL atau VERCEL_URL belum dikonfigurasi.' };
+  const inviteUrl = `${appUrl}/invite?token=${token}`;
   return { success: true, inviteUrl, token };
 }
 
@@ -85,7 +90,8 @@ export async function acceptInvite(token: string) {
 
   if (invErr || !invite) return { error: 'Undangan tidak valid atau sudah kadaluarsa.' };
   if (new Date(invite.expires_at) < new Date()) return { error: 'Undangan sudah kadaluarsa.' };
-  if (invite.invited_email !== user.email) return { error: 'Undangan ini bukan untuk akun Anda.' };
+  if ((invite.invited_email ?? '').toLowerCase() !== (user.email ?? '').toLowerCase())
+    return { error: 'Undangan ini bukan untuk akun Anda.' };
 
   const { error: memErr } = await supabase.from('workspace_members').insert({
     workspace_id: invite.workspace_id,

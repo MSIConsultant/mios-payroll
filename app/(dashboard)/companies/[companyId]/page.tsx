@@ -11,6 +11,7 @@ import {
 import { formatRupiah } from '@/lib/format';
 import { updateCompany } from '@/lib/actions/companies';
 import { NpwpCompanyInput } from '@/components/ui/FormattedInput';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 
 const BULAN = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -58,6 +59,7 @@ function EmployeeInitials({ name }: { name: string }) {
 export default function CompanyDetailPage() {
   const { companyId } = useParams();
   const router = useRouter();
+  const confirm = useConfirm();
   const [company, setCompany]     = useState<Company | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [lastRun, setLastRun]     = useState<any>(null);
@@ -101,8 +103,13 @@ export default function CompanyDetailPage() {
 
   async function handleArchive() {
     if (!company) return;
-    const action = company.aktif ? 'mengarsipkan' : 'mengaktifkan';
-    if (!confirm(`Yakin ingin ${action} perusahaan ini?`)) return;
+    if (!(await confirm({
+      title: company.aktif ? 'Arsipkan perusahaan?' : 'Aktifkan perusahaan?',
+      message: company.aktif
+        ? `${company.name} akan disembunyikan dari daftar aktif. Data tetap tersimpan.`
+        : `${company.name} akan ditampilkan kembali di daftar aktif.`,
+      severity: 'warn',
+    }))) return;
     const { archiveCompany } = await import('@/lib/actions/companies');
     const res = await archiveCompany(company.id, !company.aktif);
     if (res.error) toast.error(res.error);
