@@ -283,20 +283,21 @@ export async function fetchEmployeeAccumDataByNik(
  */
 export async function fetchExistingEmployeeDataByNik(
   companyId: string,
-): Promise<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }>> {
+): Promise<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }>> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('employees')
-    .select('nik, gaji_pokok, status_ptkp, divisi')
+    .select('nik, gaji_pokok, status_ptkp, divisi, bpjs_basis')
     .eq('company_id', companyId)
     .eq('aktif', true);
 
-  const map: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }> = {};
+  const map: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }> = {};
   for (const e of data ?? []) {
     map[e.nik] = {
       gaji_pokok: e.gaji_pokok ?? 0,
       status_ptkp: e.status_ptkp ?? '',
       divisi: e.divisi ?? '',
+      bpjs_basis: (e as any).bpjs_basis ?? null,
     };
   }
   return map;

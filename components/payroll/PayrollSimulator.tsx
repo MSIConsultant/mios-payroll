@@ -84,6 +84,7 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
   const [pulsa,        setPulsa]        = useState(init.pulsa);
   const [operasional,  setOperasional]  = useState(init.operasional);
   const [tunjLain,     setTunjLain]     = useState(init.tunjLain);
+  const [bpjsBasis,    setBpjsBasis]    = useState(init.bpjsBasis);
   const [statusPtkp,   setStatusPtkp]   = useState(init.statusPtkp);
   const [punyaNpwp,    setPunyaNpwp]    = useState(init.punyaNpwp);
   const [jkkRate,      setJkkRate]      = useState(init.jkkRate);
@@ -108,6 +109,7 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
     if (v.pulsa       !== undefined) setPulsa(v.pulsa);
     if (v.operasional !== undefined) setOperasional(v.operasional);
     if (v.tunjLain    !== undefined) setTunjLain(v.tunjLain);
+    if (v.bpjsBasis   !== undefined) setBpjsBasis(v.bpjsBasis);
     if (v.statusPtkp  !== undefined) setStatusPtkp(v.statusPtkp);
     if (v.punyaNpwp   !== undefined) setPunyaNpwp(v.punyaNpwp);
     if (v.jkkRate     !== undefined) setJkkRate(v.jkkRate);
@@ -130,14 +132,14 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
     statusPtkp, punyaNpwp, jkkRate,
     ikutJht, ikutJp, ikutJkp,
     tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung,
+    pphDitanggung, bpjsBasis,
     thrBulan, thrPct, bonusBulan, bonusPct,
   }), [
     gajiPokok, benefit, kendaraan, pulsa, operasional, tunjLain,
     statusPtkp, punyaNpwp, jkkRate,
     ikutJht, ikutJp, ikutJkp,
     tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung,
+    pphDitanggung, bpjsBasis,
     thrBulan, thrPct, bonusBulan, bonusPct,
   ]);
 
@@ -193,6 +195,15 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
               onChange={v => { setOperasional(v); setActivePreset(null); }} />
             <NominalInput key={`tl-${resetKey}`} label="Tunjangan Lain" name="_tl" defaultValue={tunjLain}
               onChange={v => { setTunjLain(v); setActivePreset(null); }} />
+          </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[var(--border-subtle)]">
+            <div className="sm:col-span-1">
+              <NominalInput key={`bb-${resetKey}`} label="Dasar BPJS (opsional)" name="_bb" defaultValue={bpjsBasis}
+                onChange={v => { setBpjsBasis(v); setActivePreset(null); }} />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-snug">
+                Gaji yang dilaporkan ke BPJS jika berbeda dari gaji pokok. Kosongkan = pakai gaji pokok.
+              </p>
+            </div>
           </div>
 
           <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">

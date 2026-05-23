@@ -104,7 +104,7 @@ export default function ImportNewPage() {
   const [mode, setMode] = useState<'employees_only' | 'full'>('full');
   const [updateExisting, setUpdateExisting] = useState(false);
   const [reconciling, setReconciling] = useState(false);
-  const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }>>({});
+  const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }>>({});
   const [saveProgress, setSaveProgress] = useState(0);
   const [doneResult, setDoneResult] = useState<any>(null);
 
@@ -201,7 +201,7 @@ export default function ImportNewPage() {
     // Fetch current DB employee data (for salary delta display) and accumulated
     // bruto/pph for prior months (for accurate December engine comparison).
     let resolvedAccum: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
-    let resolvedDbEmps: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }> = {};
+    let resolvedDbEmps: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }> = {};
     try {
       const [accumResult, dbEmpsResult] = await Promise.allSettled([
         bulan > 1 ? fetchEmployeeAccumDataByNik(companyId, tahun, bulan) : Promise.resolve(resolvedAccum),
@@ -213,7 +213,9 @@ export default function ImportNewPage() {
     setDbEmployeeMap(resolvedDbEmps);
 
     const recs: ImportRecord[] = valid.map((emp) => {
-      const options = resolvedAccum[emp.nik];
+      const accum  = resolvedAccum[emp.nik];
+      const dbEmp  = resolvedDbEmps[emp.nik];
+      const options = { ...accum, bpjs_basis: dbEmp?.bpjs_basis ?? null };
       const rec = reconcileEmployee(emp, bulan, tahun, options);
       return {
         ...emp,
