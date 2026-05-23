@@ -1068,6 +1068,19 @@ export default function PayrollRunPage() {
 
                 {/* Ledger body */}
                 <div className="px-5 sm:px-6 py-5">
+                  {(res.proyeksi?.is_estimate === true || res.is_estimate === true) && (
+                    <div className="mb-4 flex items-start gap-2.5 bg-sky-50 border border-sky-200 rounded-lg px-4 py-2.5">
+                      <AlertTriangle size={16} className="text-sky-600 mt-0.5 shrink-0" />
+                      <div className="text-[13px] text-sky-900 leading-relaxed">
+                        <p className="font-semibold">Estimasi — data PPh Jan–Nov belum tersimpan</p>
+                        <p className="mt-0.5">
+                          Perhitungan Desember membutuhkan akumulasi PPh bulan-bulan sebelumnya.
+                          Karena data tersebut belum ada, PPh dihitung berdasarkan perkiraan gaji bulan ini × sisa bulan.
+                          Simpan run Jan–Nov terlebih dahulu lalu hitung ulang untuk hasil yang akurat.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {res.is_refund && (
                     <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
                       <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
