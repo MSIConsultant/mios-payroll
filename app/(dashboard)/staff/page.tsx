@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import {
   grantCompanyAccess, revokeCompanyAccess, removeStaffFromWorkspace,
+  inviteStaffMagicLink,
 } from '@/lib/actions/staff';
-import { sendInvite } from '@/lib/actions/workspace';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 import {
@@ -83,12 +83,13 @@ export default function StaffPage() {
   async function handleInvite() {
     if (!inviteEmail || !workspace?.id) return;
     setInviting(true);
-    const res = await sendInvite(workspace.id, inviteEmail);
+    const res = await inviteStaffMagicLink(workspace.id, inviteEmail);
     if (res.error) {
       toast.error(res.error);
     } else {
-      toast.success(`Undangan dikirim ke ${inviteEmail}`);
+      toast.success(`Magic link dikirim ke ${inviteEmail} — langsung aktif tanpa persetujuan`);
       setInviteEmail('');
+      await fetchData();
     }
     setInviting(false);
   }
@@ -200,7 +201,7 @@ export default function StaffPage() {
           </button>
         </div>
         <p className="text-[12px] text-[var(--text-muted)] mt-3">
-          Staff yang diundang perlu mendaftar dan mendapat persetujuan sebelum dapat login.
+          Staff akan langsung aktif dan mendapat email magic link untuk masuk. Tidak perlu daftar atau tunggu persetujuan.
         </p>
       </section>
 
