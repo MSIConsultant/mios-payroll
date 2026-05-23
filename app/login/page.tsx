@@ -13,6 +13,7 @@ function LoginForm() {
   const [error, setError]       = useState<string | null>(null);
   const searchParams = useSearchParams();
   const next = searchParams.get('next');
+  const sessionExpired = searchParams.get('reason') === 'session_expired';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +47,12 @@ function LoginForm() {
           </div>
 
           <form onSubmit={handleLogin} className="p-6 space-y-4">
+            {sessionExpired && !error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700 animate-fade-in">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>Sesi Anda telah berakhir karena tidak aktif selama 8 jam. Silakan masuk kembali.</span>
+              </div>
+            )}
             {error && (
               <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 animate-fade-in">
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
