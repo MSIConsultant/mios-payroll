@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
 import { getAppUrl } from '@/lib/env';
+import { inviteRatelimit, checkRateLimit } from '@/lib/ratelimit';
 
 // Option C: create an auth user immediately (no /register, no pending-approval),
 // wire them into the workspace, and let Supabase send the magic-link email.
@@ -26,6 +27,9 @@ export async function inviteStaffMagicLink(
   if (!membership) return { error: 'Tidak memiliki akses ke workspace ini.' };
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  const { allowed } = await checkRateLimit(inviteRatelimit, `invite:${workspaceId}`);
+  if (!allowed) return { error: 'Terlalu banyak undangan. Coba lagi dalam satu jam.' };
 
   // Idempotency: already a member?
   const { data: existing } = await supabase
