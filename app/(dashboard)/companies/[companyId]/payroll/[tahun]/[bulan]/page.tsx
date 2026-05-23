@@ -12,7 +12,7 @@ import { formatRupiah } from '@/lib/format';
 import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll';
 import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { updateEmployee } from '@/lib/actions/employees';
-import { printSlipGaji } from '@/lib/export/slip-gaji';
+import { printSlipGaji, printAllSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
 import { toast } from 'sonner';
 import { createShareLink } from '@/lib/actions/share';
@@ -569,13 +569,23 @@ export default function PayrollRunPage() {
 
           <div className="flex gap-2 flex-wrap">
             {isCalculated && (
-              <button
-                onClick={() => exportSPTMasa(results, company, employees, Number(bulan), Number(tahun))}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                <Download size={14} />
-                Export SPT
-              </button>
+              <>
+                <button
+                  onClick={() => printAllSlipGaji(results, company, Number(bulan), Number(tahun))}
+                  title="Cetak semua slip gaji dalam satu jendela"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  <Printer size={14} />
+                  Cetak Semua
+                </button>
+                <button
+                  onClick={() => exportSPTMasa(results, company, employees, Number(bulan), Number(tahun))}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  <Download size={14} />
+                  Export SPT
+                </button>
+              </>
             )}
             {existingRun?.status === 'locked' && (
               <button
