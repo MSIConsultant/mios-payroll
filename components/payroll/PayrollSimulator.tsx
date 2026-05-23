@@ -6,60 +6,67 @@ import { ProjectionTable } from './ProjectionTable';
 
 const BULAN_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+// 4 schemes from the SALARY sheet of "Grossup PPh 21 RALO.xlsx".
+// All use gaji Rp 9,150,000 · TK0 · NPWP · JKK 0.24%.
+// Axes: BPJS (dipotong vs ditanggung) × PPH (dipotong vs grossup).
 const PRESETS: {
   id: string; emoji: string; label: string; desc: string;
   values: Partial<ProjParams>;
 }[] = [
   {
-    id: 'umr',
-    emoji: '🏭',
-    label: 'UMR Jakarta',
-    desc: 'Rp 5,06 jt · TK0',
+    // Employee E in the Excel — BPJS dipotong dari gaji, PPH dipotong dari gaji.
+    id: 'skema1',
+    emoji: '📋',
+    label: 'PPH & BPJS Potong',
+    desc: 'BPJS & PPH dipotong dari gaji',
     values: {
-      gajiPokok: 5_067_381, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
+      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
       pphDitanggung: false, thrPct: 100, bonusPct: 0,
     },
   },
   {
-    id: 'staff',
-    emoji: '👤',
-    label: 'Staff',
-    desc: 'Rp 8 jt + tunjangan',
+    // Employee C in the Excel — BPJS ditanggung (masuk bruto), PPH dipotong dari gaji.
+    id: 'skema2',
+    emoji: '🏥',
+    label: 'BPJS Ditanggung',
+    desc: 'BPJS ditanggung · PPH dipotong',
     values: {
-      gajiPokok: 8_000_000, benefit: 1_000_000, kendaraan: 0, pulsa: 150_000, operasional: 0, tunjLain: 0,
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
-      tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
-      pphDitanggung: false, thrPct: 100, bonusPct: 50,
-    },
-  },
-  {
-    id: 'manager',
-    emoji: '💼',
-    label: 'Manager',
-    desc: 'Rp 25 jt · K1 · grossup',
-    values: {
-      gajiPokok: 25_000_000, benefit: 3_000_000, kendaraan: 2_500_000, pulsa: 500_000, operasional: 1_000_000, tunjLain: 0,
-      statusPtkp: 'K1', punyaNpwp: true, jkkRate: 0.0054,
-      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
-      tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
-      pphDitanggung: true, thrPct: 100, bonusPct: 100,
-    },
-  },
-  {
-    id: 'direktur',
-    emoji: '🎯',
-    label: 'Direktur',
-    desc: 'Rp 75 jt · K2 · grossup',
-    values: {
-      gajiPokok: 75_000_000, benefit: 10_000_000, kendaraan: 5_000_000, pulsa: 1_000_000, operasional: 3_000_000, tunjLain: 0,
-      statusPtkp: 'K2', punyaNpwp: true, jkkRate: 0.0089,
       ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
-      pphDitanggung: true, thrPct: 100, bonusPct: 150,
+      pphDitanggung: false, thrPct: 100, bonusPct: 0,
+    },
+  },
+  {
+    // Employee A in the Excel — BPJS dipotong dari gaji, PPH grossup (ditanggung perusahaan).
+    id: 'skema3',
+    emoji: '🧾',
+    label: 'PPH Grossup',
+    desc: 'BPJS dipotong · PPH grossup',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
+      pphDitanggung: true, thrPct: 100, bonusPct: 0,
+    },
+  },
+  {
+    // Employee B/D in the Excel — BPJS ditanggung (masuk bruto) + PPH grossup. Full employer cover.
+    id: 'skema4',
+    emoji: '✅',
+    label: 'Full Grossup',
+    desc: 'BPJS & PPH ditanggung penuh',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
+      pphDitanggung: true, thrPct: 100, bonusPct: 0,
     },
   },
 ];
