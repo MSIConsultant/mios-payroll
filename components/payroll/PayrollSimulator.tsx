@@ -25,6 +25,7 @@ const PRESETS: {
       ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
       pphDitanggung: false, thrPct: 100, bonusPct: 0,
+      kesEmployerInBruto: false,
     },
   },
   {
@@ -39,6 +40,7 @@ const PRESETS: {
       ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
       pphDitanggung: false, thrPct: 100, bonusPct: 0,
+      kesEmployerInBruto: true,
     },
   },
   {
@@ -53,6 +55,7 @@ const PRESETS: {
       ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
       pphDitanggung: true, thrPct: 100, bonusPct: 0,
+      kesEmployerInBruto: false,
     },
   },
   {
@@ -67,6 +70,7 @@ const PRESETS: {
       ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
       tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
       pphDitanggung: true, thrPct: 100, bonusPct: 0,
+      kesEmployerInBruto: true,
     },
   },
 ];
@@ -92,6 +96,7 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
   const [operasional,  setOperasional]  = useState(init.operasional);
   const [tunjLain,     setTunjLain]     = useState(init.tunjLain);
   const [bpjsBasis,    setBpjsBasis]    = useState(init.bpjsBasis);
+  const [kesEmployerInBruto, setKesEmployerInBruto] = useState<boolean | undefined>(init.kesEmployerInBruto);
   const [statusPtkp,   setStatusPtkp]   = useState(init.statusPtkp);
   const [punyaNpwp,    setPunyaNpwp]    = useState(init.punyaNpwp);
   const [jkkRate,      setJkkRate]      = useState(init.jkkRate);
@@ -117,6 +122,7 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
     if (v.operasional !== undefined) setOperasional(v.operasional);
     if (v.tunjLain    !== undefined) setTunjLain(v.tunjLain);
     if (v.bpjsBasis   !== undefined) setBpjsBasis(v.bpjsBasis);
+    if (v.kesEmployerInBruto !== undefined) setKesEmployerInBruto(v.kesEmployerInBruto);
     if (v.statusPtkp  !== undefined) setStatusPtkp(v.statusPtkp);
     if (v.punyaNpwp   !== undefined) setPunyaNpwp(v.punyaNpwp);
     if (v.jkkRate     !== undefined) setJkkRate(v.jkkRate);
@@ -139,14 +145,14 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
     statusPtkp, punyaNpwp, jkkRate,
     ikutJht, ikutJp, ikutJkp,
     tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung, bpjsBasis,
+    pphDitanggung, bpjsBasis, kesEmployerInBruto,
     thrBulan, thrPct, bonusBulan, bonusPct,
   }), [
     gajiPokok, benefit, kendaraan, pulsa, operasional, tunjLain,
     statusPtkp, punyaNpwp, jkkRate,
     ikutJht, ikutJp, ikutJkp,
     tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung, bpjsBasis,
+    pphDitanggung, bpjsBasis, kesEmployerInBruto,
     thrBulan, thrPct, bonusBulan, bonusPct,
   ]);
 

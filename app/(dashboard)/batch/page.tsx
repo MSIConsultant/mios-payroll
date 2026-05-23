@@ -14,41 +14,15 @@ const BULAN_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu',
 
 type RunStatus = 'locked' | 'calculated' | 'draft' | 'none';
 
-const STATUS_META: Record<
-  RunStatus,
-  { label: string; chip: string; icon: typeof Lock; leftBar: string }
-> = {
-  locked: {
-    label: 'Terkunci',
-    chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    icon: Lock,
-    leftBar: 'bg-emerald-500',
-  },
-  calculated: {
-    label: 'Dihitung',
-    chip: 'bg-sky-50 text-sky-700 ring-sky-200',
-    icon: CheckCircle2,
-    leftBar: 'bg-sky-500',
-  },
-  draft: {
-    label: 'Draft',
-    chip: 'bg-amber-50 text-amber-700 ring-amber-200',
-    icon: Clock,
-    leftBar: 'bg-amber-500',
-  },
-  none: {
-    label: 'Pending',
-    chip: 'bg-slate-100 text-slate-600 ring-slate-200',
-    icon: Clock,
-    leftBar: 'bg-slate-200',
-  },
+const STATUS_META: Record<RunStatus, { label: string; chip: string; icon: typeof Lock; leftBar: string }> = {
+  locked:     { label: 'Terkunci', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: Lock,         leftBar: 'bg-emerald-500' },
+  calculated: { label: 'Dihitung', chip: 'bg-sky-50 text-sky-700 ring-sky-200',             icon: CheckCircle2, leftBar: 'bg-sky-500'     },
+  draft:      { label: 'Draft',    chip: 'bg-amber-50 text-amber-700 ring-amber-200',        icon: Clock,        leftBar: 'bg-amber-500'   },
+  none:       { label: 'Pending',  chip: 'bg-slate-100 text-slate-600 ring-slate-200',       icon: Clock,        leftBar: 'bg-slate-200'   },
 };
 
 interface CompanyRow {
-  id: string;
-  name: string;
-  kota: string | null;
-  empCount: number;
+  id: string; name: string; kota: string | null; empCount: number;
   thisMonth: { status: RunStatus; runId?: string; bruto?: number; pph?: number; thp?: number } | null;
   lastMonth: { status: RunStatus; bruto?: number } | null;
   anomaly: 'up' | 'down' | null;
@@ -68,20 +42,14 @@ export default function BatchPage() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!workspace) {
-        setLoading(false);
-        return;
-      }
+      if (!workspace) { setLoading(false); return; }
       const supabase = createClient();
 
       const { data: companies } = await supabase
         .from('companies').select('id, name, kota')
         .eq('workspace_id', workspace.id).eq('aktif', true).order('name');
 
-      if (!companies?.length) {
-        setLoading(false);
-        return;
-      }
+      if (!companies?.length) { setLoading(false); return; }
       const companyIds = companies.map((c) => c.id);
 
       const [{ data: thisRuns }, { data: prevRuns }, { data: emps }] = await Promise.all([
@@ -139,18 +107,10 @@ export default function BatchPage() {
         }
 
         return {
-          id: co.id,
-          name: co.name,
-          kota: co.kota,
+          id: co.id, name: co.name, kota: co.kota,
           empCount: empCountByCompany[co.id] ?? 0,
           thisMonth: thisRun
-            ? {
-                status: thisRun.status as RunStatus,
-                runId: thisRun.id,
-                bruto: thisTot?.bruto,
-                pph: thisTot?.pph,
-                thp: thisTot?.thp,
-              }
+            ? { status: thisRun.status as RunStatus, runId: thisRun.id, bruto: thisTot?.bruto, pph: thisTot?.pph, thp: thisTot?.thp }
             : null,
           lastMonth: prevRun
             ? { status: prevRun.status as RunStatus, bruto: prevTot?.bruto }
@@ -182,10 +142,10 @@ export default function BatchPage() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-5 border-b border-[var(--border-default)]">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center">
-            <Layers size={20} />
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-[var(--border-subtle)]">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center shadow-[var(--shadow-metric)]">
+            <Layers size={22} />
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
@@ -198,31 +158,33 @@ export default function BatchPage() {
         </div>
       </header>
 
-      {/* Summary */}
+      {/* Summary cards */}
       {rows.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="sm:col-span-2 bg-white border border-[var(--border-default)] rounded-xl p-5">
+          {/* Total THP */}
+          <div className="sm:col-span-2 bg-white border border-[var(--border-subtle)] rounded-2xl p-5 shadow-[var(--shadow-card)]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Total THP Bulan Ini
             </p>
-            <p className="mt-2 text-2xl font-bold text-emerald-700 font-mono">
+            <p className="mt-2.5 text-3xl font-bold text-emerald-700 font-mono leading-none">
               {totalThp > 0 ? formatRupiah(totalThp) : '—'}
             </p>
-            <p className="text-[12px] text-[var(--text-muted)] mt-1">
-              PPh 21:{' '}
-              <span className="font-mono font-semibold text-amber-700">
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">PPh 21</span>
+              <span className="font-mono font-semibold text-[13px] text-amber-700">
                 {totalPph > 0 ? formatRupiah(totalPph) : '—'}
               </span>
-            </p>
+            </div>
           </div>
 
-          <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
+          {/* Progress */}
+          <div className="bg-white border border-[var(--border-subtle)] rounded-2xl p-5 shadow-[var(--shadow-card)]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Progress
             </p>
-            <p className="mt-2 text-2xl font-bold text-[var(--text-primary)] font-mono">
+            <p className="mt-2.5 text-3xl font-bold text-[var(--text-primary)] font-mono leading-none">
               {counts.locked}
-              <span className="text-[var(--text-muted)] text-lg font-semibold">
+              <span className="text-[var(--text-muted)] text-xl font-semibold">
                 /{rows.length}
               </span>
             </p>
@@ -232,24 +194,30 @@ export default function BatchPage() {
                 style={{ width: `${lockedPct}%` }}
               />
             </div>
+            <p className="mt-1.5 text-[11px] font-semibold text-[var(--text-muted)]">
+              {lockedPct.toFixed(0)}% terkunci
+            </p>
           </div>
 
+          {/* Anomali */}
           <div
-            className={`bg-white border rounded-xl p-5 ${
-              anomalies > 0 ? 'border-amber-300 bg-amber-50/50' : 'border-[var(--border-default)]'
+            className={`bg-white border rounded-2xl p-5 shadow-[var(--shadow-card)] ${
+              anomalies > 0 ? 'border-amber-200' : 'border-[var(--border-subtle)]'
             }`}
           >
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Anomali
             </p>
             <p
-              className={`mt-2 text-2xl font-bold font-mono ${
+              className={`mt-2.5 text-3xl font-bold font-mono leading-none ${
                 anomalies > 0 ? 'text-amber-700' : 'text-[var(--text-faint)]'
               }`}
             >
               {anomalies}
             </p>
-            <p className="text-[12px] text-[var(--text-muted)] mt-1">&gt;15% perubahan bruto</p>
+            <p className="text-[11px] font-semibold text-[var(--text-muted)] mt-2">
+              &gt;15% perubahan bruto
+            </p>
           </div>
         </div>
       )}
@@ -269,10 +237,10 @@ export default function BatchPage() {
           return (
             <button
               key={key}
-              onClick={() => setFilter(key as any)}
+              onClick={() => setFilter(key as RunStatus | 'all')}
               className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors cursor-pointer ${
                 active
-                  ? 'bg-[var(--brand)] text-white'
+                  ? 'bg-[var(--brand)] text-white shadow-sm'
                   : 'bg-white border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -289,18 +257,21 @@ export default function BatchPage() {
 
       {/* Rows */}
       {loading || wsLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-24 bg-white border border-[var(--border-default)] rounded-xl animate-pulse"
+              className="h-24 bg-white border border-[var(--border-subtle)] rounded-xl animate-pulse shadow-[var(--shadow-card)]"
             />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-xl py-16 text-center">
-          <Layers size={28} className="mx-auto text-[var(--text-faint)]" />
-          <p className="mt-3 text-sm text-[var(--text-secondary)]">Tidak ada hasil</p>
+        <div className="bg-white border border-dashed border-[var(--border-default)] rounded-2xl py-20 text-center shadow-[var(--shadow-card)]">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-center mx-auto">
+            <Layers size={26} className="text-[var(--text-faint)]" />
+          </div>
+          <p className="mt-4 text-sm font-semibold text-[var(--text-secondary)]">Tidak ada hasil</p>
+          <p className="mt-1 text-[13px] text-[var(--text-muted)]">Coba ubah filter status di atas</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -315,19 +286,22 @@ export default function BatchPage() {
                 className="animate-fade-in-up"
                 style={{ animationDelay: `${Math.min(i, 8) * 0.03}s`, opacity: 0 }}
               >
-                <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                <div className="bg-white border border-[var(--border-subtle)] rounded-xl overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:border-[var(--border-strong)] transition-all">
                   <div className="flex items-stretch">
                     {/* Status bar */}
-                    <div className={`w-1 ${meta.leftBar}`} />
+                    <div className={`w-1.5 shrink-0 ${meta.leftBar}`} />
 
                     <div className="flex-1 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       {/* Name + meta */}
                       <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <Icon size={16} className={`mt-0.5 shrink-0 ${
-                          status === 'locked' ? 'text-emerald-600' :
-                          status === 'calculated' ? 'text-sky-600' :
-                          status === 'draft' ? 'text-amber-600' : 'text-slate-400'
-                        }`} />
+                        <Icon
+                          size={16}
+                          className={`mt-0.5 shrink-0 ${
+                            status === 'locked'     ? 'text-emerald-600' :
+                            status === 'calculated' ? 'text-sky-600'     :
+                            status === 'draft'      ? 'text-amber-600'   : 'text-slate-400'
+                          }`}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-[15px] font-semibold text-[var(--text-primary)] truncate">
@@ -364,21 +338,9 @@ export default function BatchPage() {
                       {/* Figures */}
                       {co.thisMonth?.thp ? (
                         <div className="grid grid-cols-3 gap-4 sm:gap-6 text-right shrink-0">
-                          <Figure
-                            label="Bruto"
-                            value={formatRupiah(co.thisMonth.bruto ?? 0)}
-                          />
-                          <Figure
-                            label="PPh 21"
-                            value={formatRupiah(co.thisMonth.pph ?? 0)}
-                            tone="amber"
-                          />
-                          <Figure
-                            label="THP"
-                            value={formatRupiah(co.thisMonth.thp ?? 0)}
-                            tone="emerald"
-                            strong
-                          />
+                          <Figure label="Bruto" value={formatRupiah(co.thisMonth.bruto ?? 0)} />
+                          <Figure label="PPh 21" value={formatRupiah(co.thisMonth.pph ?? 0)} tone="amber" />
+                          <Figure label="THP" value={formatRupiah(co.thisMonth.thp ?? 0)} tone="emerald" strong />
                         </div>
                       ) : (
                         <p className="text-[13px] text-[var(--text-muted)] shrink-0">
@@ -412,7 +374,7 @@ export default function BatchPage() {
                   </div>
 
                   {co.lastMonth?.bruto && co.thisMonth?.bruto ? (
-                    <div className="px-5 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)] flex items-center gap-3 flex-wrap">
+                    <div className="px-5 py-2.5 border-t border-[var(--border-subtle)] bg-slate-50/80 flex items-center gap-3 flex-wrap">
                       <p className="text-[12px] text-[var(--text-muted)]">
                         vs {BULAN_SHORT[prevBulan]}{' '}
                         <span className="font-mono text-[var(--text-secondary)]">
@@ -453,13 +415,13 @@ function Figure({
   strong?: boolean;
 }) {
   const toneClass =
-    tone === 'amber'   ? 'text-amber-700' :
-    tone === 'emerald' ? 'text-emerald-700' :
+    tone === 'amber'   ? 'text-amber-700'   :
+    tone === 'emerald' ? 'text-emerald-700'  :
     'text-[var(--text-primary)]';
   return (
     <div>
       <p
-        className={`text-[13px] font-mono ${strong ? 'font-bold' : 'font-semibold'} ${toneClass}`}
+        className={`font-mono ${strong ? 'text-base font-bold' : 'text-[13px] font-semibold'} ${toneClass}`}
       >
         {value}
       </p>

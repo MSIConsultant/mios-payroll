@@ -61,6 +61,31 @@
   --shadow-lg:   0 8px 24px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.04);
   --shadow-xl:   0 16px 40px rgba(15,23,42,0.12);
   --shadow-focus: 0 0 0 3px var(--brand-ring);
+
+  /* ── Card shadows (Finance SaaS v4) ── */
+  --shadow-card:       0 1px 4px rgba(15,23,42,0.08);
+  --shadow-card-hover: 0 4px 16px rgba(15,23,42,0.12);
+  --shadow-metric:     0 2px 8px rgba(15,23,42,0.09);
+
+  /* ── Sidebar — dark navy shell ── */
+  --sidebar-bg:          #0B1120;
+  --sidebar-bg-hover:    rgba(255,255,255,0.06);
+  --sidebar-bg-active:   rgba(59,130,246,0.15);
+  --sidebar-border:      rgba(255,255,255,0.07);
+  --sidebar-text:        #8B9DB5;
+  --sidebar-text-active: #F1F5F9;
+  --sidebar-text-hover:  #C8D5E8;
+  --sidebar-accent:      #3B82F6;
+
+  /* ── Metric accent pairs ── */
+  --metric-blue-soft:   #EFF6FF;
+  --metric-blue-text:   #1D4ED8;
+  --metric-green-soft:  #ECFDF5;
+  --metric-green-text:  #065F46;
+  --metric-amber-soft:  #FFFBEB;
+  --metric-amber-text:  #92400E;
+  --metric-violet-soft: #F5F3FF;
+  --metric-violet-text: #5B21B6;
 }
 
 /* ─── Base ─── */
