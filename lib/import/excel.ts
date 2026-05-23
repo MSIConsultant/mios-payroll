@@ -142,7 +142,7 @@ export function reconcileEmployee(
   emp: ParsedEmp,
   bulan: number,
   tahun: number,
-  options?: { akum_bruto?: number; pph_jan_nov?: number },
+  options?: { akum_bruto?: number; pph_jan_nov?: number; bpjs_basis?: number | null },
 ): ReconcileResult {
   try {
     let result: any = {};
@@ -153,6 +153,7 @@ export function reconcileEmployee(
       bulan, tahun,
       tunj_lain: 0, kasbon: 0, alpha_telat: 0, pot_lain: 0,
       thr: 0, bonus: 0, pph_jan_nov, akum_bruto,
+      bpjs_basis: options?.bpjs_basis ?? null,
       ikut_jkp: false,
       tanggung_jht_k: emp.ikut_jht,
       tanggung_jp_k: emp.ikut_jp,

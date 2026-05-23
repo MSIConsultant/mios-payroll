@@ -8,7 +8,7 @@ import {
   Loader2, Trash2, Play, Layers, RefreshCw,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { saveImport, type ImportRecord } from '@/lib/actions/import';
+import { saveImport, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
   parseWorkbook, reconcileEmployee, type ParsedEmp,
 } from '@/lib/import/excel';
@@ -66,6 +66,7 @@ export default function ImportBulkPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [companyId, setCompanyId] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
+  const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { bpjs_basis: number | null }>>({});
   const [defaultYear, setDefaultYear] = useState(new Date().getFullYear());
   const [items, setItems] = useState<QueueItem[]>([]);
   const [updateExisting, setUpdateExisting] = useState(false);
@@ -95,6 +96,15 @@ export default function ImportBulkPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (!companyId) { setDbEmployeeMap({}); return; }
+    fetchExistingEmployeeDataByNik(companyId).then((map) => {
+      const slim: Record<string, { bpjs_basis: number | null }> = {};
+      for (const nik of Object.keys(map)) slim[nik] = { bpjs_basis: map[nik].bpjs_basis };
+      setDbEmployeeMap(slim);
+    }).catch(() => {});
+  }, [companyId]);
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).filter(
@@ -179,7 +189,8 @@ export default function ImportBulkPage() {
 
       // Reconcile
       const records: ImportRecord[] = valid.map((emp) => {
-        const rec = reconcileEmployee(emp, effectiveMonth, item.year ?? defaultYear);
+        const bpjs_basis = dbEmployeeMap[emp.nik]?.bpjs_basis ?? null;
+        const rec = reconcileEmployee(emp, effectiveMonth, item.year ?? defaultYear, { bpjs_basis });
         return {
           ...emp,
           engine_bruto: rec.engine_bruto,
