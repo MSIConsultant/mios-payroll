@@ -50,12 +50,12 @@ export default function NavLinks({
               collapsed ? 'px-0 py-2.5 justify-center' : 'px-3 py-2'
             } ${
               active
-                ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+                ? 'bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)]'
+                : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)]'
             }`}
           >
             {active && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--brand)] rounded-r-full" />
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--sidebar-accent)] rounded-r-full" />
             )}
             <Icon size={17} className="shrink-0" />
             {!collapsed && (
@@ -74,7 +74,7 @@ export default function NavLinks({
 
       <button
         onClick={onToggle}
-        className={`flex items-center justify-center w-full rounded-lg py-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer ${
+        className={`flex items-center justify-center w-full rounded-lg py-2 text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-hover)] hover:bg-[var(--sidebar-bg-hover)] transition-colors cursor-pointer ${
           collapsed ? 'px-0' : 'px-3 gap-2'
         }`}
         aria-label={collapsed ? 'Buka sidebar' : 'Tutup sidebar'}

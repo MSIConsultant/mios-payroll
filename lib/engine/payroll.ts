@@ -33,6 +33,13 @@ export interface KaryawanTetap {
     tanggung_jp_k: boolean;
     ikut_kes: boolean;
     tanggung_kes_k: boolean;
+    /**
+     * Whether the employer KES contribution (4%) is included in taxable bruto.
+     * Defaults to true. Set to false for schemes where the employee pays their
+     * own KES (tanggung_kes_k=false) and the employer's share is treated as an
+     * off-slip cost — matching the accountant's Excel for BPJS-dipotong schemes.
+     */
+    kes_employer_in_bruto?: boolean;
     pph_ditanggung: boolean;
     kasbon: number;
     alpha_telat: number;
@@ -131,7 +138,7 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
 
     return {
         jkk, jkm, jht_e, jp_e, jkp, kes_e,
-        employer_in_bruto: jkk + jkm + kes_e,
+        employer_in_bruto: jkk + jkm + (k.kes_employer_in_bruto !== false ? kes_e : 0),
         employer_offslip: jht_e + jp_e + jkp,
         employer_total: jkk + jkm + jht_e + jp_e + jkp + kes_e,
         jht_k, jp_k, kes_k,

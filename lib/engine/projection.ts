@@ -20,6 +20,7 @@ export type ProjParams = {
   tanggungKesK: boolean;
   pphDitanggung: boolean;
   bpjsBasis?: number;
+  kesEmployerInBruto?: boolean;
   thrBulan: number;
   thrPct: number;
   bonusBulan: number;
@@ -77,6 +78,7 @@ export function runProjection(p: ProjParams): ProjResult | null {
       gaji_pokok: p.gajiPokok, benefit: p.benefit, kendaraan: p.kendaraan,
       pulsa: p.pulsa, operasional: p.operasional, tunj_lain: p.tunjLain,
       bpjs_basis: (p.bpjsBasis ?? 0) > 0 ? p.bpjsBasis : undefined,
+      kes_employer_in_bruto: p.kesEmployerInBruto,
       thr, bonus,
       ikut_jht: p.ikutJht, ikut_jp: p.ikutJp, ikut_jkp: p.ikutJkp,
       jkk_rate: p.jkkRate,
