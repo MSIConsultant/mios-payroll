@@ -106,16 +106,20 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
     const jp_basis = Math.min(basis, JP_MAX_BASIS);
     const kes_basis = Math.min(basis, KES_MAX_BASIS);
 
-    const jkk = Math.round(basis * k.jkk_rate);
-    const jkm = Math.round(basis * BPJS.jkm);
-    const jht_e = k.ikut_jht ? Math.round(basis * BPJS.jht_e) : 0;
-    const jp_e = k.ikut_jp ? Math.round(jp_basis * BPJS.jp_e) : 0;
+    // Keep components as raw floats — the accountant's Excel keeps decimal BPJS
+    // values (e.g. 13,751.70) throughout. Rounding per-component introduces
+    // accumulated error in bruto and can shift TER brackets. Round only at the
+    // point of actual cash deduction (karyawan_potong in the THP formula).
+    const jkk = basis * k.jkk_rate;
+    const jkm = basis * BPJS.jkm;
+    const jht_e = k.ikut_jht ? basis * BPJS.jht_e : 0;
+    const jp_e = k.ikut_jp ? jp_basis * BPJS.jp_e : 0;
     const jkp = 0;
-    const kes_e = k.ikut_kes ? Math.round(kes_basis * BPJS.kes_e) : 0;
+    const kes_e = k.ikut_kes ? kes_basis * BPJS.kes_e : 0;
 
-    const jht_k = k.ikut_jht ? Math.round(basis * BPJS.jht_k) : 0;
-    const jp_k = k.ikut_jp ? Math.round(jp_basis * BPJS.jp_k) : 0;
-    const kes_k = k.ikut_kes ? Math.round(kes_basis * BPJS.kes_k) : 0;
+    const jht_k = k.ikut_jht ? basis * BPJS.jht_k : 0;
+    const jp_k = k.ikut_jp ? jp_basis * BPJS.jp_k : 0;
+    const kes_k = k.ikut_kes ? kes_basis * BPJS.kes_k : 0;
 
     const tunj_jht = k.tanggung_jht_k ? jht_k : 0;
     const tunj_jp = k.tanggung_jp_k ? jp_k : 0;
@@ -214,7 +218,7 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     const bruto = base + tunj_pph;
     const ter = getTerRate(bruto, grup);
 
-    const thp = k.gaji_pokok + allowance_total + irregular_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    const thp = k.gaji_pokok + allowance_total + irregular_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     // Annual projection: matches the accountant's standard Excel layout where
     // every monthly worksheet shows "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES" as
@@ -343,7 +347,7 @@ export function calculateLastMonth(
     const tunj_pph = k.pph_ditanggung ? pd : 0;
     const pot_pph = k.pph_ditanggung ? 0 : pd;
 
-    const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    const thp = k.gaji_pokok + allowance_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     const proyeksi = {
         bruto_setahun: bs,
