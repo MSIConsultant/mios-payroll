@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle,
-  Loader2, X, Trash2, Play, Layers,
+  Loader2, Trash2, Play, Layers, RefreshCw,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { saveImport, type ImportRecord } from '@/lib/actions/import';
@@ -68,9 +68,13 @@ export default function ImportBulkPage() {
   const [workspaceId, setWorkspaceId] = useState('');
   const [defaultYear, setDefaultYear] = useState(new Date().getFullYear());
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [updateExisting, setUpdateExisting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [running, setRunning] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Keep a live ref to items so processAll can check for user-removals mid-run
+  const itemsRef = useRef<QueueItem[]>([]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
 
   useEffect(() => {
     async function load() {
@@ -196,6 +200,7 @@ export default function ImportBulkPage() {
         tahun: item.year ?? defaultYear,
         fileName: item.file.name,
         mode: 'full',
+        update_existing: updateExisting,
         records,
       });
       if (res.error) {
@@ -233,8 +238,8 @@ export default function ImportBulkPage() {
     }
     setRunning(true);
     for (const i of queue) {
-      // Read latest version of item from state (in case user removed it)
-      const current = items.find((x) => x.id === i.id);
+      // Use ref so we check the live state (in case user removed item mid-run)
+      const current = itemsRef.current.find((x) => x.id === i.id);
       if (!current) continue;
       await processOne(current);
     }
@@ -321,6 +326,30 @@ export default function ImportBulkPage() {
             </p>
           </div>
         </div>
+
+        <button
+          onClick={() => setUpdateExisting((v) => !v)}
+          className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-all cursor-pointer ${
+            updateExisting
+              ? 'bg-amber-50 border border-amber-300'
+              : 'bg-[var(--bg-subtle)] border border-[var(--border-default)] hover:border-[var(--border-strong)]'
+          }`}
+        >
+          <RefreshCw size={14} className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'} />
+          <div className="flex-1 min-w-0">
+            <span className={`text-[13px] font-semibold ${updateExisting ? 'text-amber-900' : 'text-[var(--text-secondary)]'}`}>
+              Perbarui karyawan yang sudah ada
+            </span>
+            <span className="ml-2 text-[12px] text-[var(--text-muted)]">
+              {updateExisting ? '— aktif: gaji/PTKP ditimpa dari Excel' : '— nonaktif: karyawan lama dilewati'}
+            </span>
+          </div>
+          <div className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+            updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
+          }`}>
+            {updateExisting && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+          </div>
+        </button>
       </section>
 
       {/* Dropzone */}
