@@ -43,6 +43,6 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: { disable: process.env.NODE_ENV !== 'production' },
   // Don't add Sentry telemetry to the bundle
   telemetry: false,
-  // Suppress the Sentry CLI wizard prompt
-  disableLogger: true,
+  // Tree-shake Sentry debug logging out of the production bundle
+  webpack: { treeshake: { removeDebugLogging: true } },
 });
