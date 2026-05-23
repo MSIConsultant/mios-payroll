@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyRatelimit, checkRateLimit } from '@/lib/ratelimit';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const DEV_EMAIL      = 'msiconsultant.international@gmail.com';
@@ -17,6 +18,11 @@ function escapeHtml(str: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit by IP: 5 notifications per hour to protect Resend quota.
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    const { allowed } = await checkRateLimit(notifyRatelimit, `notify:${ip}`);
+    if (!allowed) return NextResponse.json({ ok: false }, { status: 429 });
+
     const body = await req.json().catch(() => null);
     const rawEmail = typeof body?.email === 'string' ? body.email.trim() : '';
     if (!rawEmail || rawEmail.length > 320) return NextResponse.json({ ok: false });

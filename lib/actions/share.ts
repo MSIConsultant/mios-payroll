@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { assertRunAccess } from '@/lib/auth/assertAccess';
 import { audit } from '@/lib/audit';
 import { getAppUrl } from '@/lib/env';
+import { shareLinkRatelimit, checkRateLimit } from '@/lib/ratelimit';
 
 export async function createShareLink(
   runId: string,
@@ -12,7 +13,10 @@ export async function createShareLink(
 ) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, user } = access;
+
+  const { allowed } = await checkRateLimit(shareLinkRatelimit, `share:${user.id}`);
+  if (!allowed) return { error: 'Terlalu banyak permintaan. Coba lagi dalam beberapa menit.' };
 
   const token = randomBytes(24).toString('hex');
   const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
