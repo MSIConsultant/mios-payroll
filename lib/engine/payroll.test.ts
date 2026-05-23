@@ -142,7 +142,7 @@ describe('calculateBPJS', () => {
   it('zero everywhere when no flags enabled', () => {
     const r = calculateBPJS(5_000_000, tetap({ jkk_rate: 0 }));
     expect(r.jkk).toBe(0);
-    expect(r.jkm).toBe(15_000);  // jkm is always computed (employer-paid)
+    expect(r.jkm).toBeCloseTo(15_000, 0);  // jkm is always computed (employer-paid)
     expect(r.jht_e).toBe(0);
     expect(r.jp_e).toBe(0);
     expect(r.kes_e).toBe(0);
@@ -150,17 +150,18 @@ describe('calculateBPJS', () => {
 
   it('JKK uses per-employee rate', () => {
     const r = calculateBPJS(10_000_000, tetap({ jkk_rate: 0.0089 }));
-    expect(r.jkk).toBe(89_000); // 10M × 0.0089
+    expect(r.jkk).toBeCloseTo(89_000, 0); // 10M × 0.0089
   });
 
   it('JHT/JP/Kes enrolled: employer + karyawan amounts', () => {
     const r = calculateBPJS(8_000_000, tetap({
       ikut_jht: true, ikut_jp: true, ikut_kes: true, jkk_rate: 0.0024,
     }));
-    expect(r.jht_e).toBe(Math.round(8_000_000 * BPJS.jht_e)); // 296_000
-    expect(r.jht_k).toBe(Math.round(8_000_000 * BPJS.jht_k)); // 160_000
-    expect(r.jp_e).toBe(Math.round(8_000_000 * BPJS.jp_e));   // 160_000
-    expect(r.kes_e).toBe(Math.round(8_000_000 * BPJS.kes_e)); // 320_000
+    // Components are raw floats — toBeCloseTo guards against IEEE 754 sub-rupiah noise
+    expect(r.jht_e).toBeCloseTo(296_000, 0); // 8M × 0.037
+    expect(r.jht_k).toBeCloseTo(160_000, 0); // 8M × 0.02
+    expect(r.jp_e).toBeCloseTo(160_000, 0);  // 8M × 0.02
+    expect(r.kes_e).toBeCloseTo(320_000, 0); // 8M × 0.04
   });
 
   it('JP capped at JP_MAX_BASIS', () => {
@@ -169,9 +170,9 @@ describe('calculateBPJS', () => {
       ikut_jp: true, ikut_jht: true, ikut_kes: true, jkk_rate: 0.0024,
     }));
     // JP basis caps at 10,547,400 → JP_e = cap × 0.02 = 210,948
-    expect(r.jp_e).toBe(Math.round(JP_MAX_BASIS * BPJS.jp_e));
-    // JHT does NOT cap → 20M × 0.037
-    expect(r.jht_e).toBe(Math.round(20_000_000 * BPJS.jht_e));
+    expect(r.jp_e).toBeCloseTo(210_948, 0);
+    // JHT does NOT cap → 20M × 0.037 = 740,000
+    expect(r.jht_e).toBeCloseTo(740_000, 0);
   });
 
   it('Kes capped at KES_MAX_BASIS', () => {
@@ -179,15 +180,14 @@ describe('calculateBPJS', () => {
     const r = calculateBPJS(20_000_000, tetap({
       ikut_kes: true, jkk_rate: 0.0024,
     }));
-    expect(r.kes_e).toBe(Math.round(KES_MAX_BASIS * BPJS.kes_e)); // 480_000
+    expect(r.kes_e).toBeCloseTo(480_000, 0); // 12M × 0.04 = 480,000
   });
 
   it('tanggung_jht_k: JHT karyawan amount becomes tunjangan, not potongan', () => {
     const r = calculateBPJS(10_000_000, tetap({
       ikut_jht: true, tanggung_jht_k: true, jkk_rate: 0.0024,
     }));
-    const expected = Math.round(10_000_000 * BPJS.jht_k);
-    expect(r.tunj_jht).toBe(expected);
+    expect(r.tunj_jht).toBeCloseTo(200_000, 0); // 10M × 0.02
     expect(r.pot_jht).toBe(0);
   });
 });
@@ -202,10 +202,10 @@ describe('bpjs_basis override (PMK-aware: declared BPJS salary often != gaji)', 
       status_ptkp: 'K0',
       // bpjs_basis omitted → undefined → fallback
     }));
-    // JKK = 8_270_526 × 0.0024 = 19_849.26 → rounded 19_849
-    expect(r.bpjs.jkk).toBe(19_849);
-    // KES_e = min(8_270_526, 12M) × 0.04 = 330_821.04 → 330_821
-    expect(r.bpjs.kes_e).toBe(330_821);
+    // JKK = 8_270_526 × 0.0024 = 19_849.26 — kept as decimal, not rounded to 19_849
+    expect(r.bpjs.jkk).toBeCloseTo(19_849.26, 1);
+    // KES_e = min(8_270_526, 12M) × 0.04 = 330_821.04 — kept as decimal
+    expect(r.bpjs.kes_e).toBeCloseTo(330_821.04, 1);
   });
 
   it('non-null bpjs_basis: BPJS calculated against declared basis, not gaji_pokok', () => {
@@ -216,11 +216,12 @@ describe('bpjs_basis override (PMK-aware: declared BPJS salary often != gaji)', 
       jkk_rate: 0.0024,
       status_ptkp: 'K0',
     }));
-    expect(r.bpjs.jkk).toBe(13_752);    // 5_729_876 × 0.0024
-    expect(r.bpjs.jkm).toBe(17_190);    // 5_729_876 × 0.003
-    expect(r.bpjs.kes_e).toBe(229_195); // 5_729_876 × 0.04
-    expect(r.bpjs.jht_e).toBe(212_005); // 5_729_876 × 0.037
-    expect(r.bpjs.jp_e).toBe(114_598);  // 5_729_876 × 0.02 (under JP cap)
+    // Components are raw decimals — verifying the value is NOT rounded to integer
+    expect(r.bpjs.jkk).toBeCloseTo(13_751.70, 1);   // 5_729_876 × 0.0024 = 13751.7024
+    expect(r.bpjs.jkm).toBeCloseTo(17_189.63, 1);   // 5_729_876 × 0.003
+    expect(r.bpjs.kes_e).toBeCloseTo(229_195.04, 1); // 5_729_876 × 0.04
+    expect(r.bpjs.jht_e).toBeCloseTo(212_005.41, 1); // 5_729_876 × 0.037
+    expect(r.bpjs.jp_e).toBeCloseTo(114_597.52, 1);  // 5_729_876 × 0.02 (under JP cap)
   });
 
   it('REGRESSION (GABEMARITO Feb-2026): engine matches Excel PPh exactly', () => {
@@ -237,11 +238,11 @@ describe('bpjs_basis override (PMK-aware: declared BPJS salary often != gaji)', 
       punya_npwp: true,
       pph_ditanggung: false,
     }));
-    // bruto = 8_270_526 + 0 + 0 + (JKK 13_752 + JKM 17_190 + KES_e 229_195) + 0
-    //       = 8_530_663
-    expect(r.bruto).toBe(8_530_663);
+    // bruto = 8_270_526 + (JKK 13751.70 + JKM 17189.63 + KES_e 229195.04) = 8_530_662.37
+    // (prior rounded-component result was 8_530_663 — decimal bruto matches Excel more closely)
+    expect(r.bruto).toBeCloseTo(8_530_662.37, 0);
     expect(r.ter).toBe(0.015); // TER A 7,500,001..8,550,000
-    expect(r.pph).toBe(127_960); // 0.015 × 8,530,663 = 127,959.945 → 127,960
+    expect(r.pph).toBe(127_960); // 0.015 × 8,530,662.37 = 127,959.94 → 127,960
   });
 });
 
@@ -250,7 +251,7 @@ describe('calculateMonthlySalary (non-grossup, TER)', () => {
   it('simple TER A: 5M gaji, no allowances, no BPJS, TK0', () => {
     const r = calculateMonthlySalary(tetap({ gaji_pokok: 5_000_000, jkk_rate: 0 }));
     expect(r.grup).toBe('A');
-    expect(r.bruto).toBe(5_015_000); // 5M + jkm (15k) — jkk=0 because rate=0
+    expect(r.bruto).toBeCloseTo(5_015_000, 0); // 5M + jkm (15k) — jkk=0 because rate=0
     expect(r.ter).toBe(0); // 5,015,000 is in TER A bracket 0..5,400,000 → 0%
     expect(r.pph).toBe(0);
     expect(r.tunj_pph).toBe(0);
@@ -263,9 +264,9 @@ describe('calculateMonthlySalary (non-grossup, TER)', () => {
       ikut_jht: true, ikut_jp: true, ikut_kes: true,
       jkk_rate: 0.0024,
     }));
-    // bruto = 8M + JKK(19200) + JKM(24000) + KES_e(320000) = 8,363,200
-    // TER A at 8,363,200 → 0.015 bracket → PPh = 8,363,200 × 0.015 = 125,448
-    expect(r.bruto).toBe(8_363_200);
+    // bruto = 8M + JKK(~19200) + JKM(~24000) + KES_e(~320000) ≈ 8,363,200
+    // TER A at ~8,363,200 → 0.015 bracket → PPh = bruto × 0.015 = 125,448
+    expect(r.bruto).toBeCloseTo(8_363_200, 0);
     expect(r.ter).toBe(0.015);
     expect(r.pph).toBe(125_448);
   });
@@ -294,9 +295,8 @@ describe('calculateMonthlySalary (grossup / pph_ditanggung)', () => {
     expect(r.pph_ditanggung).toBe(true);
     expect(r.tunj_pph).toBe(r.pph);
     expect(r.pot_pph).toBe(0);
-    // THP = gaji + allowances + irregular - karyawan_potong - 0 (no pot_pph) - 0
-    //     = 8M + 0 + 0 - karyawan_potong
-    expect(r.thp).toBe(8_000_000 - r.bpjs.karyawan_potong);
+    // THP deducts Math.round(karyawan_potong) — cash deductions must be whole rupiah
+    expect(r.thp).toBe(8_000_000 - Math.round(r.bpjs.karyawan_potong));
   });
 });
 
@@ -309,13 +309,13 @@ describe('annual projection (every-month forecast columns)', () => {
       jkk_rate: 0, // simplifies: no employer JKK
       // No BPJS enrollment → bruto = 8M + jkm(24k) = 8,024,000
     }));
-    expect(r.bruto).toBe(8_024_000);
-    expect(r.pph).toBe(Math.round(8_024_000 * 0.015)); // 120,360
+    expect(r.bruto).toBeCloseTo(8_024_000, 0);
+    expect(r.pph).toBe(120_360); // Math.round(~8,024,000 × 0.015)
 
-    expect(r.proyeksi.bruto_setahun).toBe(96_288_000);
-    expect(r.proyeksi.biaya_jabatan_setahun).toBe(4_814_400); // 5% of 96.288M, under 6M cap
-    expect(r.proyeksi.netto_setahun).toBe(91_473_600);
-    expect(r.proyeksi.pkp_setahun).toBe(37_473_000);
+    expect(r.proyeksi.bruto_setahun).toBeCloseTo(96_288_000, 0);
+    expect(r.proyeksi.biaya_jabatan_setahun).toBeCloseTo(4_814_400, 0); // ~5% of 96.288M
+    expect(r.proyeksi.netto_setahun).toBeCloseTo(91_473_600, 0);
+    expect(r.proyeksi.pkp_setahun).toBe(37_473_000); // floored to 1k, absorbs float noise
     expect(r.proyeksi.pph_setahun).toBe(1_873_650); // 5% × 37.473M
     expect(r.proyeksi.pph_jan_nov_proyeksi).toBe(120_360 * 11); // 1,323,960
     expect(r.proyeksi.pph_desember_proyeksi).toBe(549_690); // setahun - jan_nov
@@ -657,8 +657,8 @@ describe('calculateLastMonth — mid-year exit Pasal 17 reconciliation', () => {
       akum_bruto: 110_000_000,
       pph_jan_nov: 0,
     }));
-    // JHT_K monthly = 10M × 2% = 200,000 → annual = 2,400,000
-    expect((r as any).jht_k_tahunan).toBe(2_400_000);
+    // JHT_K monthly = 10M × 2% = ~200,000 → annual = ~2,400,000
+    expect((r as any).jht_k_tahunan).toBeCloseTo(2_400_000, 0);
   });
 
   it('JHT_K tanggung by company: NOT deducted from netto (it was already in bruto as tunjangan)', () => {
