@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
-import { saveImport, fetchEmployeeAccumDataByNik, type ImportRecord } from '@/lib/actions/import';
+import { saveImport, fetchEmployeeAccumDataByNik, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
   parseTetap, parseHarian, reconcileEmployee,
   PTKP_VALID, type ParsedEmp,
@@ -104,6 +104,7 @@ export default function ImportNewPage() {
   const [mode, setMode] = useState<'employees_only' | 'full'>('full');
   const [updateExisting, setUpdateExisting] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }>>({});
   const [saveProgress, setSaveProgress] = useState(0);
   const [doneResult, setDoneResult] = useState<any>(null);
 
@@ -197,19 +198,22 @@ export default function ImportNewPage() {
 
     setReconciling(true);
 
-    // For months > 1, fetch accumulated bruto/pph from prior saved runs so the
-    // engine comparison is accurate (especially for December equalization).
-    let accumData: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
-    if (bulan > 1) {
-      try {
-        accumData = await fetchEmployeeAccumDataByNik(companyId, tahun, bulan);
-      } catch {
-        // Non-fatal — fall back to zero accumulation
-      }
-    }
+    // Fetch current DB employee data (for salary delta display) and accumulated
+    // bruto/pph for prior months (for accurate December engine comparison).
+    let resolvedAccum: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
+    let resolvedDbEmps: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }> = {};
+    try {
+      const [accumResult, dbEmpsResult] = await Promise.allSettled([
+        bulan > 1 ? fetchEmployeeAccumDataByNik(companyId, tahun, bulan) : Promise.resolve(resolvedAccum),
+        fetchExistingEmployeeDataByNik(companyId),
+      ]);
+      if (accumResult.status === 'fulfilled') resolvedAccum   = accumResult.value;
+      if (dbEmpsResult.status === 'fulfilled') resolvedDbEmps = dbEmpsResult.value;
+    } catch { /* non-fatal */ }
+    setDbEmployeeMap(resolvedDbEmps);
 
     const recs: ImportRecord[] = valid.map((emp) => {
-      const options = accumData[emp.nik];
+      const options = resolvedAccum[emp.nik];
       const rec = reconcileEmployee(emp, bulan, tahun, options);
       return {
         ...emp,
@@ -554,19 +558,42 @@ export default function ImportNewPage() {
                 </tr>
               </thead>
               <tbody>
-                {reconciled.map((r, i) => (
+                {reconciled.map((r, i) => {
+                  const dbEmp = dbEmployeeMap[r.nik];
+                  const gajiDelta = dbEmp ? r.gaji_pokok - dbEmp.gaji_pokok : null;
+                  const ptkpChanged = dbEmp && dbEmp.status_ptkp && r.status_ptkp !== dbEmp.status_ptkp;
+                  return (
                   <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
                     <td>
                       <p className="font-semibold text-[var(--text-primary)] truncate">
                         {r.nama}
+                        {gajiDelta !== null && gajiDelta !== 0 && (
+                          <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            gajiDelta > 0
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}>
+                            {gajiDelta > 0 ? '+' : ''}{Math.round(gajiDelta / 1000)}K
+                          </span>
+                        )}
+                        {!dbEmp && (
+                          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">
+                            BARU
+                          </span>
+                        )}
                       </p>
                       <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
                         {r.divisi || r.nik}
                       </p>
                     </td>
                     <td>
-                      <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-sky-50 text-sky-700 ring-sky-200">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${
+                        ptkpChanged
+                          ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                          : 'bg-sky-50 text-sky-700 ring-sky-200'
+                      }`}>
                         {r.status_ptkp}
+                        {ptkpChanged && <span className="ml-1 opacity-60 normal-case">← {dbEmp.status_ptkp}</span>}
                       </span>
                     </td>
                     <td className="text-right font-mono font-semibold">
@@ -586,7 +613,8 @@ export default function ImportNewPage() {
                       <DiffBadge pct={r.diff_pct} />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
