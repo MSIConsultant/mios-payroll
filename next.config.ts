@@ -1,4 +1,5 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -32,4 +33,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Silent in CI / when no auth token — source maps upload is optional
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Disable source map upload in dev to keep builds fast
+  sourcemaps: { disable: process.env.NODE_ENV !== 'production' },
+  // Don't add Sentry telemetry to the bundle
+  telemetry: false,
+  // Suppress the Sentry CLI wizard prompt
+  disableLogger: true,
+});
