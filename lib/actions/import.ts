@@ -168,7 +168,6 @@ export async function saveImport(payload: SaveImportPayload) {
     .map(r => ({
       run_id:        runId,
       employee_id:   empIdMap[r.nik],
-      employee_name: r.nama,
       bruto:         r.excel_bruto,
       pph:           r.excel_pph,
       thp:           r.excel_thp,
