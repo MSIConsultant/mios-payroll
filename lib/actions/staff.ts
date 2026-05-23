@@ -1,7 +1,109 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
+import { getAppUrl } from '@/lib/env';
+
+// Option C: create an auth user immediately (no /register, no pending-approval),
+// wire them into the workspace, and let Supabase send the magic-link email.
+export async function inviteStaffMagicLink(
+  workspaceId: string,
+  email: string,
+  companyIds: string[] = [],
+) {
+  const supabase = await createClient();
+  const { data: { user: caller } } = await supabase.auth.getUser();
+  if (!caller) return { error: 'Not authenticated' };
+
+  // Verify caller belongs to this workspace
+  const { data: membership } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', caller.id)
+    .single();
+  if (!membership) return { error: 'Tidak memiliki akses ke workspace ini.' };
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Idempotency: already a member?
+  const { data: existing } = await supabase
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', workspaceId)
+    .eq('user_email', normalizedEmail)
+    .maybeSingle();
+  if (existing) return { error: 'Email ini sudah menjadi anggota workspace.' };
+
+  const admin = createAdminClient();
+  const appUrl = getAppUrl();
+  const redirectTo = appUrl ? `${appUrl}/auth/callback?next=/dashboard` : undefined;
+
+  // Create auth user + send magic-link email in one call
+  const { data: inviteData, error: inviteErr } =
+    await admin.auth.admin.inviteUserByEmail(normalizedEmail, { redirectTo });
+  if (inviteErr) return { error: inviteErr.message };
+
+  const newUserId = inviteData.user.id;
+
+  // handle_new_user trigger fires synchronously and creates a pending_approval
+  // row. Approve it (or insert if the trigger happened to fail).
+  const { data: existingProfile } = await admin
+    .from('user_profiles')
+    .select('status')
+    .eq('id', newUserId)
+    .maybeSingle();
+
+  if (!existingProfile || existingProfile.status === 'pending_approval') {
+    await admin.from('user_profiles').upsert(
+      {
+        id: newUserId,
+        email: normalizedEmail,
+        role: 'staff',
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+  }
+
+  // Link to workspace
+  await admin.from('workspace_members').upsert(
+    {
+      workspace_id: workspaceId,
+      user_id: newUserId,
+      user_email: normalizedEmail,
+      role: 'member',
+    },
+    { onConflict: 'user_id,workspace_id' },
+  );
+
+  // Grant any pre-selected company access
+  if (companyIds.length > 0) {
+    const rows = companyIds.map(cid => ({
+      workspace_id: workspaceId,
+      staff_user_id: newUserId,
+      company_id: cid,
+      granted_by: caller.id,
+    }));
+    await admin.from('company_staff_access').upsert(rows, {
+      onConflict: 'staff_user_id,company_id',
+      ignoreDuplicates: true,
+    });
+  }
+
+  await audit({
+    workspace_id: workspaceId,
+    action: 'STAFF_INVITED',
+    entity_type: 'user',
+    entity_name: normalizedEmail,
+    new_values: { method: 'magic_link', companies_granted: companyIds.length },
+  });
+
+  revalidatePath('/staff');
+  return { success: true };
+}
 
 export async function getWorkspaceStaff(workspaceId: string) {
   const supabase = await createClient();
