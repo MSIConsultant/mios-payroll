@@ -278,6 +278,31 @@ export async function fetchEmployeeAccumDataByNik(
   return accum;
 }
 
+/**
+ * Returns current DB employee data (gaji_pokok, status_ptkp, divisi) keyed by
+ * NIK, for comparing against Excel-parsed values in the reconcile step.
+ */
+export async function fetchExistingEmployeeDataByNik(
+  companyId: string,
+): Promise<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('employees')
+    .select('nik, gaji_pokok, status_ptkp, divisi')
+    .eq('company_id', companyId)
+    .eq('aktif', true);
+
+  const map: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string }> = {};
+  for (const e of data ?? []) {
+    map[e.nik] = {
+      gaji_pokok: e.gaji_pokok ?? 0,
+      status_ptkp: e.status_ptkp ?? '',
+      divisi: e.divisi ?? '',
+    };
+  }
+  return map;
+}
+
 export async function getImportHistory(workspaceId: string) {
   const supabase = await createClient();
   const { data } = await supabase

@@ -14,6 +14,7 @@ import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { updateEmployee } from '@/lib/actions/employees';
 import { printSlipGaji, printAllSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
+import { exportBPJSTK, exportBPJSKes } from '@/lib/export/bpjs';
 import { toast } from 'sonner';
 import { createShareLink } from '@/lib/actions/share';
 import { NominalInput } from '@/components/ui/FormattedInput';
@@ -583,7 +584,21 @@ export default function PayrollRunPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 >
                   <Download size={14} />
-                  Export SPT
+                  SPT PPh 21
+                </button>
+                <button
+                  onClick={() => exportBPJSTK(results, employees, company, Number(bulan), Number(tahun))}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  <Download size={14} />
+                  BPJS TK
+                </button>
+                <button
+                  onClick={() => exportBPJSKes(results, employees, company, Number(bulan), Number(tahun))}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] rounded-lg text-sm font-medium hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                >
+                  <Download size={14} />
+                  BPJS Kes
                 </button>
               </>
             )}
