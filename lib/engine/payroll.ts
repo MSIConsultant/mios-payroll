@@ -309,6 +309,13 @@ function computeAnnualProjection(
  * and `is_refund` is true with `refund_amount` set. The on-slip `pph` is still
  * clamped to 0 (you can't deduct negative tax from gaji); the refund must be
  * handled separately by the employer.
+ *
+ * When `pph_ditanggung` (employer pays PPh as tunjangan), this month's tunjangan
+ * is found via iteration: find `tp` such that
+ *   PPh_setahun = Pasal17(PKP(bs_base + tp))  AND  tp = max(0, PPh_setahun − pph_jan_nov)
+ * Converges in < 10 steps because the increment's marginal rate < 100%.
+ * The iteration result is equivalent to the closed-form TP = PPh_no_grossup / (1 − tarif_marginal)
+ * when biaya jabatan is already at its cap; they diverge by at most a few rupiah otherwise.
  */
 export function calculateLastMonth(
     k: KaryawanTetap,
@@ -328,31 +335,60 @@ export function calculateLastMonth(
     // `proyeksi.is_estimate: true` so the UI can render a stronger warning
     // than the standard "Equalisasi Desember" info card.
     const is_estimate = !(akum_bruto > 0);
-    const bs = is_estimate ? (base * M) : (akum_bruto + base);
-    const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
+    const bs_base = is_estimate ? (base * M) : (akum_bruto + base);
 
-    // Iuran karyawan = what the employee actually pays out of pocket (dipotong
-    // dari gaji). Only deduct when the company isn't covering it as tunjangan,
-    // AND when the employee participates in that program. Per UU HPP, both JHT
-    // and JP karyawan iuran are deductible — earlier code deducted only JP.
-    const jht_k_tahunan = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * M : 0;
-    const jp_k_tahunan  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
+    // Compute Pasal 17 annual tax for a given bruto setahun.
+    // Biaya jabatan cap scales with M. Per UU HPP, JHT and JP karyawan iuran
+    // are deductible; BPJS Kes karyawan is NOT deductible.
+    const computeAnnual = (bs: number) => {
+        const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
+        const jht_k_ann = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * M : 0;
+        const jp_k_ann  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
+        const netto = bs - bj - jht_k_ann - jp_k_ann;
+        const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
+        let pth = getPasal17Tax(pkp);
+        if (!k.punya_npwp) pth = Math.round(pth * 1.2);
+        return { bj, jht_k_tahunan: jht_k_ann, jp_k_tahunan: jp_k_ann, netto, pkp, pth };
+    };
 
-    const netto = bs - bj - jht_k_tahunan - jp_k_tahunan;
-    const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
-    let pth = getPasal17Tax(pkp);
-    if (!k.punya_npwp) {
-        pth = Math.round(pth * 1.2);
+    // Phase 1: no-grossup reference values (used in display and as iteration seed)
+    const base_annual = computeAnnual(bs_base);
+    const pph_no_grossup = base_annual.pth;
+    const pkp_no_grossup = base_annual.pkp;
+
+    let tunj_pph = 0; // this month's tunjangan PPh (0 for non-grossup)
+    let bs = bs_base;
+    let annual = base_annual;
+
+    if (k.pph_ditanggung) {
+        // Iterative grossup: find tp (December's tunj_pph) such that
+        //   PPh_setahun(bs_base + tp) − pph_jan_nov = tp
+        // Starting from tp=0 always converges because each step's increment
+        // is multiplied by the marginal rate (< 1), making it a contraction map.
+        let tp = 0;
+        for (let i = 0; i < 50; i++) {
+            const iter = computeAnnual(bs_base + tp);
+            const new_tp = Math.max(0, Math.round(iter.pth - k.pph_jan_nov));
+            if (Math.abs(new_tp - tp) < 1) {
+                tp = new_tp;
+                bs = bs_base + tp;
+                annual = computeAnnual(bs);
+                break;
+            }
+            tp = new_tp;
+        }
+        tunj_pph = tp;
     }
 
-    // Raw can be negative (over-withholding → refund); on-slip pph is clamped.
-    const rawPph = Math.round(pth - k.pph_jan_nov);
-    const isRefund = rawPph < 0;
-    const refundAmount = isRefund ? -rawPph : 0;
-    const pd = Math.max(0, rawPph);
+    const { bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, pth } = annual;
 
-    const tunj_pph = k.pph_ditanggung ? pd : 0;
-    const pot_pph = k.pph_ditanggung ? 0 : pd;
+    const rawPph = Math.round(pth - k.pph_jan_nov);
+    // Refund (over-withholding) only meaningful for non-grossup employees;
+    // for grossup, the employer over-paid tunjangan — tracked separately.
+    const isRefund = !k.pph_ditanggung && rawPph < 0;
+    const refundAmount = isRefund ? -rawPph : 0;
+    const pot_pph = k.pph_ditanggung ? 0 : Math.max(0, rawPph);
+    const pph_this = k.pph_ditanggung ? tunj_pph : Math.max(0, rawPph);
 
     const thp = k.gaji_pokok + allowance_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
@@ -363,7 +399,7 @@ export function calculateLastMonth(
         pkp_setahun: pkp,
         pph_setahun: pth,
         pph_jan_nov_proyeksi: k.pph_jan_nov,
-        pph_desember_proyeksi: pd,
+        pph_desember_proyeksi: pph_this,
         is_estimate,
     };
 
@@ -380,9 +416,15 @@ export function calculateLastMonth(
         benefit: k.benefit, kendaraan: k.kendaraan,
         pulsa: k.pulsa, operasional: k.operasional, tunj_lain: k.tunj_lain,
         tunj_pph, base, bruto: base + tunj_pph,
-        bs, bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, ptkp, pph_tahunan: pth,
+        // Annual calculation fields (for display in Pasal17BreakdownPanel)
+        bs, bs_base, bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, ptkp,
+        pph_tahunan: pth,
+        pph_no_grossup,    // PPh without grossup (reference for TP formula display)
+        pkp_no_grossup,    // PKP without grossup
+        tunj_pph_setahun: k.pph_ditanggung ? pth : 0, // total annual employer PPh obligation
+        thr_nominal: k.thr, bonus_nominal: k.bonus,
         pph_jan_nov: k.pph_jan_nov,
-        pph: pd, pot_pph, pph_ditanggung: k.pph_ditanggung,
+        pph: pph_this, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
         proyeksi,

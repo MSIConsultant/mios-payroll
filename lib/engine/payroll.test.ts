@@ -374,7 +374,7 @@ describe('calculateMonthlySalary (December equalization)', () => {
     }));
     expect(r.jenis).toContain('DESEMBER');
     expect(r.ter).toBeNull();
-    expect(r.pph_jan_nov).toBe(1_500_000);
+    expect((r as any).pph_jan_nov).toBe(1_500_000);
     // The exact PPh depends on Pasal 17 — just verify it's positive and pph_des = pph_setahun - jan_nov
     expect(r.pph).toBeGreaterThanOrEqual(0);
   });
@@ -726,7 +726,7 @@ describe('engine warning flags (audit-hardening)', () => {
       akum_bruto: 0,    // no prior runs persisted
       pph_jan_nov: 0,
     }));
-    expect(r.proyeksi.is_estimate).toBe(true);
+    expect((r.proyeksi as any).is_estimate).toBe(true);
   });
 
   it('proyeksi.is_estimate is false when akum_bruto>0 (real prior data)', () => {
@@ -737,7 +737,7 @@ describe('engine warning flags (audit-hardening)', () => {
       akum_bruto: 88_000_000,   // Jan-Nov real data
       pph_jan_nov: 1_323_960,
     }));
-    expect(r.proyeksi.is_estimate).toBe(false);
+    expect((r.proyeksi as any).is_estimate).toBe(false);
   });
 
   it('proyeksi.is_estimate is undefined on Jan-Nov non-last-month results', () => {
