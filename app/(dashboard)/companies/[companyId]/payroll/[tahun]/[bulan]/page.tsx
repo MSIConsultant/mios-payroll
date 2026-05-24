@@ -138,6 +138,233 @@ function LedgerTotal({
   );
 }
 
+/* ── Pasal 17 equalization breakdown panel (December / last-month employees) ── */
+
+function P17Row({ label, value, muted, bold, accent }: {
+  label: string; value: string; muted?: boolean; bold?: boolean; accent?: boolean;
+}) {
+  return (
+    <div className="flex justify-between items-baseline py-[2px]">
+      <span className={`text-[12px] leading-relaxed ${muted ? 'text-[var(--text-faint)]' : 'text-[var(--text-secondary)]'}`}>
+        {label}
+      </span>
+      <span className={`font-mono text-[12px] shrink-0 ml-2 ${bold ? 'font-bold' : 'font-medium'} ${
+        accent ? 'text-violet-700' : 'text-[var(--text-primary)]'
+      }`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function P17Divider() {
+  return <div className="my-1.5 border-t border-violet-100" />;
+}
+
+function Pasal17BreakdownPanel({ res }: { res: any }) {
+  const M = (res.months_in_year ?? 12) as number;
+  const isGrossup = !!(res.pph_ditanggung && (res.tunj_pph_setahun ?? 0) > 0);
+  const isEstimate = !!(res.proyeksi?.is_estimate);
+  const bsBase = (res.bs_base ?? res.bs ?? 0) as number;
+  const akumBruto = bsBase - (res.base ?? 0);
+  const bulanIdx = (res.bulan as number) - 1;
+  const periodName = BULAN_NAMES[bulanIdx] ?? `Bulan ${res.bulan}`;
+  const prevName = M >= 2 ? (BULAN_NAMES[M - 2] ?? 'Nov') : '—';
+  const rp = (n: number) => formatRupiah(n);
+  const minus = (n: number) => `− ${rp(n)}`;
+
+  // Pasal 17 brackets applied to the FINAL PKP
+  const finalPkp = (res.pkp ?? 0) as number;
+  const BRACKETS = [
+    { w: 60_000_000,    r: 0.05 },
+    { w: 190_000_000,   r: 0.15 },
+    { w: 250_000_000,   r: 0.25 },
+    { w: 4_500_000_000, r: 0.30 },
+    { w: Infinity,      r: 0.35 },
+  ];
+  type BLine = { loM: number; hiM: number; portion: number; rate: number; tax: number; isTop: boolean };
+  const bLines: BLine[] = [];
+  let rem = finalPkp, cumLo = 0;
+  for (const { w, r } of BRACKETS) {
+    if (rem <= 0) break;
+    const portion = Math.min(rem, w === Infinity ? rem : w);
+    bLines.push({
+      loM: Math.round(cumLo / 1_000_000),
+      hiM: Math.round((cumLo + portion) / 1_000_000),
+      portion, rate: r, tax: portion * r, isTop: w === Infinity,
+    });
+    rem -= portion;
+    cumLo += w === Infinity ? portion : w;
+  }
+
+  // Marginal rate = bracket containing pkp_no_grossup (for closed-form formula display)
+  const pkpBase = (res.pkp_no_grossup ?? finalPkp) as number;
+  let marginalRate = 0.05;
+  let cumW = 0;
+  for (const { w, r } of BRACKETS) {
+    const hi = cumW + (w === Infinity ? Infinity : w);
+    if (pkpBase < hi) { marginalRate = r; break; }
+    if (w !== Infinity) cumW += w;
+  }
+  const marginalPct = `${(marginalRate * 100).toFixed(0)}%`;
+  const totalPengurang = (res.bj ?? 0) + (res.jht_k_tahunan ?? 0) + (res.jp_k_tahunan ?? 0);
+
+  return (
+    <div className="mt-5 pt-5 border-t border-violet-100">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3.5">
+        <div className="w-1.5 h-5 rounded-full bg-violet-500 shrink-0" />
+        <span className="text-[12px] font-bold uppercase tracking-widest text-violet-700">
+          Rekonsiliasi PPh 21 Pasal 17 — {periodName}
+        </span>
+        {M < 12 && (
+          <span className="text-[11px] text-violet-400 font-medium">({M} bulan)</span>
+        )}
+      </div>
+
+      <div className="grid gap-2">
+        {/* Step 1 — Bruto Setahun */}
+        <div className="rounded-lg border border-violet-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
+            <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">1</span>
+            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">Bruto Setahun</span>
+          </div>
+          <div className="px-3 py-2.5">
+            {isEstimate ? (
+              <P17Row label={`Estimasi: bruto bulan ini × ${M}`} value={rp(bsBase)} muted />
+            ) : (
+              <>
+                <P17Row label={`Akumulasi Jan–${prevName}`} value={rp(akumBruto)} muted />
+                <P17Row label={`Bruto ${periodName}`} value={rp(res.base ?? 0)} muted />
+              </>
+            )}
+            {isGrossup && (
+              <P17Row label={`+ Tunjangan PPh ${periodName} (TP)`} value={`+ ${rp(res.tunj_pph ?? 0)}`} accent />
+            )}
+            <P17Divider />
+            <P17Row label="Bruto Setahun" value={rp(res.bs ?? bsBase)} bold />
+          </div>
+        </div>
+
+        {/* Step 2 — Pengurang */}
+        <div className="rounded-lg border border-violet-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
+            <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">2</span>
+            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">Pengurang</span>
+          </div>
+          <div className="px-3 py-2.5">
+            <P17Row
+              label={`Biaya Jabatan (5%, cap Rp ${formatRupiah(500_000 * M)})`}
+              value={minus(res.bj ?? 0)}
+            />
+            {(res.jht_k_tahunan ?? 0) > 0 && (
+              <P17Row label={`Iuran JHT Karyawan 2% × ${M} bln`} value={minus(res.jht_k_tahunan)} />
+            )}
+            {(res.jp_k_tahunan ?? 0) > 0 && (
+              <P17Row label={`Iuran JP Karyawan 1% × ${M} bln`} value={minus(res.jp_k_tahunan)} />
+            )}
+            <p className="text-[10px] text-[var(--text-faint)] italic mt-1 leading-relaxed">
+              BPJS Kes Karyawan (1%) bukan pengurang — hanya JHT &amp; JP per UU HPP
+            </p>
+            <P17Divider />
+            <P17Row label="Total Pengurang" value={minus(totalPengurang)} bold />
+          </div>
+        </div>
+
+        {/* Step 3 — Netto → PKP */}
+        <div className="rounded-lg border border-violet-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
+            <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">3</span>
+            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">Netto → PKP</span>
+          </div>
+          <div className="px-3 py-2.5">
+            <P17Row label="Netto Setahun" value={rp(res.netto ?? 0)} />
+            <P17Row label={`− PTKP (${res.status_ptkp ?? ''})`} value={minus(res.ptkp ?? 0)} />
+            <P17Divider />
+            <P17Row label="PKP (floor ke ribuan)" value={rp(res.pkp ?? 0)} bold />
+          </div>
+        </div>
+
+        {/* Step 4 — PPh Pasal 17 */}
+        <div className="rounded-lg border border-violet-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
+            <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">4</span>
+            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">
+              PPh Pasal 17{isGrossup ? ' + Grossup' : ''}
+            </span>
+          </div>
+          <div className="px-3 py-2.5">
+            {bLines.map((b, i) => (
+              <P17Row
+                key={i}
+                label={b.isTop
+                  ? `Sisa > ${b.loM}jt × ${(b.rate * 100).toFixed(0)}%`
+                  : `${b.loM}jt – ${b.hiM}jt × ${(b.rate * 100).toFixed(0)}%`}
+                value={rp(b.tax)}
+                muted
+              />
+            ))}
+            {isGrossup && (
+              <div className="mt-2 rounded-md bg-violet-50 border border-violet-200 px-3 py-2">
+                <p className="text-[11px] font-semibold text-violet-700 mb-1.5">
+                  Grossup — closed-form Pasal 17
+                </p>
+                <div className="flex items-center gap-1.5 font-mono text-[12px] text-violet-900 flex-wrap">
+                  <span>TP</span>
+                  <span className="text-violet-400">=</span>
+                  <span>{rp(res.pph_no_grossup ?? 0)}</span>
+                  <span className="text-violet-400">÷</span>
+                  <span>(1 − {marginalPct})</span>
+                  <span className="text-violet-400">≈</span>
+                  <span className="font-bold">{rp(res.tunj_pph_setahun ?? 0)}</span>
+                </div>
+                <p className="text-[10px] text-violet-500 mt-1 leading-relaxed">
+                  PKP masuk lapis {marginalPct} → tarif marginal {marginalPct} → iterasi konvergen
+                </p>
+              </div>
+            )}
+            <P17Divider />
+            <P17Row label="PPh Setahun (Pasal 17)" value={rp(res.pph_tahunan ?? 0)} bold />
+          </div>
+        </div>
+
+        {/* Rekonsiliasi summary box */}
+        <div className="rounded-lg bg-violet-50 border border-violet-200 px-4 py-3">
+          <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-2.5">
+            Rekonsiliasi
+          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="text-center">
+              <p className="text-[10px] text-violet-500 mb-0.5">PPh Setahun</p>
+              <p className="font-mono font-bold text-[13px] text-violet-900">{rp(res.pph_tahunan ?? 0)}</p>
+            </div>
+            <span className="text-violet-400 font-bold text-lg select-none">−</span>
+            <div className="text-center">
+              <p className="text-[10px] text-violet-500 mb-0.5">
+                {M > 1 ? `PPh Jan–${prevName}` : 'PPh Lalu'}
+              </p>
+              <p className="font-mono font-bold text-[13px] text-violet-900">{rp(res.pph_jan_nov ?? 0)}</p>
+            </div>
+            <span className="text-violet-400 font-bold text-lg select-none">=</span>
+            <div className={`text-center rounded-lg px-3 py-1.5 ${
+              res.is_refund
+                ? 'bg-amber-100 border border-amber-200'
+                : 'bg-emerald-50 border border-emerald-200'
+            }`}>
+              <p className={`text-[10px] mb-0.5 font-medium ${res.is_refund ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {res.is_refund ? '← Refund karyawan' : `PPh ${periodName}`}
+              </p>
+              <p className={`font-mono font-bold text-[14px] ${res.is_refund ? 'text-amber-800' : 'text-emerald-800'}`}>
+                {res.is_refund ? `− ${rp(res.refund_amount ?? 0)}` : rp(res.pph ?? 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Quick edit modal ── */
 
 function QuickEditModal({
@@ -990,16 +1217,28 @@ export default function PayrollRunPage() {
                 { label: 'Potongan Kes',       value: rpFmt(bpjsPotKes), highlight: true },
               ],
             };
-            const calcGrossup: CalcTooltipData | undefined = ((res.tunj_pph ?? 0) > 0) ? {
-              title: 'Tunjangan PPh 21 (Grossup)',
-              description: 'Iterasi: PPh = TER × (Base + PPh) / (1 − TER)',
-              steps: [
-                { label: 'Base (gaji + tunjangan + BPJS)', value: rpFmt((res.base ?? res.bruto ?? 0) - (res.tunj_pph ?? 0)), muted: true },
-                ...(res.ter != null ? [{ label: 'TER (konvergen)', value: pct(res.ter), muted: true }] : []),
-                { label: 'PPh hasil iterasi', value: rpFmt(res.tunj_pph ?? 0), highlight: true },
-              ],
-              footer: 'Perusahaan menanggung PPh sebagai tunjangan',
-            } : undefined;
+            const calcGrossup: CalcTooltipData | undefined = ((res.tunj_pph ?? 0) > 0) ? (
+              res.is_last_month ? {
+                title: 'Tunjangan PPh 21 (Grossup Pasal 17)',
+                description: 'Iterasi Pasal 17: PPh setahun(bs + TP) = TP',
+                steps: [
+                  { label: 'Bruto setahun (tanpa TP)', value: rpFmt(res.bs_base ?? res.bs ?? 0), muted: true },
+                  { label: 'PPh setahun (konvergen)', value: rpFmt(res.pph_tahunan ?? 0), muted: true },
+                  { label: '− PPh sudah dibayar Jan–Nov', value: rpFmt(res.pph_jan_nov ?? 0), op: '-', muted: true },
+                  { label: 'TP bulan ini', value: rpFmt(res.tunj_pph ?? 0), highlight: true },
+                ],
+                footer: 'Pasal 17 rekonsiliasi — employer menanggung selisih PPh tahunan',
+              } : {
+                title: 'Tunjangan PPh 21 (Grossup TER)',
+                description: 'Iterasi: PPh = TER × (Base + PPh) / (1 − TER)',
+                steps: [
+                  { label: 'Base (gaji + tunjangan + BPJS)', value: rpFmt((res.base ?? res.bruto ?? 0) - (res.tunj_pph ?? 0)), muted: true },
+                  ...(res.ter != null ? [{ label: 'TER (konvergen)', value: pct(res.ter), muted: true }] : []),
+                  { label: 'PPh hasil iterasi', value: rpFmt(res.tunj_pph ?? 0), highlight: true },
+                ],
+                footer: 'Perusahaan menanggung PPh sebagai tunjangan',
+              }
+            ) : undefined;
 
             const calcThp: CalcTooltipData = {
               title: 'TAKE HOME PAY',
@@ -1243,6 +1482,11 @@ export default function PayrollRunPage() {
                       <LedgerTotal label="TAKE HOME PAY" value={formatRupiah(res.thp ?? 0)} color="text-emerald-700" calc={calcThp} calcPosition="above" />
                       <LedgerTotal label="COST TO COMPANY" value={formatRupiah(ctc)} color="text-sky-700" calc={calcCtc} calcPosition="above" />
                     </>
+                  )}
+
+                  {/* Pasal 17 equalization steps — only for December / last-month employees */}
+                  {isTetap && res.is_last_month && (
+                    <Pasal17BreakdownPanel res={res} />
                   )}
                 </div>
               </div>
