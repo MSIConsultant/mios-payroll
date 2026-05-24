@@ -172,6 +172,10 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
   const prevName = M >= 2 ? (BULAN_NAMES[M - 2] ?? 'Nov') : '—';
   const rp = (n: number) => formatRupiah(n);
   const minus = (n: number) => `− ${rp(n)}`;
+  const mult = (n: number, m: number) => rp(n * m);
+  // Kes employer is only in bruto when employer_in_bruto exceeds jkk+jkm
+  const kesEInBruto = (res.bpjs?.kes_e ?? 0) > 0 &&
+    (res.bpjs?.employer_in_bruto ?? 0) > (res.bpjs?.jkk ?? 0) + (res.bpjs?.jkm ?? 0);
 
   // Pasal 17 brackets applied to the FINAL PKP
   const finalPkp = (res.pkp ?? 0) as number;
@@ -231,13 +235,114 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
           </div>
           <div className="px-3 py-2.5">
             {isEstimate ? (
-              <P17Row label={`Estimasi: bruto bulan ini × ${M}`} value={rp(bsBase)} muted />
+              <p className="text-[10px] text-violet-400 italic mb-1.5">
+                Estimasi: akumulasi tidak ada — komponen bulan ini × {M}
+              </p>
             ) : (
-              <>
-                <P17Row label={`Akumulasi Jan–${prevName}`} value={rp(akumBruto)} muted />
-                <P17Row label={`Bruto ${periodName}`} value={rp(res.base ?? 0)} muted />
-              </>
+              <P17Row label={`Akumulasi Jan–${prevName} (dari DB)`} value={rp(akumBruto)} muted />
             )}
+
+            {/* Component breakdown — shown for both cases */}
+            <div className={`${!isEstimate ? 'mt-1' : ''} pl-2 border-l-2 border-violet-100`}>
+              {!isEstimate && (
+                <p className="text-[10px] text-[var(--text-faint)] mb-0.5">
+                  Bruto {periodName} (rincian):
+                </p>
+              )}
+              {/* Regular income */}
+              <P17Row
+                label={isEstimate ? `Gaji Pokok (${M} bln)` : 'Gaji Pokok'}
+                value={isEstimate ? mult(res.gaji_pokok ?? 0, M) : rp(res.gaji_pokok ?? 0)}
+                muted
+              />
+              {(res.benefit ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Benefit (${M} bln)` : 'Benefit'}
+                  value={isEstimate ? mult(res.benefit ?? 0, M) : rp(res.benefit ?? 0)}
+                  muted
+                />
+              )}
+              {(res.kendaraan ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunjangan Kendaraan (${M} bln)` : 'Tunj. Kendaraan'}
+                  value={isEstimate ? mult(res.kendaraan ?? 0, M) : rp(res.kendaraan ?? 0)}
+                  muted
+                />
+              )}
+              {(res.pulsa ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunjangan Pulsa (${M} bln)` : 'Tunj. Pulsa'}
+                  value={isEstimate ? mult(res.pulsa ?? 0, M) : rp(res.pulsa ?? 0)}
+                  muted
+                />
+              )}
+              {(res.operasional ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunjangan Operasional (${M} bln)` : 'Tunj. Operasional'}
+                  value={isEstimate ? mult(res.operasional ?? 0, M) : rp(res.operasional ?? 0)}
+                  muted
+                />
+              )}
+              {(res.tunj_lain ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunjangan Lain (${M} bln)` : 'Tunj. Lain'}
+                  value={isEstimate ? mult(res.tunj_lain ?? 0, M) : rp(res.tunj_lain ?? 0)}
+                  muted
+                />
+              )}
+              {/* BPJS employer in bruto */}
+              {(res.bpjs?.jkk ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `JKK Employer (${M} bln)` : 'JKK Employer'}
+                  value={isEstimate ? mult(res.bpjs.jkk, M) : rp(res.bpjs.jkk)}
+                  muted
+                />
+              )}
+              {(res.bpjs?.jkm ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `JKM Employer (${M} bln)` : 'JKM Employer'}
+                  value={isEstimate ? mult(res.bpjs.jkm, M) : rp(res.bpjs.jkm)}
+                  muted
+                />
+              )}
+              {kesEInBruto && (
+                <P17Row
+                  label={isEstimate ? `Kes Employer 4% (${M} bln)` : 'Kes Employer 4%'}
+                  value={isEstimate ? mult(res.bpjs.kes_e, M) : rp(res.bpjs.kes_e)}
+                  muted
+                />
+              )}
+              {/* BPJS karyawan tunj (if company tanggung) */}
+              {(res.bpjs?.tunj_jht ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunj. JHT Karyawan (${M} bln)` : 'Tunj. JHT Karyawan'}
+                  value={isEstimate ? mult(res.bpjs.tunj_jht, M) : rp(res.bpjs.tunj_jht)}
+                  muted
+                />
+              )}
+              {(res.bpjs?.tunj_jp ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunj. JP Karyawan (${M} bln)` : 'Tunj. JP Karyawan'}
+                  value={isEstimate ? mult(res.bpjs.tunj_jp, M) : rp(res.bpjs.tunj_jp)}
+                  muted
+                />
+              )}
+              {(res.bpjs?.tunj_kes ?? 0) > 0 && (
+                <P17Row
+                  label={isEstimate ? `Tunj. Kes Karyawan (${M} bln)` : 'Tunj. Kes Karyawan'}
+                  value={isEstimate ? mult(res.bpjs.tunj_kes, M) : rp(res.bpjs.tunj_kes)}
+                  muted
+                />
+              )}
+              {/* THR / Bonus — one-time, not multiplied */}
+              {(res.thr_nominal ?? 0) > 0 && (
+                <P17Row label="THR" value={rp(res.thr_nominal ?? 0)} muted />
+              )}
+              {(res.bonus_nominal ?? 0) > 0 && (
+                <P17Row label="Bonus" value={rp(res.bonus_nominal ?? 0)} muted />
+              )}
+            </div>
+
             {isGrossup && (
               <P17Row label={`+ Tunjangan PPh ${periodName} (TP)`} value={`+ ${rp(res.tunj_pph ?? 0)}`} accent />
             )}

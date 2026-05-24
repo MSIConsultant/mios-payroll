@@ -422,6 +422,7 @@ export function calculateLastMonth(
         pph_no_grossup,    // PPh without grossup (reference for TP formula display)
         pkp_no_grossup,    // PKP without grossup
         tunj_pph_setahun: k.pph_ditanggung ? pth : 0, // total annual employer PPh obligation
+        thr_nominal: k.thr, bonus_nominal: k.bonus,
         pph_jan_nov: k.pph_jan_nov,
         pph: pph_this, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
