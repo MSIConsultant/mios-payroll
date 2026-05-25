@@ -1,5 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertWorkspaceAccess } from '@/lib/auth/assertAccess';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
@@ -113,9 +114,12 @@ export async function acceptInvite(token: string) {
 }
 
 export async function removeMember(workspaceId: string, userId: string, userEmail: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa menghapus anggota.' };
+
+  const { supabase, user } = access;
 
   const { data: ws } = await supabase.from('workspaces')
     .select('owner_id').eq('id', workspaceId).single();
@@ -132,8 +136,15 @@ export async function removeMember(workspaceId: string, userId: string, userEmai
 }
 
 export async function revokeInvite(inviteId: string, workspaceId: string, email: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from('workspace_invitations').delete().eq('id', inviteId);
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa membatalkan undangan.' };
+
+  const { supabase } = access;
+  // Scope delete to workspace to prevent cross-tenant invite revocation
+  const { error } = await supabase.from('workspace_invitations')
+    .delete().eq('id', inviteId).eq('workspace_id', workspaceId);
   if (error) return { error: error.message };
   await logActivity(supabase, workspaceId, 'INVITE_REVOKED', 'user', email);
   revalidatePath('/settings');

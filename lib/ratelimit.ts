@@ -12,6 +12,12 @@ function makeRedis(): Redis | null {
 
 const redis = makeRedis();
 
+if (!redis && process.env.NODE_ENV === 'production') {
+  // Rate limiting is completely disabled — Resend quota and invite spam are unprotected.
+  // Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel env vars.
+  console.warn('[ratelimit] Upstash env vars missing — rate limiting disabled in production');
+}
+
 function limiter(requests: number, windowSeconds: number): Ratelimit | null {
   if (!redis) return null;
   return new Ratelimit({

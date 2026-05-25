@@ -1,5 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertWorkspaceAccess } from '@/lib/auth/assertAccess';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
@@ -134,9 +135,12 @@ export async function grantCompanyAccess(
   companyId:   string,
   companyName: string,
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa memberikan akses perusahaan.' };
+
+  const { supabase, user } = access;
 
   const { error } = await supabase.from('company_staff_access').insert({
     workspace_id:  workspaceId,
@@ -166,10 +170,18 @@ export async function revokeCompanyAccess(
   companyId:   string,
   companyName: string,
 ) {
-  const supabase = await createClient();
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa mencabut akses perusahaan.' };
+
+  const { supabase } = access;
+
+  // Scope delete to workspace to prevent cross-tenant mutations
   const { error } = await supabase
     .from('company_staff_access')
     .delete()
+    .eq('workspace_id', workspaceId)
     .eq('staff_user_id', staffUserId)
     .eq('company_id', companyId);
   if (error) return { error: error.message };
@@ -192,7 +204,18 @@ export async function removeStaffFromWorkspace(
   userId:      string,
   userEmail:   string,
 ) {
-  const supabase = await createClient();
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa menghapus staff.' };
+
+  const { supabase } = access;
+
+  // Prevent removing the workspace owner
+  const { data: ws } = await supabase.from('workspaces')
+    .select('owner_id').eq('id', workspaceId).single();
+  if (ws?.owner_id === userId)
+    return { error: 'Owner tidak bisa dihapus dari workspace.' };
 
   // Remove all company access first
   await supabase.from('company_staff_access')
