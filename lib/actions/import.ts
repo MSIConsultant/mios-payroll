@@ -1,5 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertCompanyAccess } from '@/lib/auth/assertAccess';
 import { audit } from '@/lib/audit';
 import { revalidatePath } from 'next/cache';
 
@@ -46,11 +47,12 @@ export interface SaveImportPayload {
 }
 
 export async function saveImport(payload: SaveImportPayload) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertCompanyAccess(payload.companyId);
+  if (!access.ok) return { error: access.error === 'unauthenticated' ? 'Not authenticated' : 'Akses ditolak' };
+  // workspaceId derived server-side from company record, not trusted from client payload
+  const { supabase, user, workspaceId } = access;
 
-  const { workspaceId, companyId, bulan, tahun, fileName, mode, update_existing = false, records } = payload;
+  const { companyId, bulan, tahun, fileName, mode, update_existing = false, records } = payload;
 
   // ── 1. Resolve existing employees by NIK ──────────────────────────
   const { data: existing } = await supabase
