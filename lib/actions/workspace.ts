@@ -35,8 +35,26 @@ export async function createWorkspace(formData: FormData) {
     .eq('user_id', user.id)
     .eq('role', 'owner');
 
-  if ((count ?? 0) >= 2) {
-    return { error: 'Maksimal 2 workspace per akun.' };
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  // Workspace limits per role tier.
+  // dev = unlimited; accountant = 3 (manually approved, trusted);
+  // staff = 1 (shouldn't be creating workspaces, but allow onboarding).
+  // Replace these with a plan-column lookup once subscription tiers are added.
+  const WORKSPACE_LIMIT: Record<string, number | null> = {
+    dev:        null,
+    accountant: 3,
+    staff:      1,
+  };
+  const role  = (profile?.role as string) ?? 'staff';
+  const limit = WORKSPACE_LIMIT[role] ?? 1;
+
+  if (limit !== null && (count ?? 0) >= limit) {
+    return { error: `Maksimal ${limit} workspace untuk akun Anda.` };
   }
 
   const { data, error } = await supabase.rpc('create_workspace_for_user', {
