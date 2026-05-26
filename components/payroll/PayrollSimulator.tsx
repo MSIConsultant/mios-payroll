@@ -157,33 +157,33 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
   ]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
-      {/* LEFT: form */}
-      <div className="space-y-4">
-        {intro}
+    <div className="space-y-5">
+      {intro}
 
-        {showPresets && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {PRESETS.map(p => (
-              <button
-                key={p.id}
-                onClick={() => loadPreset(p)}
-                className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
-                  activePreset === p.id
-                    ? 'border-[var(--brand)] bg-[var(--brand-soft)] shadow-sm'
-                    : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:shadow-sm'
-                }`}
-              >
-                <div className="text-xl mb-1.5">{p.emoji}</div>
-                <div className="text-[12px] font-semibold text-[var(--text-primary)] leading-tight">{p.label}</div>
-                <div className="text-[11px] text-[var(--text-muted)] mt-0.5 leading-tight">{p.desc}</div>
-              </button>
-            ))}
-          </div>
-        )}
+      {showPresets && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => loadPreset(p)}
+              className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                activePreset === p.id
+                  ? 'border-[var(--brand)] bg-[var(--brand-soft)] shadow-sm'
+                  : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:shadow-sm'
+              }`}
+            >
+              <div className="text-xl mb-1.5">{p.emoji}</div>
+              <div className="text-[12px] font-semibold text-[var(--text-primary)] leading-tight">{p.label}</div>
+              <div className="text-[11px] text-[var(--text-muted)] mt-0.5 leading-tight">{p.desc}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
+      {/* Form sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Section num={1} title="Identitas Pajak">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-4">
             <Sel label="Status PTKP" value={statusPtkp} onChange={v => { setStatusPtkp(v); setActivePreset(null); }}>
               {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
             </Sel>
@@ -194,8 +194,47 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
           </div>
         </Section>
 
+        <Section num={3} title="BPJS Ketenagakerjaan & Kesehatan">
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2.5">Kepesertaan</p>
+              <div className="grid grid-cols-2 gap-y-2 gap-x-3">
+                <Chk label="JHT" checked={ikutJht} onChange={setIkutJht} />
+                <Chk label="JP" checked={ikutJp} onChange={setIkutJp} />
+                <Chk label="JKP" checked={ikutJkp} onChange={setIkutJkp} />
+                <Chk label="Kesehatan" checked={ikutKes} onChange={setIkutKes} />
+              </div>
+            </div>
+            <Sel label="Tarif JKK" value={String(jkkRate)} onChange={v => setJkkRate(Number(v))}>
+              <option value="0.0024">0.24% – Sangat Rendah</option>
+              <option value="0.0054">0.54% – Rendah</option>
+              <option value="0.0089">0.89% – Sedang</option>
+              <option value="0.0127">1.27% – Tinggi</option>
+              <option value="0.0174">1.74% – Sangat Tinggi</option>
+            </Sel>
+            <div>
+              <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2">Tunjangan Iuran Karyawan</p>
+              <div className="space-y-2">
+                <Chk label="Tunj. JHT (2%)" checked={tanggungJhtK} onChange={setTanggungJhtK} />
+                <Chk label="Tunj. JP (1%)" checked={tanggungJpK} onChange={setTanggungJpK} />
+                <Chk label="Tunj. Kes (1%)" checked={tanggungKesK} onChange={setTanggungKesK} />
+              </div>
+            </div>
+            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] p-3">
+              <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2">Skema PPh 21</p>
+              <Chk label="Grossup — Ditanggung Perusahaan" checked={pphDitanggung} onChange={setPphDitanggung} />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1.5 leading-relaxed">PPh 21 jadi tunj. pajak → THP = gaji bersih.</p>
+            </div>
+            {!punyaNpwp && (
+              <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-2.5">
+                <p className="text-[12px] text-[var(--amber)] font-medium">⚠ Non-NPWP: PPh ×1.2 berlaku</p>
+              </div>
+            )}
+          </div>
+        </Section>
+
         <Section num={2} title="Kompensasi">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <NominalInput key={`gp-${resetKey}`} label="Gaji Pokok" name="_gp" defaultValue={gajiPokok}
               onChange={v => { setGajiPokok(v); setActivePreset(null); }} />
             <NominalInput key={`bn-${resetKey}`} label="Benefit" name="_bn" defaultValue={benefit}
@@ -219,22 +258,21 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
             </div>
           </div>
 
-          <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">
+          <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
             <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-3">THR & Bonus</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5">THR</p>
                 <div className="flex gap-2">
                   <select value={thrBulan} onChange={e => setThrBulan(Number(e.target.value))} className={MON_CLS}>
                     {BULAN_FULL.map((b, i) => <option key={i + 1} value={i + 1}>{b}</option>)}
                   </select>
-                  <div className="relative w-24">
+                  <div className="relative w-20">
                     <input type="number" min={0} max={500} step={10} value={thrPct}
                       onChange={e => setThrPct(Number(e.target.value))} className={PCT_CLS} />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
                   </div>
                 </div>
-                <p className="text-[11px] text-[var(--text-muted)] mt-1">100% gaji — THR wajib</p>
               </div>
               <div>
                 <p className="text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5">Bonus</p>
@@ -242,82 +280,25 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
                   <select value={bonusBulan} onChange={e => setBonusBulan(Number(e.target.value))} className={MON_CLS}>
                     {BULAN_FULL.map((b, i) => <option key={i + 1} value={i + 1}>{b}</option>)}
                   </select>
-                  <div className="relative w-24">
+                  <div className="relative w-20">
                     <input type="number" min={0} max={500} step={10} value={bonusPct}
                       onChange={e => setBonusPct(Number(e.target.value))} className={PCT_CLS} />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
                   </div>
                 </div>
-                <p className="text-[11px] text-[var(--text-muted)] mt-1">0 = tidak ada bonus</p>
               </div>
-            </div>
-          </div>
-        </Section>
-
-        <Section num={3} title="BPJS Ketenagakerjaan & Kesehatan">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="space-y-4">
-              <div>
-                <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2.5">Kepesertaan</p>
-                <div className="space-y-2.5">
-                  <Chk label="JHT" checked={ikutJht} onChange={setIkutJht} />
-                  <Chk label="JP" checked={ikutJp} onChange={setIkutJp} />
-                  <Chk label="JKP" checked={ikutJkp} onChange={setIkutJkp} />
-                  <Chk label="Kesehatan" checked={ikutKes} onChange={setIkutKes} />
-                </div>
-              </div>
-              <div>
-                <Sel label="Tarif JKK" value={String(jkkRate)} onChange={v => setJkkRate(Number(v))}>
-                  <option value="0.0024">0.24% – Sangat Rendah</option>
-                  <option value="0.0054">0.54% – Rendah</option>
-                  <option value="0.0089">0.89% – Sedang</option>
-                  <option value="0.0127">1.27% – Tinggi</option>
-                  <option value="0.0174">1.74% – Sangat Tinggi</option>
-                </Sel>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2.5">Tunjangan Iuran</p>
-              <p className="text-[12px] text-[var(--text-muted)] mb-3 leading-relaxed">
-                Perusahaan menanggung iuran BPJS bagian karyawan (masuk bruto).
-              </p>
-              <div className="space-y-2.5">
-                <Chk label="Tunj. JHT Karyawan (2%)" checked={tanggungJhtK} onChange={setTanggungJhtK} />
-                <Chk label="Tunj. JP Karyawan (1%)" checked={tanggungJpK} onChange={setTanggungJpK} />
-                <Chk label="Tunj. Kes Karyawan (1%)" checked={tanggungKesK} onChange={setTanggungKesK} />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-2.5">Skema PPh 21</p>
-              <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-subtle)] p-4">
-                <Chk label="Grossup — Ditanggung Perusahaan" checked={pphDitanggung} onChange={setPphDitanggung} />
-                <p className="text-[12px] text-[var(--text-muted)] mt-2.5 leading-relaxed">
-                  PPh 21 jadi tunj. pajak → THP = nominal gaji bersih.
-                </p>
-              </div>
-              {!punyaNpwp && (
-                <div className="mt-3 rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-2.5">
-                  <p className="text-[12px] text-[var(--amber)] font-medium">
-                    ⚠ Non-NPWP: PPh ×1.2 berlaku
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </Section>
       </div>
 
-      {/* RIGHT: projection */}
-      <div className="lg:sticky lg:top-6">
-        <ProjectionTable
-          projection={projection}
-          gajiPokok={gajiPokok}
-          thrBulan={thrBulan} thrPct={thrPct}
-          bonusBulan={bonusBulan} bonusPct={bonusPct}
-        />
-      </div>
+      {/* Full-width projection below form */}
+      <ProjectionTable
+        projection={projection}
+        gajiPokok={gajiPokok}
+        thrBulan={thrBulan} thrPct={thrPct}
+        bonusBulan={bonusBulan} bonusPct={bonusPct}
+      />
     </div>
   );
 }
