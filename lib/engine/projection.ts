@@ -43,14 +43,29 @@ export type ProjRow = {
   bulan: number;
   hasThr: boolean;
   hasBonus: boolean;
+  isRefund: boolean;
+  ter: number;
+  // Totals
   bruto: number;
   pph: number;
   thp: number;
-  isRefund: boolean;
-  ter: number;
   ctc: number;
   bpjs_employer: number;
   bpjs_karyawan: number;
+  // Income breakdown (for per-month detail view)
+  gaji_pokok: number;
+  allowance_total: number;
+  thr_nominal: number;
+  bonus_nominal: number;
+  tunj_bpjs_employer: number;
+  tunj_karyawan_bpjs: number;
+  tunj_pph: number;
+  // Deduction breakdown
+  pot_bpjs_jht: number;
+  pot_bpjs_jp: number;
+  pot_bpjs_kes: number;
+  pot_pph: number;
+  bpjs_employer_offslip: number;
 };
 
 export type ProjResult = {
@@ -85,18 +100,40 @@ export function runProjection(p: ProjParams): ProjResult | null {
     };
     const res = calculateMonthlySalary(k) as {
       bruto: number; pph: number; thp: number;
-      ter: number;
-      bpjs: { employer_total: number; employer_offslip: number; karyawan_potong: number };
+      ter: number | null;
+      gaji_pokok: number;
+      allowance_total: number;
+      thr_nominal: number;
+      bonus_nominal: number;
+      tunj_pph: number;
+      pot_pph: number;
+      bpjs: {
+        employer_total: number; employer_offslip: number; employer_in_bruto: number;
+        karyawan_potong: number; karyawan_tunj: number;
+        pot_jht: number; pot_jp: number; pot_kes: number;
+      };
       proyeksi: { pph_setahun: number };
     };
     const isRefund = bulan === 12 && (res.proyeksi.pph_setahun - pph_jan_nov) < 0;
     rows.push({
       bulan, hasThr: thr > 0, hasBonus: bonus > 0,
-      bruto: res.bruto, pph: res.pph, thp: res.thp, isRefund,
-      ter: res.ter ?? 0,
+      isRefund, ter: res.ter ?? 0,
+      bruto: res.bruto, pph: res.pph, thp: res.thp,
       ctc: res.bruto + (res.bpjs?.employer_offslip ?? 0),
       bpjs_employer: res.bpjs?.employer_total ?? 0,
       bpjs_karyawan: res.bpjs?.karyawan_potong ?? 0,
+      gaji_pokok: res.gaji_pokok ?? p.gajiPokok,
+      allowance_total: res.allowance_total ?? 0,
+      thr_nominal: res.thr_nominal ?? thr,
+      bonus_nominal: res.bonus_nominal ?? bonus,
+      tunj_bpjs_employer: res.bpjs?.employer_in_bruto ?? 0,
+      tunj_karyawan_bpjs: res.bpjs?.karyawan_tunj ?? 0,
+      tunj_pph: res.tunj_pph ?? 0,
+      pot_bpjs_jht: res.bpjs?.pot_jht ?? 0,
+      pot_bpjs_jp: res.bpjs?.pot_jp ?? 0,
+      pot_bpjs_kes: res.bpjs?.pot_kes ?? 0,
+      pot_pph: res.pot_pph ?? 0,
+      bpjs_employer_offslip: res.bpjs?.employer_offslip ?? 0,
     });
     if (bulan < 12) { akum_bruto += res.bruto; pph_jan_nov += res.pph; }
   }
