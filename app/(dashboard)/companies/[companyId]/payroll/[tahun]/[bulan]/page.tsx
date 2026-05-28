@@ -20,7 +20,7 @@ import { createShareLink } from '@/lib/actions/share';
 import { NominalInput } from '@/components/ui/FormattedInput';
 import { CalcTooltipPopover, InfoDot, type CalcTooltipData } from '@/components/payroll/CalcTooltip';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
-import { BPJS as BPJS_RATES, JP_MAX_BASIS, KES_MAX_BASIS } from '@/lib/engine/constants';
+import { BPJS as BPJS_RATES, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from '@/lib/engine/constants';
 
 const BULAN_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -90,18 +90,28 @@ function LedgerTotal({ label, value, color, calc, calcPosition }: {
 
 /* ── Pasal 17 breakdown panel ── */
 
-function P17Row({ label, value, muted, bold, accent }: {
+function P17Row({ label, value, muted, bold, accent, tooltip }: {
   label: string; value: string; muted?: boolean; bold?: boolean; accent?: boolean;
+  tooltip?: CalcTooltipData;
 }) {
-  return (
-    <div className="flex justify-between items-baseline py-[2px]">
-      <span className={`text-[12px] leading-relaxed ${muted ? 'text-[var(--text-faint)]' : 'text-[var(--text-secondary)]'}`}>{label}</span>
+  const content = (
+    <div className={`flex justify-between items-baseline py-[3px] ${tooltip ? 'cursor-help hover:bg-violet-50 rounded -mx-1 px-1 transition-colors' : ''}`}>
+      <span className={`text-[12px] leading-relaxed flex items-baseline gap-1 ${muted ? 'text-[var(--text-faint)]' : 'text-[var(--text-secondary)]'}`}>
+        {label}{tooltip && <InfoDot />}
+      </span>
       <span className={`font-mono text-[12px] shrink-0 ml-2 ${bold ? 'font-bold' : 'font-medium'} ${accent ? 'text-violet-700' : 'text-[var(--text-primary)]'}`}>{value}</span>
+    </div>
+  );
+  if (!tooltip) return content;
+  return (
+    <div className="relative group">
+      {content}
+      <CalcTooltipPopover data={tooltip} position="above" />
     </div>
   );
 }
 
-function P17Divider() { return <div className="my-1.5 border-t border-violet-100" />; }
+function P17Divider() { return <div className="my-2 border-t border-violet-100" />; }
 
 function Pasal17BreakdownPanel({ res }: { res: any }) {
   const M = (res.months_in_year ?? 12) as number;
@@ -144,6 +154,66 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
   }
   const marginalPct = `${(marginalRate * 100).toFixed(0)}%`;
   const totalPengurang = (res.bj ?? 0) + (res.jht_k_tahunan ?? 0) + (res.jp_k_tahunan ?? 0);
+  const bpjsBasis = (res.bpjs?._basis ?? res.gaji_pokok ?? 0) as number;
+  const jpBasis = Math.min(bpjsBasis, JP_MAX_BASIS);
+
+  /* ── tooltips ── */
+  const bjTooltip: CalcTooltipData = {
+    title: 'Biaya Jabatan',
+    description: 'PMK 252/PMK.03/2008 (berlaku)',
+    steps: [
+      { label: 'Bruto Setahun', value: rp(res.bs ?? bsBase) },
+      { label: '5% × Bruto', value: rp((res.bs ?? bsBase) * BIAYA_JAB_RATE), op: '×' },
+      { label: `Cap Rp 500rb × ${M} bln`, value: rp(BIAYA_JAB_MAX * M) },
+      { label: 'Biaya Jabatan (ambil min)', value: rp(res.bj ?? 0), highlight: true },
+    ],
+    footer: 'BPJS Kes karyawan 1% bukan pengurang',
+  };
+
+  const jhtTooltip: CalcTooltipData | undefined = (res.jht_k_tahunan ?? 0) > 0 ? {
+    title: 'Iuran JHT Karyawan',
+    description: 'PMK 168/2023 Pasal 10 — deductible',
+    steps: [
+      { label: 'Basis BPJS', value: rp(bpjsBasis) },
+      { label: '× 2% (rate JHT karyawan)', value: rp(res.bpjs?.jht_k ?? 0), op: '×' },
+      { label: `× ${M} bulan`, value: rp(res.jht_k_tahunan ?? 0), op: '×', highlight: true },
+    ],
+  } : undefined;
+
+  const jpTooltip: CalcTooltipData | undefined = (res.jp_k_tahunan ?? 0) > 0 ? {
+    title: 'Iuran JP Karyawan',
+    description: 'PMK 168/2023 Pasal 10 — deductible',
+    steps: [
+      { label: `Basis JP (cap ${rp(JP_MAX_BASIS)})`, value: rp(jpBasis) },
+      { label: '× 1% (rate JP karyawan)', value: rp(res.bpjs?.jp_k ?? 0), op: '×' },
+      { label: `× ${M} bulan`, value: rp(res.jp_k_tahunan ?? 0), op: '×', highlight: true },
+    ],
+  } : undefined;
+
+  const ptkpTooltip: CalcTooltipData = {
+    title: `PTKP — ${res.status_ptkp ?? ''}`,
+    description: 'PMK 101/PMK.010/2016',
+    steps: [
+      { label: 'TK/0 = Rp 54.000.000', value: '' },
+      { label: 'TK/1, K/0 = Rp 58.500.000', value: '' },
+      { label: 'TK/2, K/1 = Rp 63.000.000', value: '' },
+      { label: 'TK/3, K/2 = Rp 67.500.000', value: '' },
+      { label: 'K/3 = Rp 72.000.000', value: '' },
+      { label: `Status ${res.status_ptkp ?? ''} →`, value: rp(res.ptkp ?? 0), highlight: true },
+    ],
+  };
+
+  const pkpTooltip: CalcTooltipData = {
+    title: 'PKP — Penghasilan Kena Pajak',
+    description: 'Dibulatkan ke bawah ribuan',
+    steps: [
+      { label: 'Netto Setahun', value: rp(res.netto ?? 0) },
+      { label: `− PTKP (${res.status_ptkp ?? ''})`, value: minus(res.ptkp ?? 0), op: '-' },
+      { label: 'Selisih', value: rp(Math.max(0, (res.netto ?? 0) - (res.ptkp ?? 0))) },
+      { label: 'PKP = floor ke bawah ribuan', value: rp(finalPkp), highlight: true },
+    ],
+    footer: 'floor(max(0, Netto − PTKP) / 1.000) × 1.000',
+  };
 
   return (
     <div className="mt-5 pt-5 border-t border-violet-100">
@@ -156,7 +226,7 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
       </div>
 
       <div className="grid gap-2">
-        {/* Step 1 */}
+        {/* Step 1 — Bruto Setahun */}
         <div className="rounded-lg border border-violet-100 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
             <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">1</span>
@@ -191,60 +261,130 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
           </div>
         </div>
 
-        {/* Step 2 */}
+        {/* Step 2 — Pengurang */}
         <div className="rounded-lg border border-violet-100 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
             <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">2</span>
             <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">Pengurang</span>
           </div>
           <div className="px-3 py-2.5">
-            <P17Row label={`Biaya Jabatan (5%, cap Rp ${formatRupiah(500_000 * M)})`} value={minus(res.bj ?? 0)} />
-            {(res.jht_k_tahunan ?? 0) > 0 && <P17Row label={`Iuran JHT Karyawan 2% × ${M} bln`} value={minus(res.jht_k_tahunan)} />}
-            {(res.jp_k_tahunan ?? 0) > 0 && <P17Row label={`Iuran JP Karyawan 1% × ${M} bln`} value={minus(res.jp_k_tahunan)} />}
-            <p className="text-[10px] text-[var(--text-faint)] italic mt-1 leading-relaxed">BPJS Kes Karyawan (1%) bukan pengurang — hanya JHT &amp; JP per UU HPP</p>
+            <P17Row
+              label={`Biaya Jabatan (5%, cap ${rp(BIAYA_JAB_MAX * M)})`}
+              value={minus(res.bj ?? 0)}
+              tooltip={bjTooltip}
+            />
+            {(res.jht_k_tahunan ?? 0) > 0 && (
+              <P17Row
+                label={`Iuran JHT Karyawan 2% × ${M} bln`}
+                value={minus(res.jht_k_tahunan)}
+                tooltip={jhtTooltip}
+              />
+            )}
+            {(res.jp_k_tahunan ?? 0) > 0 && (
+              <P17Row
+                label={`Iuran JP Karyawan 1% × ${M} bln`}
+                value={minus(res.jp_k_tahunan)}
+                tooltip={jpTooltip}
+              />
+            )}
+            <p className="text-[10px] text-[var(--text-faint)] italic mt-1.5 leading-relaxed">
+              BPJS Kes karyawan (1%) bukan pengurang — hanya JHT &amp; JP per PMK 168/2023 Pasal 10
+            </p>
             <P17Divider />
             <P17Row label="Total Pengurang" value={minus(totalPengurang)} bold />
           </div>
         </div>
 
-        {/* Step 3 */}
+        {/* Step 3 — Netto → PKP */}
         <div className="rounded-lg border border-violet-100 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
             <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">3</span>
             <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">Netto → PKP</span>
           </div>
           <div className="px-3 py-2.5">
-            <P17Row label="Netto Setahun" value={rp(res.netto ?? 0)} />
-            <P17Row label={`− PTKP (${res.status_ptkp ?? ''})`} value={minus(res.ptkp ?? 0)} />
+            <P17Row label="Bruto Setahun" value={rp(res.bs ?? bsBase)} muted />
+            <P17Row label="− Total Pengurang" value={minus(totalPengurang)} muted />
             <P17Divider />
-            <P17Row label="PKP (floor ke ribuan)" value={rp(res.pkp ?? 0)} bold />
+            <P17Row label="Netto Setahun" value={rp(res.netto ?? 0)} bold />
+            <div className="mt-2">
+              <P17Row
+                label={`− PTKP (${res.status_ptkp ?? ''})`}
+                value={minus(res.ptkp ?? 0)}
+                tooltip={ptkpTooltip}
+              />
+            </div>
+            <P17Divider />
+            <P17Row
+              label="PKP (floor ke ribuan)"
+              value={rp(finalPkp)}
+              bold
+              tooltip={pkpTooltip}
+            />
           </div>
         </div>
 
-        {/* Step 4 */}
+        {/* Step 4 — PPh Pasal 17 (tarif progresif) */}
         <div className="rounded-lg border border-violet-100 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 border-b border-violet-100">
             <span className="w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0 leading-none">4</span>
-            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">PPh Pasal 17{isGrossup ? ' + Grossup' : ''}</span>
+            <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wider">
+              Tarif Progresif Pasal 17{isGrossup ? ' + Grossup' : ''}
+            </span>
           </div>
           <div className="px-3 py-2.5">
+            {/* PKP reference at top */}
+            <div className="flex items-baseline justify-between mb-2 pb-2 border-b border-violet-100">
+              <span className="text-[11px] font-semibold text-violet-700">PKP yang dikenakan tarif</span>
+              <span className="font-mono text-[13px] font-bold text-violet-800">{rp(finalPkp)}</span>
+            </div>
+
+            {/* Bracket header */}
+            <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 mb-1 px-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">Lapisan</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)] text-right">PKP di lapis ini</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)] text-right">Pajak</span>
+            </div>
+
+            {/* Bracket rows */}
             {bLines.map((b, i) => (
-              <P17Row key={i} label={b.isTop ? `Sisa > ${b.loM}jt × ${(b.rate * 100).toFixed(0)}%` : `${b.loM}jt – ${b.hiM}jt × ${(b.rate * 100).toFixed(0)}%`} value={rp(b.tax)} muted />
+              <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-baseline py-1 px-1 rounded hover:bg-violet-50 transition-colors">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[11px] font-mono font-bold text-violet-600 w-6 shrink-0">{(b.rate * 100).toFixed(0)}%</span>
+                  <span className="text-[12px] text-[var(--text-secondary)]">
+                    {b.isTop ? `> ${b.loM} jt` : `${b.loM} – ${b.hiM} jt`}
+                  </span>
+                </div>
+                <span className="font-mono text-[12px] text-[var(--text-muted)] text-right">{rp(b.portion)}</span>
+                <span className="font-mono text-[12px] font-semibold text-[var(--text-primary)] text-right">{rp(b.tax)}</span>
+              </div>
             ))}
+
+            {/* Grossup explanation */}
             {isGrossup && (
-              <div className="mt-2 rounded-md bg-violet-50 border border-violet-200 px-3 py-2">
-                <p className="text-[11px] font-semibold text-violet-700 mb-1.5">Grossup — closed-form Pasal 17</p>
+              <div className="mt-2.5 rounded-md bg-violet-50 border border-violet-200 px-3 py-2">
+                <p className="text-[11px] font-semibold text-violet-700 mb-1.5">Grossup — Tunjangan PPh (TP)</p>
                 <div className="flex items-center gap-1.5 font-mono text-[12px] text-violet-900 flex-wrap">
                   <span>TP</span><span className="text-violet-400">=</span>
                   <span>{rp(res.pph_no_grossup ?? 0)}</span><span className="text-violet-400">÷</span>
                   <span>(1 − {marginalPct})</span><span className="text-violet-400">≈</span>
                   <span className="font-bold">{rp(res.tunj_pph_setahun ?? 0)}</span>
                 </div>
-                <p className="text-[10px] text-violet-500 mt-1 leading-relaxed">PKP masuk lapis {marginalPct} → tarif marginal {marginalPct} → iterasi konvergen</p>
+                <p className="text-[10px] text-violet-500 mt-1 leading-relaxed">
+                  PKP masuk lapis {marginalPct} → tarif marginal {marginalPct} → konvergen dalam iterasi
+                </p>
               </div>
             )}
+
             <P17Divider />
-            <P17Row label="PPh Setahun (Pasal 17)" value={rp(res.pph_tahunan ?? 0)} bold />
+            <div className="flex justify-between items-baseline">
+              <span className="text-[12px] font-bold text-[var(--text-primary)]">PPh Setahun (Pasal 17)</span>
+              <span className="font-mono text-[14px] font-bold text-violet-700">{rp(res.pph_tahunan ?? 0)}</span>
+            </div>
+            {bLines.length > 1 && (
+              <p className="text-[10px] text-[var(--text-faint)] mt-0.5 text-right">
+                = {bLines.map(b => rp(b.tax)).join(' + ')}
+              </p>
+            )}
           </div>
         </div>
 

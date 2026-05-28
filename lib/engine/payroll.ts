@@ -272,8 +272,11 @@ function computeAnnualProjection(
     const ptkp = PTKP[k.status_ptkp];
     const bruto_setahun = monthlyBruto * 12;
     const biaya_jabatan_setahun = Math.min(bruto_setahun * BIAYA_JAB_RATE, BIAYA_JAB_MAX * 12);
-    const jp_k_tahunan = !k.tanggung_jp_k ? bpjs.jp_k * 12 : 0;
-    const netto_setahun = bruto_setahun - biaya_jabatan_setahun - jp_k_tahunan;
+    // PMK 168/2023 Pasal 10: JHT and JP karyawan are deductible; Kes is not.
+    // Previously only JP was deducted here — now consistent with calculateLastMonth.
+    const jht_k_tahunan = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * 12 : 0;
+    const jp_k_tahunan  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * 12 : 0;
+    const netto_setahun = bruto_setahun - biaya_jabatan_setahun - jht_k_tahunan - jp_k_tahunan;
     const pkp_setahun = Math.max(0, Math.floor((netto_setahun - ptkp) / 1000) * 1000);
     let pph_setahun = getPasal17Tax(pkp_setahun);
     if (!k.punya_npwp) {
@@ -284,6 +287,8 @@ function computeAnnualProjection(
     return {
         bruto_setahun,
         biaya_jabatan_setahun,
+        jht_k_tahunan,
+        jp_k_tahunan,
         netto_setahun,
         pkp_setahun,
         pph_setahun,
