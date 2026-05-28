@@ -45,9 +45,28 @@ export default function BatchPage() {
       if (!workspace) { setLoading(false); return; }
       const supabase = createClient();
 
-      const { data: companies } = await supabase
+      // Same staff filter as /companies and /dashboard — staff only see
+      // companies they've been granted access to via company_staff_access.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data: profile } = await supabase
+        .from('user_profiles').select('role').eq('id', user.id).maybeSingle();
+      const isStaff = profile?.role === 'staff';
+
+      let allowedIds: string[] | null = null;
+      if (isStaff) {
+        const { data: access } = await supabase
+          .from('company_staff_access').select('company_id')
+          .eq('staff_user_id', user.id);
+        allowedIds = (access ?? []).map(a => a.company_id as string);
+        if (allowedIds.length === 0) { setRows([]); setLoading(false); return; }
+      }
+
+      const coBase = supabase
         .from('companies').select('id, name, kota')
         .eq('workspace_id', workspace.id).eq('aktif', true).order('name');
+      const coQuery = isStaff ? coBase.in('id', allowedIds!) : coBase;
+      const { data: companies } = await coQuery;
 
       if (!companies?.length) { setLoading(false); return; }
       const companyIds = companies.map((c) => c.id);
