@@ -41,17 +41,39 @@ export default async function DashboardPage() {
   const ws          = membership?.workspaces;
   const wsName      = (Array.isArray(ws) ? ws[0]?.name : (ws as any)?.name) ?? '—';
 
+  // Staff users see only the companies explicitly granted to them via
+  // company_staff_access. Without this filter the dashboard leaked
+  // every company name in the workspace (and aggregate totals derived
+  // from them) regardless of assignment.
+  const { data: profile } = await supabase
+    .from('user_profiles').select('role').eq('id', user.id).maybeSingle();
+  const isStaff = profile?.role === 'staff';
+
+  let staffAllowedIds: string[] | null = null;
+  if (isStaff) {
+    const { data: access } = await supabase
+      .from('company_staff_access').select('company_id')
+      .eq('staff_user_id', user.id);
+    staffAllowedIds = (access ?? []).map(a => a.company_id as string);
+  }
+
   // NOTE: We previously wired this through lib/cache.ts's unstable_cache
   // wrappers, but those wrappers call createClient() (which reads cookies)
   // inside the unstable_cache callback — disallowed in Next.js 15 and crashed
   // /dashboard in production. Reverted to inline queries for now; the cache
   // layer needs to be re-designed (pass auth out, use anon client, or use
   // React's `cache()` instead) before re-wiring.
-  const { data: companies } = await supabase
-    .from('companies').select('id, name, kota')
-    .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
+  let companies: { id: string; name: string; kota: string | null }[] = [];
+  if (!isStaff || (staffAllowedIds && staffAllowedIds.length > 0)) {
+    const baseQ = supabase
+      .from('companies').select('id, name, kota')
+      .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
+    const q = isStaff ? baseQ.in('id', staffAllowedIds!) : baseQ;
+    const { data } = await q;
+    companies = (data ?? []) as typeof companies;
+  }
 
-  const companyIds = (companies ?? []).map((c) => c.id);
+  const companyIds = companies.map((c) => c.id);
 
   const { count: empCount } = companyIds.length > 0
     ? await supabase.from('employees').select('*', { count: 'exact', head: true })
