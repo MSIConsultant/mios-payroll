@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
-import { saveImport, type ImportRecord } from '@/lib/actions/import';
+import { saveImport, fetchEmployeeAccumDataByNik, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
   parseTetap, parseHarian, reconcileEmployee,
   PTKP_VALID, type ParsedEmp,
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Upload, FileSpreadsheet, CheckCircle2,
   AlertTriangle, ChevronRight, Loader2,
-  Users, Lock, Check,
+  Users, Lock, Check, Download, RefreshCw,
 } from 'lucide-react';
 
 type Step = 'upload' | 'reconcile' | 'confirm' | 'saving' | 'done';
@@ -102,6 +102,9 @@ export default function ImportNewPage() {
   const [parsed, setParsed] = useState<ParsedEmp[]>([]);
   const [reconciled, setReconciled] = useState<ImportRecord[]>([]);
   const [mode, setMode] = useState<'employees_only' | 'full'>('full');
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }>>({});
   const [saveProgress, setSaveProgress] = useState(0);
   const [doneResult, setDoneResult] = useState<any>(null);
 
@@ -178,7 +181,7 @@ export default function ImportNewPage() {
     [bulan],
   );
 
-  function handleRunReconcile() {
+  async function handleRunReconcile() {
     if (!companyId) {
       toast.error('Pilih perusahaan terlebih dahulu');
       return;
@@ -193,8 +196,27 @@ export default function ImportNewPage() {
       return;
     }
 
+    setReconciling(true);
+
+    // Fetch current DB employee data (for salary delta display) and accumulated
+    // bruto/pph for prior months (for accurate December engine comparison).
+    let resolvedAccum: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
+    let resolvedDbEmps: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }> = {};
+    try {
+      const [accumResult, dbEmpsResult] = await Promise.allSettled([
+        bulan > 1 ? fetchEmployeeAccumDataByNik(companyId, tahun, bulan) : Promise.resolve(resolvedAccum),
+        fetchExistingEmployeeDataByNik(companyId),
+      ]);
+      if (accumResult.status === 'fulfilled') resolvedAccum   = accumResult.value;
+      if (dbEmpsResult.status === 'fulfilled') resolvedDbEmps = dbEmpsResult.value;
+    } catch { /* non-fatal */ }
+    setDbEmployeeMap(resolvedDbEmps);
+
     const recs: ImportRecord[] = valid.map((emp) => {
-      const rec = reconcileEmployee(emp, bulan, tahun);
+      const accum  = resolvedAccum[emp.nik];
+      const dbEmp  = resolvedDbEmps[emp.nik];
+      const options = { ...accum, bpjs_basis: dbEmp?.bpjs_basis ?? null };
+      const rec = reconcileEmployee(emp, bulan, tahun, options);
       return {
         ...emp,
         engine_bruto: rec.engine_bruto,
@@ -206,7 +228,33 @@ export default function ImportNewPage() {
       };
     });
     setReconciled(recs);
+    setReconciling(false);
     setStep('reconcile');
+  }
+
+  function exportReconcileCsv() {
+    const header = [
+      'NIK', 'Nama', 'Divisi', 'PTKP',
+      'Bruto Excel', 'Bruto Engine',
+      'PPh Excel', 'PPh Engine',
+      'THP Excel', 'Delta %', 'Status',
+    ];
+    const rows = reconciled.map((r) => [
+      r.nik, r.nama, r.divisi, r.status_ptkp,
+      r.excel_bruto, r.engine_bruto,
+      r.excel_pph, r.engine_pph,
+      r.excel_thp, r.diff_pct.toFixed(2),
+      r.has_diff ? 'BEDA' : 'MATCH',
+    ]);
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = '﻿' + [header, ...rows].map((r) => r.map(cell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `rekonsiliasi-${String(bulan).padStart(2, '0')}-${tahun}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSave() {
@@ -219,7 +267,9 @@ export default function ImportNewPage() {
     }, 200);
 
     const res = await saveImport({
-      workspaceId, companyId, bulan, tahun, fileName, mode, records: reconciled,
+      workspaceId, companyId, bulan, tahun, fileName, mode,
+      update_existing: updateExisting,
+      records: reconciled,
     });
 
     clearInterval(interval);
@@ -416,11 +466,20 @@ export default function ImportNewPage() {
         <div className="flex justify-end">
           <button
             onClick={handleRunReconcile}
-            disabled={!companyId || validCount === 0}
+            disabled={!companyId || validCount === 0 || reconciling}
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold disabled:opacity-40 transition-colors shadow-sm cursor-pointer"
           >
-            Lanjut ke Rekonsiliasi
-            <ChevronRight size={16} />
+            {reconciling ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                Mengambil data akumulasi…
+              </>
+            ) : (
+              <>
+                Lanjut ke Rekonsiliasi
+                <ChevronRight size={16} />
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -449,7 +508,16 @@ export default function ImportNewPage() {
               </p>
             </div>
           </div>
-          <StepIndicator step={step} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportReconcileCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
+            >
+              <Download size={14} />
+              Ekspor CSV
+            </button>
+            <StepIndicator step={step} />
+          </div>
         </header>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -492,19 +560,42 @@ export default function ImportNewPage() {
                 </tr>
               </thead>
               <tbody>
-                {reconciled.map((r, i) => (
+                {reconciled.map((r, i) => {
+                  const dbEmp = dbEmployeeMap[r.nik];
+                  const gajiDelta = dbEmp ? r.gaji_pokok - dbEmp.gaji_pokok : null;
+                  const ptkpChanged = dbEmp && dbEmp.status_ptkp && r.status_ptkp !== dbEmp.status_ptkp;
+                  return (
                   <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
                     <td>
                       <p className="font-semibold text-[var(--text-primary)] truncate">
                         {r.nama}
+                        {gajiDelta !== null && gajiDelta !== 0 && (
+                          <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            gajiDelta > 0
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}>
+                            {gajiDelta > 0 ? '+' : ''}{Math.round(gajiDelta / 1000)}K
+                          </span>
+                        )}
+                        {!dbEmp && (
+                          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">
+                            BARU
+                          </span>
+                        )}
                       </p>
                       <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
                         {r.divisi || r.nik}
                       </p>
                     </td>
                     <td>
-                      <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-sky-50 text-sky-700 ring-sky-200">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${
+                        ptkpChanged
+                          ? 'bg-amber-50 text-amber-700 ring-amber-200'
+                          : 'bg-sky-50 text-sky-700 ring-sky-200'
+                      }`}>
                         {r.status_ptkp}
+                        {ptkpChanged && <span className="ml-1 opacity-60 normal-case">← {dbEmp.status_ptkp}</span>}
                       </span>
                     </td>
                     <td className="text-right font-mono font-semibold">
@@ -524,7 +615,8 @@ export default function ImportNewPage() {
                       <DiffBadge pct={r.diff_pct} />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -640,6 +732,38 @@ export default function ImportNewPage() {
           })}
         </div>
 
+        {/* Update existing employees toggle */}
+        <button
+          onClick={() => setUpdateExisting((v) => !v)}
+          className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all cursor-pointer ${
+            updateExisting
+              ? 'bg-amber-50 border border-amber-300'
+              : 'bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)]'
+          }`}
+        >
+          <RefreshCw
+            size={16}
+            className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'}
+          />
+          <div className="flex-1 min-w-0">
+            <p className={`font-semibold text-[14px] ${updateExisting ? 'text-amber-900' : 'text-[var(--text-primary)]'}`}>
+              Perbarui data karyawan yang sudah ada
+            </p>
+            <p className="text-[12px] text-[var(--text-muted)] leading-relaxed mt-0.5">
+              Jika NIK sudah terdaftar, timpa gaji pokok, PTKP, dan tunjangan dari Excel.{' '}
+              {!updateExisting && <span className="font-semibold">Nonaktif — karyawan lama dilewati.</span>}
+              {updateExisting && <span className="font-semibold text-amber-700">Aktif — data karyawan lama akan diperbarui.</span>}
+            </p>
+          </div>
+          <div
+            className={`shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+              updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
+            }`}
+          >
+            {updateExisting && <Check size={12} className="text-white" />}
+          </div>
+        </button>
+
         <button
           onClick={handleSave}
           className="w-full py-3 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold transition-colors shadow-sm cursor-pointer"
@@ -691,10 +815,16 @@ export default function ImportNewPage() {
                 baru dibuat
               </p>
             )}
+            {doneResult.updated > 0 && (
+              <p className="text-[15px] text-[var(--text-secondary)]">
+                <span className="font-bold text-amber-700">{doneResult.updated}</span> karyawan
+                diperbarui
+              </p>
+            )}
             {doneResult.skipped > 0 && (
               <p className="text-[15px] text-[var(--text-secondary)]">
                 <span className="font-bold text-[var(--text-muted)]">{doneResult.skipped}</span>{' '}
-                karyawan sudah ada
+                karyawan dilewati
               </p>
             )}
             {doneResult.payroll && (

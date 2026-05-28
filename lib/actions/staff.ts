@@ -1,7 +1,114 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertWorkspaceAccess } from '@/lib/auth/assertAccess';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
+import { getAppUrl } from '@/lib/env';
+import { inviteRatelimit, checkRateLimit } from '@/lib/ratelimit';
+
+// Option C: create an auth user immediately (no /register, no pending-approval),
+// wire them into the workspace, and let Supabase send the magic-link email.
+export async function inviteStaffMagicLink(
+  workspaceId: string,
+  email: string,
+  companyIds: string[] = [],
+) {
+  const supabase = await createClient();
+  const { data: { user: caller } } = await supabase.auth.getUser();
+  if (!caller) return { error: 'Not authenticated' };
+
+  // Verify caller belongs to this workspace
+  const { data: membership } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', caller.id)
+    .single();
+  if (!membership) return { error: 'Tidak memiliki akses ke workspace ini.' };
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { allowed } = await checkRateLimit(inviteRatelimit, `invite:${workspaceId}`);
+  if (!allowed) return { error: 'Terlalu banyak undangan. Coba lagi dalam satu jam.' };
+
+  // Idempotency: already a member?
+  const { data: existing } = await supabase
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', workspaceId)
+    .eq('user_email', normalizedEmail)
+    .maybeSingle();
+  if (existing) return { error: 'Email ini sudah menjadi anggota workspace.' };
+
+  const admin = createAdminClient();
+  const appUrl = getAppUrl();
+  const redirectTo = appUrl ? `${appUrl}/auth/callback?next=/dashboard` : undefined;
+
+  // Create auth user + send magic-link email in one call
+  const { data: inviteData, error: inviteErr } =
+    await admin.auth.admin.inviteUserByEmail(normalizedEmail, { redirectTo });
+  if (inviteErr) return { error: inviteErr.message };
+
+  const newUserId = inviteData.user.id;
+
+  // handle_new_user trigger fires synchronously and creates a pending_approval
+  // row. Approve it (or insert if the trigger happened to fail).
+  const { data: existingProfile } = await admin
+    .from('user_profiles')
+    .select('status')
+    .eq('id', newUserId)
+    .maybeSingle();
+
+  if (!existingProfile || existingProfile.status === 'pending_approval') {
+    await admin.from('user_profiles').upsert(
+      {
+        id: newUserId,
+        email: normalizedEmail,
+        role: 'staff',
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+  }
+
+  // Link to workspace
+  await admin.from('workspace_members').upsert(
+    {
+      workspace_id: workspaceId,
+      user_id: newUserId,
+      user_email: normalizedEmail,
+      role: 'member',
+    },
+    { onConflict: 'user_id,workspace_id' },
+  );
+
+  // Grant any pre-selected company access
+  if (companyIds.length > 0) {
+    const rows = companyIds.map(cid => ({
+      workspace_id: workspaceId,
+      staff_user_id: newUserId,
+      company_id: cid,
+      granted_by: caller.id,
+    }));
+    await admin.from('company_staff_access').upsert(rows, {
+      onConflict: 'staff_user_id,company_id',
+      ignoreDuplicates: true,
+    });
+  }
+
+  await audit({
+    workspace_id: workspaceId,
+    action: 'STAFF_INVITED',
+    entity_type: 'user',
+    entity_name: normalizedEmail,
+    new_values: { method: 'magic_link', companies_granted: companyIds.length },
+  });
+
+  revalidatePath('/staff');
+  return { success: true };
+}
 
 export async function getWorkspaceStaff(workspaceId: string) {
   const supabase = await createClient();
@@ -28,9 +135,12 @@ export async function grantCompanyAccess(
   companyId:   string,
   companyName: string,
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa memberikan akses perusahaan.' };
+
+  const { supabase, user } = access;
 
   const { error } = await supabase.from('company_staff_access').insert({
     workspace_id:  workspaceId,
@@ -60,10 +170,18 @@ export async function revokeCompanyAccess(
   companyId:   string,
   companyName: string,
 ) {
-  const supabase = await createClient();
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa mencabut akses perusahaan.' };
+
+  const { supabase } = access;
+
+  // Scope delete to workspace to prevent cross-tenant mutations
   const { error } = await supabase
     .from('company_staff_access')
     .delete()
+    .eq('workspace_id', workspaceId)
     .eq('staff_user_id', staffUserId)
     .eq('company_id', companyId);
   if (error) return { error: error.message };
@@ -86,7 +204,18 @@ export async function removeStaffFromWorkspace(
   userId:      string,
   userEmail:   string,
 ) {
-  const supabase = await createClient();
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa menghapus staff.' };
+
+  const { supabase } = access;
+
+  // Prevent removing the workspace owner
+  const { data: ws } = await supabase.from('workspaces')
+    .select('owner_id').eq('id', workspaceId).single();
+  if (ws?.owner_id === userId)
+    return { error: 'Owner tidak bisa dihapus dari workspace.' };
 
   // Remove all company access first
   await supabase.from('company_staff_access')

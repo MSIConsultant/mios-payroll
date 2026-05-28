@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getImportSession } from '@/lib/actions/import';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CsvExportButton } from './CsvExportButton';
 
 const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 const pct = (n: number) => `${n.toFixed(1)}%`;
@@ -25,7 +26,7 @@ export default async function ImportSessionPage({
   if (!session) notFound();
 
   const company = (session as any).companies?.name ?? '—';
-  const diffs = records.filter((r) => r.has_diff);
+  const diffs   = records.filter((r) => r.has_diff);
   const matches = records.filter((r) => !r.has_diff);
 
   return (
@@ -40,14 +41,21 @@ export default async function ImportSessionPage({
         </Link>
       </div>
 
-      <header className="bg-white border border-[var(--border-default)] rounded-xl p-5 sm:p-6">
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] break-all">
-          {session.file_name}
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">
-          {company} · {BULAN[session.bulan]} {session.tahun} ·{' '}
-          {new Date(session.created_at).toLocaleString('id-ID')}
-        </p>
+      <header className="bg-white border border-[var(--border-default)] rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] break-all">
+            {session.file_name}
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            {company} · {BULAN[session.bulan]} {session.tahun} ·{' '}
+            {new Date(session.created_at).toLocaleString('id-ID')}
+          </p>
+        </div>
+        <CsvExportButton
+          records={records as any[]}
+          bulan={session.bulan}
+          tahun={session.tahun}
+        />
       </header>
 
       {/* Summary */}
@@ -83,45 +91,60 @@ export default async function ImportSessionPage({
                 <th>Karyawan</th>
                 <th className="text-right">Bruto (Excel)</th>
                 <th className="text-right">Bruto (Engine)</th>
-                <th className="text-right">PPh</th>
+                <th className="text-right">PPh (Excel)</th>
+                <th className="text-right">PPh (Engine)</th>
                 <th className="text-right">THP</th>
                 <th className="text-center">Delta</th>
               </tr>
             </thead>
             <tbody>
-              {records.map((r, i) => (
-                <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
-                  <td className="font-semibold text-[var(--text-primary)]">
-                    {r.employee_name}
-                  </td>
-                  <td className="text-right font-mono font-semibold">
-                    {fmt((r.original_data as any)?.bruto ?? 0)}
-                  </td>
-                  <td
-                    className={`text-right font-mono ${
-                      r.has_diff ? 'text-amber-700 font-semibold' : ''
-                    }`}
-                  >
-                    {fmt((r.recalculated_data as any)?.bruto ?? 0)}
-                  </td>
-                  <td className="text-right font-mono text-amber-700">
-                    {fmt((r.original_data as any)?.pph ?? 0)}
-                  </td>
-                  <td className="text-right font-mono font-bold text-emerald-700">
-                    {fmt((r.original_data as any)?.thp ?? 0)}
-                  </td>
-                  <td className="text-center">
-                    {r.has_diff ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
-                        <AlertTriangle size={11} />
-                        {pct((r.differences as any)?.diff_pct ?? 0)}
-                      </span>
-                    ) : (
-                      <CheckCircle2 size={14} className="text-emerald-600 inline" />
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {records.map((r, i) => {
+                const orig   = (r.original_data   as Record<string, number>) ?? {};
+                const recalc = (r.recalculated_data as Record<string, number>) ?? {};
+                const diff   = (r.differences       as Record<string, number>) ?? {};
+                return (
+                  <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
+                    <td className="font-semibold text-[var(--text-primary)]">
+                      {r.employee_name}
+                    </td>
+                    <td className="text-right font-mono font-semibold">
+                      {fmt(orig.bruto ?? 0)}
+                    </td>
+                    <td
+                      className={`text-right font-mono ${
+                        r.has_diff ? 'text-amber-700 font-semibold' : ''
+                      }`}
+                    >
+                      {fmt(recalc.bruto ?? 0)}
+                    </td>
+                    <td className="text-right font-mono text-[var(--text-secondary)]">
+                      {fmt(orig.pph ?? 0)}
+                    </td>
+                    <td
+                      className={`text-right font-mono ${
+                        Math.abs(diff.pph ?? 0) > 100
+                          ? 'text-amber-700 font-semibold'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      {fmt(recalc.pph ?? 0)}
+                    </td>
+                    <td className="text-right font-mono font-bold text-emerald-700">
+                      {fmt(orig.thp ?? 0)}
+                    </td>
+                    <td className="text-center">
+                      {r.has_diff ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                          <AlertTriangle size={11} />
+                          {pct((diff as any).diff_pct ?? 0)}
+                        </span>
+                      ) : (
+                        <CheckCircle2 size={14} className="text-emerald-600 inline" />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -138,9 +161,9 @@ function Stat({
   accent?: 'brand' | 'emerald' | 'amber';
 }) {
   const accentMap = {
-    brand: 'text-[var(--brand)]',
+    brand:   'text-[var(--brand)]',
     emerald: 'text-emerald-700',
-    amber: 'text-amber-700',
+    amber:   'text-amber-700',
   } as const;
   const text = accent ? accentMap[accent] : 'text-[var(--text-primary)]';
   return (

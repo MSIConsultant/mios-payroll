@@ -5,6 +5,7 @@ import { approveUser, rejectUser, suspendUser } from '@/lib/actions/admin';
 import { toast } from 'sonner';
 import { CheckCircle2, XCircle, PauseCircle, Users, Building2, Activity } from 'lucide-react';
 import type { UserProfile } from '@/lib/types/roles';
+import { ConfirmProvider, useConfirm } from '@/components/ui/ConfirmDialog';
 
 const STATUS_COLORS: Record<string, string> = {
   pending_approval: '#FBB040',
@@ -20,6 +21,17 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function AdminPanel() {
+  // /dev/admin is outside the (dashboard) layout group, so the page wraps its
+  // own ConfirmProvider for useConfirm() consumers below.
+  return (
+    <ConfirmProvider>
+      <AdminPanelInner />
+    </ConfirmProvider>
+  );
+}
+
+function AdminPanelInner() {
+  const confirm = useConfirm();
   const [users, setUsers]       = useState<UserProfile[]>([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState<'pending'|'all'|'system'>('pending');
@@ -68,7 +80,12 @@ export default function AdminPanel() {
   }
 
   async function handleSuspend(id: string) {
-    if (!confirm('Tangguhkan akun ini?')) return;
+    if (!(await confirm({
+      title: 'Tangguhkan akun?',
+      message: 'User akan diblokir dari login sampai diaktifkan kembali.',
+      severity: 'danger',
+      confirmLabel: 'Tangguhkan',
+    }))) return;
     const res = await suspendUser(id);
     if (res.error) toast.error(res.error);
     else { toast.success('Akun ditangguhkan'); await fetchData(); }

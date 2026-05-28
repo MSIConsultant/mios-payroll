@@ -1,8 +1,10 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertWorkspaceAccess } from '@/lib/auth/assertAccess';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
+import { getAppUrl } from '@/lib/env';
 
 async function logActivity(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -33,8 +35,26 @@ export async function createWorkspace(formData: FormData) {
     .eq('user_id', user.id)
     .eq('role', 'owner');
 
-  if ((count ?? 0) >= 2) {
-    return { error: 'Maksimal 2 workspace per akun.' };
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  // Workspace limits per role tier.
+  // dev = unlimited; accountant = 3 (manually approved, trusted);
+  // staff = 1 (shouldn't be creating workspaces, but allow onboarding).
+  // Replace these with a plan-column lookup once subscription tiers are added.
+  const WORKSPACE_LIMIT: Record<string, number | null> = {
+    dev:        null,
+    accountant: 3,
+    staff:      1,
+  };
+  const role  = (profile?.role as string) ?? 'staff';
+  const limit = WORKSPACE_LIMIT[role] ?? 1;
+
+  if (limit !== null && (count ?? 0) >= limit) {
+    return { error: `Maksimal ${limit} workspace untuk akun Anda.` };
   }
 
   const { data, error } = await supabase.rpc('create_workspace_for_user', {
@@ -53,24 +73,28 @@ export async function sendInvite(workspaceId: string, invitedEmail: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
+  const normalizedEmail = invitedEmail.trim().toLowerCase();
+
   const { data: pendingInvite } = await supabase.from('workspace_invitations')
     .select('id').eq('workspace_id', workspaceId)
-    .eq('invited_email', invitedEmail).is('accepted_at', null).single();
+    .eq('invited_email', normalizedEmail).is('accepted_at', null).maybeSingle();
   if (pendingInvite) return { error: 'Undangan sudah dikirim ke email ini.' };
 
   const token = randomBytes(32).toString('hex');
   const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await supabase.from('workspace_invitations').insert({
-    workspace_id: workspaceId, invited_email: invitedEmail,
+    workspace_id: workspaceId, invited_email: normalizedEmail,
     token, invited_by: user.id, role: 'member', expires_at,
   });
   if (error) return { error: error.message };
 
-  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', invitedEmail,
+  await logActivity(supabase, workspaceId, 'MEMBER_INVITED', 'user', normalizedEmail,
     { invited_by: user.email });
 
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://mios-payroll-v5.vercel.app'}/invite?token=${token}`;
+  const appUrl = getAppUrl();
+  if (!appUrl) return { error: 'NEXT_PUBLIC_APP_URL atau VERCEL_URL belum dikonfigurasi.' };
+  const inviteUrl = `${appUrl}/invite?token=${token}`;
   return { success: true, inviteUrl, token };
 }
 
@@ -85,7 +109,8 @@ export async function acceptInvite(token: string) {
 
   if (invErr || !invite) return { error: 'Undangan tidak valid atau sudah kadaluarsa.' };
   if (new Date(invite.expires_at) < new Date()) return { error: 'Undangan sudah kadaluarsa.' };
-  if (invite.invited_email !== user.email) return { error: 'Undangan ini bukan untuk akun Anda.' };
+  if ((invite.invited_email ?? '').toLowerCase() !== (user.email ?? '').toLowerCase())
+    return { error: 'Undangan ini bukan untuk akun Anda.' };
 
   const { error: memErr } = await supabase.from('workspace_members').insert({
     workspace_id: invite.workspace_id,
@@ -107,9 +132,12 @@ export async function acceptInvite(token: string) {
 }
 
 export async function removeMember(workspaceId: string, userId: string, userEmail: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa menghapus anggota.' };
+
+  const { supabase, user } = access;
 
   const { data: ws } = await supabase.from('workspaces')
     .select('owner_id').eq('id', workspaceId).single();
@@ -126,8 +154,15 @@ export async function removeMember(workspaceId: string, userId: string, userEmai
 }
 
 export async function revokeInvite(inviteId: string, workspaceId: string, email: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from('workspace_invitations').delete().eq('id', inviteId);
+  const access = await assertWorkspaceAccess(workspaceId);
+  if (!access.ok) return { error: 'Akses ditolak' };
+  if (!['owner', 'admin'].includes(access.role))
+    return { error: 'Hanya owner atau admin yang bisa membatalkan undangan.' };
+
+  const { supabase } = access;
+  // Scope delete to workspace to prevent cross-tenant invite revocation
+  const { error } = await supabase.from('workspace_invitations')
+    .delete().eq('id', inviteId).eq('workspace_id', workspaceId);
   if (error) return { error: error.message };
   await logActivity(supabase, workspaceId, 'INVITE_REVOKED', 'user', email);
   revalidatePath('/settings');

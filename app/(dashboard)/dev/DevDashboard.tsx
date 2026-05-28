@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 import {
   Terminal, Database, Users, Building2, Calculator,
@@ -42,6 +43,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function DevDashboard({ userEmail }: { userEmail: string }) {
+  const confirm = useConfirm();
   const [stats, setStats]             = useState<Record<string, number>>({});
   const [workspaces, setWorkspaces]   = useState<any[]>([]);
   const [selWorkspace, setSelWorkspace] = useState<string>('all');
@@ -139,7 +141,13 @@ export default function DevDashboard({ userEmail }: { userEmail: string }) {
   }
 
   async function clearTable(table: string) {
-    if (!confirm(`DELETE ALL rows from ${table}? Cannot be undone.`)) return;
+    if (!(await confirm({
+      title: `Wipe table "${table}"?`,
+      message: 'This deletes ALL rows in the table. Cannot be undone.',
+      severity: 'danger',
+      retypeToConfirm: table,
+      confirmLabel: 'Wipe',
+    }))) return;
     const supabase = createClient();
     const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if (error) toast.error(error.message);

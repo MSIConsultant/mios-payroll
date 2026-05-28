@@ -6,6 +6,7 @@ const PUBLIC_PATHS = [
   '/login', '/register', '/invite', '/auth', '/oauth',
   '/forgot-password', '/reset-password', '/share', '/pending-approval',
 ];
+const IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -32,6 +33,28 @@ export async function middleware(request: NextRequest) {
 
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
   const isDevPath = pathname.startsWith('/dev');
+
+  // Idle session timeout: if authenticated but last activity > 8h ago, log out.
+  if (user && !isPublic) {
+    const lastActive = request.cookies.get('_la')?.value;
+    const now = Date.now();
+    if (lastActive && now - parseInt(lastActive, 10) > IDLE_TIMEOUT_MS) {
+      await supabase.auth.signOut();
+      const u = request.nextUrl.clone();
+      u.pathname = '/login';
+      u.search = '?reason=session_expired';
+      const r = NextResponse.redirect(u);
+      r.cookies.delete('_la');
+      return r;
+    }
+    response.cookies.set('_la', String(now), {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: IDLE_TIMEOUT_MS / 1000,
+      path: '/',
+    });
+  }
 
   // Not logged in → login
   if (!user && !isPublic) {

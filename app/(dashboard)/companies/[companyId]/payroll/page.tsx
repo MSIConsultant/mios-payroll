@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Lock, CheckCircle2, Clock, Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { deletePayrollRun } from '@/lib/actions/payroll';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];

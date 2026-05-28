@@ -1,5 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { assertCompanyAccess } from '@/lib/auth/assertAccess';
 import { audit } from '@/lib/audit';
 import { revalidatePath } from 'next/cache';
 
@@ -35,21 +36,23 @@ export interface ImportRecord {
 }
 
 export interface SaveImportPayload {
-  workspaceId: string;
-  companyId:   string;
-  bulan:       number;
-  tahun:       number;
-  fileName:    string;
-  mode:        'employees_only' | 'full';
-  records:     ImportRecord[];
+  workspaceId:      string;
+  companyId:        string;
+  bulan:            number;
+  tahun:            number;
+  fileName:         string;
+  mode:             'employees_only' | 'full';
+  update_existing?: boolean;
+  records:          ImportRecord[];
 }
 
 export async function saveImport(payload: SaveImportPayload) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  const access = await assertCompanyAccess(payload.companyId);
+  if (!access.ok) return { error: access.error === 'unauthenticated' ? 'Not authenticated' : 'Akses ditolak' };
+  // workspaceId derived server-side from company record, not trusted from client payload
+  const { supabase, user, workspaceId } = access;
 
-  const { workspaceId, companyId, bulan, tahun, fileName, mode, records } = payload;
+  const { companyId, bulan, tahun, fileName, mode, update_existing = false, records } = payload;
 
   // ── 1. Resolve existing employees by NIK ──────────────────────────
   const { data: existing } = await supabase
@@ -57,13 +60,37 @@ export async function saveImport(payload: SaveImportPayload) {
   const existingByNIK: Record<string, string> = {};
   for (const e of existing ?? []) existingByNIK[e.nik] = e.id;
 
-  // ── 2. Create new employees ───────────────────────────────────────
+  // ── 2. Create or update employees ────────────────────────────────
   const empIdMap: Record<string, string> = { ...Object.fromEntries(Object.entries(existingByNIK)) };
   let created = 0;
   let skipped = 0;
+  let updated = 0;
 
   for (const rec of records) {
-    if (existingByNIK[rec.nik]) { skipped++; continue; }
+    if (existingByNIK[rec.nik]) {
+      empIdMap[rec.nik] = existingByNIK[rec.nik];
+      if (update_existing) {
+        await supabase.from('employees').update({
+          gaji_pokok:     rec.gaji_pokok,
+          status_ptkp:    rec.status_ptkp,
+          benefit:        rec.benefit,
+          kendaraan:      rec.kendaraan,
+          pulsa:          rec.pulsa,
+          operasional:    rec.operasional,
+          jkk_rate:       rec.jkk_rate,
+          ikut_jht:       rec.ikut_jht,
+          ikut_jp:        rec.ikut_jp,
+          ikut_kes:       rec.ikut_kes,
+          pph_ditanggung: rec.tunj_pph > 0,
+          punya_npwp:     rec.punya_npwp,
+          npwp:           rec.npwp || null,
+        }).eq('id', existingByNIK[rec.nik]);
+        updated++;
+      } else {
+        skipped++;
+      }
+      continue;
+    }
 
     const { data: newEmp, error } = await supabase
       .from('employees')
@@ -104,11 +131,11 @@ export async function saveImport(payload: SaveImportPayload) {
     await audit({
       workspace_id: workspaceId, company_id: companyId,
       action: 'IMPORT_COMPLETED', entity_name: fileName,
-      metadata: { mode, created, skipped, bulan, tahun },
+      metadata: { mode, created, skipped, updated, bulan, tahun },
     });
     revalidatePath(`/companies/${companyId}`);
     revalidatePath('/import');
-    return { success: true, created, skipped, payroll: false };
+    return { success: true, created, skipped, updated, payroll: false };
   }
 
   // ── 3. Create payroll run ─────────────────────────────────────────
@@ -124,17 +151,17 @@ export async function saveImport(payload: SaveImportPayload) {
         company_id: companyId, tahun, bulan,
         status: 'locked',
         calculated_at: new Date().toISOString(),
-        calculated_by: user.id,
         locked_at:     new Date().toISOString(),
-        locked_by:     user.id,
+        run_by:        user.id,
       })
       .select('id').single();
     if (runErr || !newRun) return { error: runErr?.message ?? 'Gagal membuat payroll run' };
     runId = newRun.id;
   } else {
-    await supabase.from('payroll_runs').update({
-      status: 'locked', locked_at: new Date().toISOString(), locked_by: user.id,
+    const { error: lockErr } = await supabase.from('payroll_runs').update({
+      status: 'locked', locked_at: new Date().toISOString(), run_by: user.id,
     }).eq('id', runId);
+    if (lockErr) return { error: lockErr.message };
   }
 
   // ── 4. Insert payroll results ─────────────────────────────────────
@@ -143,7 +170,6 @@ export async function saveImport(payload: SaveImportPayload) {
     .map(r => ({
       run_id:        runId,
       employee_id:   empIdMap[r.nik],
-      employee_name: r.nama,
       bruto:         r.excel_bruto,
       pph:           r.excel_pph,
       thp:           r.excel_thp,
@@ -199,12 +225,84 @@ export async function saveImport(payload: SaveImportPayload) {
   await audit({
     workspace_id: workspaceId, company_id: companyId,
     action: 'IMPORT_COMPLETED', entity_name: fileName,
-    metadata: { mode, created, skipped, bulan, tahun, run_id: runId, diffs: records.filter(r => r.has_diff).length },
+    metadata: { mode, created, skipped, updated, bulan, tahun, run_id: runId, diffs: records.filter(r => r.has_diff).length },
   });
 
   revalidatePath(`/companies/${companyId}`);
   revalidatePath('/import');
-  return { success: true, created, skipped, payroll: true, runId, sessionId: session?.id };
+  return { success: true, created, skipped, updated, payroll: true, runId, sessionId: session?.id };
+}
+
+/**
+ * Returns accumulated bruto + PPh for each employee (keyed by NIK) from all
+ * saved payroll runs for companyId+tahun where bulan < bulanSampai.
+ * Used by the reconcile step to give December/last-month a realistic akum_bruto.
+ */
+export async function fetchEmployeeAccumDataByNik(
+  companyId: string,
+  tahun: number,
+  bulanSampai: number,
+): Promise<Record<string, { akum_bruto: number; pph_jan_nov: number }>> {
+  if (bulanSampai <= 1) return {};
+
+  const supabase = await createClient();
+
+  const { data: runs } = await supabase
+    .from('payroll_runs')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('tahun', tahun)
+    .lt('bulan', bulanSampai)
+    .in('status', ['locked', 'calculated']);
+
+  if (!runs || runs.length === 0) return {};
+
+  const runIds = runs.map((r: any) => r.id as string);
+
+  const [{ data: emps }, { data: results }] = await Promise.all([
+    supabase.from('employees').select('id, nik').eq('company_id', companyId),
+    supabase.from('payroll_results').select('employee_id, bruto, pph').in('run_id', runIds),
+  ]);
+
+  const nikById: Record<string, string> = {};
+  for (const e of emps ?? []) nikById[e.id] = e.nik;
+
+  const accum: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
+  for (const r of results ?? []) {
+    const nik = nikById[r.employee_id];
+    if (!nik) continue;
+    if (!accum[nik]) accum[nik] = { akum_bruto: 0, pph_jan_nov: 0 };
+    accum[nik].akum_bruto  += (r.bruto as number) ?? 0;
+    accum[nik].pph_jan_nov += (r.pph   as number) ?? 0;
+  }
+
+  return accum;
+}
+
+/**
+ * Returns current DB employee data (gaji_pokok, status_ptkp, divisi) keyed by
+ * NIK, for comparing against Excel-parsed values in the reconcile step.
+ */
+export async function fetchExistingEmployeeDataByNik(
+  companyId: string,
+): Promise<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('employees')
+    .select('nik, gaji_pokok, status_ptkp, divisi, bpjs_basis')
+    .eq('company_id', companyId)
+    .eq('aktif', true);
+
+  const map: Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }> = {};
+  for (const e of data ?? []) {
+    map[e.nik] = {
+      gaji_pokok: e.gaji_pokok ?? 0,
+      status_ptkp: e.status_ptkp ?? '',
+      divisi: e.divisi ?? '',
+      bpjs_basis: (e as any).bpjs_basis ?? null,
+    };
+  }
+  return map;
 }
 
 export async function getImportHistory(workspaceId: string) {

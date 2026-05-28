@@ -1,26 +1,56 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { assertAuth, assertCompanyAccess } from '@/lib/auth/assertAccess';
+import { audit } from '@/lib/audit';
+
+// Derive workspace_id server-side from the authenticated user's profile rather
+// than trusting whatever the client sent in the form. Prevents IDOR / forged
+// workspace_id from inserting a row into someone else's tenant.
+async function getCallerWorkspaceId() {
+  const auth = await assertAuth();
+  if (!auth.ok) return null;
+  const { data: profile } = await auth.supabase
+    .from('user_profiles')
+    .select('workspace_id')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+  return (profile?.workspace_id as string | null) ?? null;
+}
 
 export async function createCompany(formData: FormData) {
-  const supabase     = await createClient();
-  const workspace_id = formData.get('workspace_id') as string;
-  const name         = formData.get('name')         as string;
+  const name = formData.get('name') as string;
+  if (!name) return { error: 'Nama perusahaan wajib diisi.' };
 
-  if (!name || !workspace_id)
-    return { error: 'Nama perusahaan dan workspace wajib diisi.' };
+  const workspace_id = await getCallerWorkspaceId();
+  if (!workspace_id) return { error: 'Workspace tidak ditemukan untuk akun Anda.' };
 
-  const { error } = await supabase.from('companies').insert({
-    workspace_id,
-    name,
-    npwp_perusahaan: formData.get('npwp_perusahaan') as string,
-    alamat:          formData.get('alamat')           as string,
-    kota:            formData.get('kota')             as string,
-    industri:        formData.get('industri')         as string,
-    aktif:           true,
-  });
+  const supabase = await createClient();
+  const { data: inserted, error } = await supabase
+    .from('companies')
+    .insert({
+      workspace_id,
+      name,
+      npwp_perusahaan: formData.get('npwp_perusahaan') as string,
+      alamat:          formData.get('alamat')           as string,
+      kota:            formData.get('kota')             as string,
+      industri:        formData.get('industri')         as string,
+      aktif:           true,
+    })
+    .select('id')
+    .single();
 
   if (error) return { error: error.message };
+
+  await audit({
+    workspace_id,
+    company_id: inserted?.id,
+    action: 'COMPANY_CREATED',
+    entity_type: 'company',
+    entity_id: inserted?.id,
+    entity_name: name,
+    new_values: { npwp_perusahaan: formData.get('npwp_perusahaan'), kota: formData.get('kota') },
+  });
 
   revalidateTag(`companies-${workspace_id}`);
   revalidatePath('/companies');
@@ -28,40 +58,69 @@ export async function createCompany(formData: FormData) {
 }
 
 export async function updateCompany(id: string, formData: FormData) {
-  const supabase = await createClient();
-  const name     = formData.get('name') as string;
+  const name = formData.get('name') as string;
   if (!name) return { error: 'Nama perusahaan wajib diisi.' };
 
-  // Get workspace_id from existing company
-  const { data: existing } = await supabase
-    .from('companies').select('workspace_id').eq('id', id).single();
+  const access = await assertCompanyAccess(id);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
 
-  const { error } = await supabase.from('companies').update({
+  const newValues = {
     name,
     npwp_perusahaan: formData.get('npwp_perusahaan') as string,
     alamat:          formData.get('alamat')           as string,
     kota:            formData.get('kota')             as string,
     industri:        formData.get('industri')         as string,
-  }).eq('id', id);
+  };
 
+  const { error } = await supabase.from('companies').update(newValues).eq('id', id);
   if (error) return { error: error.message };
 
-  if (existing?.workspace_id) revalidateTag(`companies-${existing.workspace_id}`);
+  await audit({
+    workspace_id: workspaceId,
+    company_id: id,
+    action: 'COMPANY_UPDATED',
+    entity_type: 'company',
+    entity_id: id,
+    entity_name: name,
+    new_values: newValues,
+  });
+
+  revalidateTag(`companies-${workspaceId}`);
   revalidatePath('/companies');
   revalidatePath(`/companies/${id}`);
   return { success: true };
 }
 
 export async function archiveCompany(id: string, aktif: boolean) {
-  const supabase = await createClient();
+  const access = await assertCompanyAccess(id);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
+
   const { error } = await supabase.from('companies').update({ aktif }).eq('id', id);
   if (error) return { error: error.message };
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: id,
+    action: 'COMPANY_ARCHIVED',
+    entity_type: 'company',
+    entity_id: id,
+    new_values: { aktif },
+  });
+
+  revalidateTag(`companies-${workspaceId}`);
   revalidatePath('/companies');
   return { success: true };
 }
 
 export async function deleteCompany(id: string) {
-  const supabase = await createClient();
+  const access = await assertCompanyAccess(id);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId } = access;
+
+  const { data: company } = await supabase.from('companies').select('name').eq('id', id).single();
+  const entity_name = company?.name as string | undefined;
 
   const { data: runs } = await supabase
     .from('payroll_runs').select('id').eq('company_id', id);
@@ -89,6 +148,17 @@ export async function deleteCompany(id: string) {
     .from('companies').delete().eq('id', id);
   if (coErr) return { error: coErr.message };
 
+  await audit({
+    workspace_id: workspaceId,
+    company_id: id,
+    action: 'COMPANY_DELETED',
+    entity_type: 'company',
+    entity_id: id,
+    entity_name,
+    old_values: { runs_deleted: runIds.length },
+  });
+
+  revalidateTag(`companies-${workspaceId}`);
   revalidatePath('/companies');
   revalidatePath('/dashboard');
   return { success: true };

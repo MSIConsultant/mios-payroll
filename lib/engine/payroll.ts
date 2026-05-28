@@ -33,6 +33,13 @@ export interface KaryawanTetap {
     tanggung_jp_k: boolean;
     ikut_kes: boolean;
     tanggung_kes_k: boolean;
+    /**
+     * Whether the employer KES contribution (4%) is included in taxable bruto.
+     * Defaults to true. Set to false for schemes where the employee pays their
+     * own KES (tanggung_kes_k=false) and the employer's share is treated as an
+     * off-slip cost — matching the accountant's Excel for BPJS-dipotong schemes.
+     */
+    kes_employer_in_bruto?: boolean;
     pph_ditanggung: boolean;
     kasbon: number;
     alpha_telat: number;
@@ -106,16 +113,20 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
     const jp_basis = Math.min(basis, JP_MAX_BASIS);
     const kes_basis = Math.min(basis, KES_MAX_BASIS);
 
-    const jkk = Math.round(basis * k.jkk_rate);
-    const jkm = Math.round(basis * BPJS.jkm);
-    const jht_e = k.ikut_jht ? Math.round(basis * BPJS.jht_e) : 0;
-    const jp_e = k.ikut_jp ? Math.round(jp_basis * BPJS.jp_e) : 0;
+    // Keep components as raw floats — the accountant's Excel keeps decimal BPJS
+    // values (e.g. 13,751.70) throughout. Rounding per-component introduces
+    // accumulated error in bruto and can shift TER brackets. Round only at the
+    // point of actual cash deduction (karyawan_potong in the THP formula).
+    const jkk = basis * k.jkk_rate;
+    const jkm = basis * BPJS.jkm;
+    const jht_e = k.ikut_jht ? basis * BPJS.jht_e : 0;
+    const jp_e = k.ikut_jp ? jp_basis * BPJS.jp_e : 0;
     const jkp = 0;
-    const kes_e = k.ikut_kes ? Math.round(kes_basis * BPJS.kes_e) : 0;
+    const kes_e = k.ikut_kes ? kes_basis * BPJS.kes_e : 0;
 
-    const jht_k = k.ikut_jht ? Math.round(basis * BPJS.jht_k) : 0;
-    const jp_k = k.ikut_jp ? Math.round(jp_basis * BPJS.jp_k) : 0;
-    const kes_k = k.ikut_kes ? Math.round(kes_basis * BPJS.kes_k) : 0;
+    const jht_k = k.ikut_jht ? basis * BPJS.jht_k : 0;
+    const jp_k = k.ikut_jp ? jp_basis * BPJS.jp_k : 0;
+    const kes_k = k.ikut_kes ? kes_basis * BPJS.kes_k : 0;
 
     const tunj_jht = k.tanggung_jht_k ? jht_k : 0;
     const tunj_jp = k.tanggung_jp_k ? jp_k : 0;
@@ -127,7 +138,7 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
 
     return {
         jkk, jkm, jht_e, jp_e, jkp, kes_e,
-        employer_in_bruto: jkk + jkm + kes_e,
+        employer_in_bruto: jkk + jkm + (k.kes_employer_in_bruto !== false ? kes_e : 0),
         employer_offslip: jht_e + jp_e + jkp,
         employer_total: jkk + jkm + jht_e + jp_e + jkp + kes_e,
         jht_k, jp_k, kes_k,
@@ -162,34 +173,44 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     let pph = 0;
     let tunj_pph = 0;
     let pot_pph = 0;
+    // Grossup convergence diagnostics. _converged === false on:
+    //   1. `mt >= 1.0` early break — the TER × non-NPWP multiplier saturates
+    //      (impossible/extreme PKP); the loop bails with stale `pph`.
+    //   2. The 200-iteration fall-through path with no convergence detected.
+    // Calling code (UI) should surface a warning in these cases.
+    let _converged = !k.pph_ditanggung; // non-grossup branch is trivially converged
+    let _iterations = 0;
 
     if (k.pph_ditanggung) {
         let prev = -1.0;
-        let iterConverged = false;
         for (let i = 0; i < 200; i++) {
+            _iterations = i + 1;
             const t = getTerRate(base + pph, grup);
             if (t === 0) {
                 pph = 0.0;
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             const mt = npwp_mult * t;
-            if (mt >= 1.0) break;
+            if (mt >= 1.0) {
+                // mt saturation — leave _converged false and exit
+                break;
+            }
             const n = (mt * base) / (1 - mt);
             if (Math.abs(n - prev) < 0.01) {
                 pph = Math.round((n + prev) / 2);
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             if (Math.abs(n - pph) < 0.01) {
                 pph = Math.round(n);
-                iterConverged = true;
+                _converged = true;
                 break;
             }
             prev = pph;
             pph = n;
         }
-        if (!iterConverged) {
+        if (!_converged) {
             pph = Math.round(pph);
         }
         tunj_pph = Math.round(pph);
@@ -204,7 +225,7 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     const bruto = base + tunj_pph;
     const ter = getTerRate(bruto, grup);
 
-    const thp = k.gaji_pokok + allowance_total + irregular_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    const thp = k.gaji_pokok + allowance_total + irregular_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     // Annual projection: matches the accountant's standard Excel layout where
     // every monthly worksheet shows "PPH 21 SETAHUN / PPH JAN-NOV / PPH DES" as
@@ -229,6 +250,8 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
         proyeksi,
+        _converged,
+        _iterations,
     };
 }
 
@@ -286,6 +309,13 @@ function computeAnnualProjection(
  * and `is_refund` is true with `refund_amount` set. The on-slip `pph` is still
  * clamped to 0 (you can't deduct negative tax from gaji); the refund must be
  * handled separately by the employer.
+ *
+ * When `pph_ditanggung` (employer pays PPh as tunjangan), this month's tunjangan
+ * is found via iteration: find `tp` such that
+ *   PPh_setahun = Pasal17(PKP(bs_base + tp))  AND  tp = max(0, PPh_setahun − pph_jan_nov)
+ * Converges in < 10 steps because the increment's marginal rate < 100%.
+ * The iteration result is equivalent to the closed-form TP = PPh_no_grossup / (1 − tarif_marginal)
+ * when biaya jabatan is already at its cap; they diverge by at most a few rupiah otherwise.
  */
 export function calculateLastMonth(
     k: KaryawanTetap,
@@ -299,33 +329,68 @@ export function calculateLastMonth(
     const ptkp = PTKP[k.status_ptkp];
     const M = Math.max(1, Math.min(12, Math.round(monthsInYear)));
 
-    const bs = akum_bruto > 0 ? (akum_bruto + base) : (base * M);
-    const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
+    // When akum_bruto is 0 (no prior runs persisted for this employee/year),
+    // we annualize from the current month alone — plausible-looking but likely
+    // wrong if the employee actually worked prior months. Surface as
+    // `proyeksi.is_estimate: true` so the UI can render a stronger warning
+    // than the standard "Equalisasi Desember" info card.
+    const is_estimate = !(akum_bruto > 0);
+    const bs_base = is_estimate ? (base * M) : (akum_bruto + base);
 
-    // Iuran karyawan = what the employee actually pays out of pocket (dipotong
-    // dari gaji). Only deduct when the company isn't covering it as tunjangan,
-    // AND when the employee participates in that program. Per UU HPP, both JHT
-    // and JP karyawan iuran are deductible — earlier code deducted only JP.
-    const jht_k_tahunan = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * M : 0;
-    const jp_k_tahunan  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
+    // Compute Pasal 17 annual tax for a given bruto setahun.
+    // Biaya jabatan cap scales with M. Per UU HPP, JHT and JP karyawan iuran
+    // are deductible; BPJS Kes karyawan is NOT deductible.
+    const computeAnnual = (bs: number) => {
+        const bj = Math.min(bs * BIAYA_JAB_RATE, BIAYA_JAB_MAX * M);
+        const jht_k_ann = (k.ikut_jht && !k.tanggung_jht_k) ? bpjs.jht_k * M : 0;
+        const jp_k_ann  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
+        const netto = bs - bj - jht_k_ann - jp_k_ann;
+        const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
+        let pth = getPasal17Tax(pkp);
+        if (!k.punya_npwp) pth = Math.round(pth * 1.2);
+        return { bj, jht_k_tahunan: jht_k_ann, jp_k_tahunan: jp_k_ann, netto, pkp, pth };
+    };
 
-    const netto = bs - bj - jht_k_tahunan - jp_k_tahunan;
-    const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
-    let pth = getPasal17Tax(pkp);
-    if (!k.punya_npwp) {
-        pth = Math.round(pth * 1.2);
+    // Phase 1: no-grossup reference values (used in display and as iteration seed)
+    const base_annual = computeAnnual(bs_base);
+    const pph_no_grossup = base_annual.pth;
+    const pkp_no_grossup = base_annual.pkp;
+
+    let tunj_pph = 0; // this month's tunjangan PPh (0 for non-grossup)
+    let bs = bs_base;
+    let annual = base_annual;
+
+    if (k.pph_ditanggung) {
+        // Iterative grossup: find tp (December's tunj_pph) such that
+        //   PPh_setahun(bs_base + tp) − pph_jan_nov = tp
+        // Starting from tp=0 always converges because each step's increment
+        // is multiplied by the marginal rate (< 1), making it a contraction map.
+        let tp = 0;
+        for (let i = 0; i < 50; i++) {
+            const iter = computeAnnual(bs_base + tp);
+            const new_tp = Math.max(0, Math.round(iter.pth - k.pph_jan_nov));
+            if (Math.abs(new_tp - tp) < 1) {
+                tp = new_tp;
+                bs = bs_base + tp;
+                annual = computeAnnual(bs);
+                break;
+            }
+            tp = new_tp;
+        }
+        tunj_pph = tp;
     }
 
-    // Raw can be negative (over-withholding → refund); on-slip pph is clamped.
+    const { bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, pth } = annual;
+
     const rawPph = Math.round(pth - k.pph_jan_nov);
-    const isRefund = rawPph < 0;
+    // Refund (over-withholding) only meaningful for non-grossup employees;
+    // for grossup, the employer over-paid tunjangan — tracked separately.
+    const isRefund = !k.pph_ditanggung && rawPph < 0;
     const refundAmount = isRefund ? -rawPph : 0;
-    const pd = Math.max(0, rawPph);
+    const pot_pph = k.pph_ditanggung ? 0 : Math.max(0, rawPph);
+    const pph_this = k.pph_ditanggung ? tunj_pph : Math.max(0, rawPph);
 
-    const tunj_pph = k.pph_ditanggung ? pd : 0;
-    const pot_pph = k.pph_ditanggung ? 0 : pd;
-
-    const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    const thp = k.gaji_pokok + allowance_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     const proyeksi = {
         bruto_setahun: bs,
@@ -334,7 +399,8 @@ export function calculateLastMonth(
         pkp_setahun: pkp,
         pph_setahun: pth,
         pph_jan_nov_proyeksi: k.pph_jan_nov,
-        pph_desember_proyeksi: pd,
+        pph_desember_proyeksi: pph_this,
+        is_estimate,
     };
 
     const jenis = M === 12 && k.bulan === 12
@@ -350,9 +416,15 @@ export function calculateLastMonth(
         benefit: k.benefit, kendaraan: k.kendaraan,
         pulsa: k.pulsa, operasional: k.operasional, tunj_lain: k.tunj_lain,
         tunj_pph, base, bruto: base + tunj_pph,
-        bs, bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, ptkp, pph_tahunan: pth,
+        // Annual calculation fields (for display in Pasal17BreakdownPanel)
+        bs, bs_base, bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, ptkp,
+        pph_tahunan: pth,
+        pph_no_grossup,    // PPh without grossup (reference for TP formula display)
+        pkp_no_grossup,    // PKP without grossup
+        tunj_pph_setahun: k.pph_ditanggung ? pth : 0, // total annual employer PPh obligation
+        thr_nominal: k.thr, bonus_nominal: k.bonus,
         pph_jan_nov: k.pph_jan_nov,
-        pph: pd, pot_pph, pph_ditanggung: k.pph_ditanggung,
+        pph: pph_this, pot_pph, pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
         thp,
         proyeksi,

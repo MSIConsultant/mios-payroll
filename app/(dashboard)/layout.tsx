@@ -6,6 +6,7 @@ import { LogOut, Bell, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { UserProfile } from '@/lib/types/roles';
+import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 
 const ROLE_LABEL: Record<string, string> = {
   dev: 'Developer',
@@ -14,9 +15,9 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 const ROLE_CLASSES: Record<string, string> = {
-  dev: 'bg-red-50 text-red-700 ring-red-200',
-  accountant: 'bg-blue-50 text-blue-700 ring-blue-200',
-  staff: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  dev: 'bg-red-900/40 text-red-300 ring-red-700/40',
+  accountant: 'bg-blue-900/40 text-blue-300 ring-blue-700/40',
+  staff: 'bg-emerald-900/40 text-emerald-300 ring-emerald-700/40',
 };
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -88,12 +89,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const sidebarWidth = isMobile ? 0 : (collapsed ? 64 : 240);
   const role = profile?.role ?? 'staff';
   const displayName = profile?.full_name ?? user?.email?.split('@')[0] ?? 'User';
+  const initials = displayName.charAt(0).toUpperCase();
 
   const sidebarContent = (
     <>
       {/* Logo */}
       <div
-        className={`flex items-center border-b border-[var(--border-subtle)] ${
+        className={`flex items-center border-b border-[var(--sidebar-border)] ${
           collapsed && !isMobile ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'
         }`}
       >
@@ -101,7 +103,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {isMobile && (
           <button
             onClick={() => setMobileOpen(false)}
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-md cursor-pointer"
+            className="text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-active)] p-1 rounded-md cursor-pointer"
             aria-label="Tutup menu"
           >
             <X size={18} />
@@ -125,22 +127,27 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <NavLinks collapsed={collapsed && !isMobile} onToggle={toggleSidebar} userRole={role} />
 
       {/* Footer */}
-      <div className="border-t border-[var(--border-subtle)] px-2 py-3">
+      <div className="border-t border-[var(--sidebar-border)] px-2 py-3">
         {(!collapsed || isMobile) && (
-          <div className="px-2 pb-2">
-            <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
-              {displayName}
-            </p>
-            <p className="text-[11px] text-[var(--text-muted)] truncate">
-              {user?.email}
-            </p>
+          <div className="flex items-center gap-2.5 px-2 pb-2">
+            <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold flex items-center justify-center shrink-0">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-[var(--sidebar-text-active)] truncate">
+                {displayName}
+              </p>
+              <p className="text-[11px] text-[var(--sidebar-text)] truncate">
+                {user?.email}
+              </p>
+            </div>
           </div>
         )}
 
         {(!collapsed || isMobile) && unreadCount > 0 && (
           <Link
             href="/notifications"
-            className="flex items-center gap-2 px-2.5 py-2 rounded-md mb-1 bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-2 px-2.5 py-2 rounded-md mb-1 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors"
           >
             <Bell size={14} />
             <span className="text-[12px] font-semibold">{unreadCount} notifikasi</span>
@@ -150,7 +157,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <form action="/auth/signout" method="post">
           <button
             type="submit"
-            className={`w-full flex items-center rounded-md transition-colors cursor-pointer text-[var(--text-muted)] hover:bg-red-50 hover:text-red-600 ${
+            className={`w-full flex items-center rounded-md transition-colors cursor-pointer text-[var(--sidebar-text)] hover:bg-red-900/30 hover:text-red-300 ${
               collapsed && !isMobile ? 'justify-center py-2' : 'justify-start gap-2 px-2.5 py-2'
             }`}
             title="Keluar"
@@ -168,7 +175,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Desktop sidebar */}
       {!isMobile && (
         <aside
-          className="h-screen bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] flex flex-col flex-shrink-0 relative z-20 transition-[width,min-width,max-width] duration-200"
+          className="h-screen bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col flex-shrink-0 relative z-20 transition-[width,min-width,max-width] duration-200"
           style={{
             width: sidebarWidth,
             minWidth: sidebarWidth,
@@ -208,7 +215,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                 className="absolute inset-0 bg-[var(--bg-overlay)]"
                 onClick={() => setMobileOpen(false)}
               />
-              <aside className="absolute top-0 left-0 bottom-0 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] flex flex-col z-50 animate-slide-left shadow-xl">
+              <aside className="absolute top-0 left-0 bottom-0 w-72 bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col z-50 animate-slide-left shadow-xl">
                 {sidebarContent}
               </aside>
             </div>
@@ -222,7 +229,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         style={{ marginTop: isMobile ? 56 : 0 }}
       >
         <div className="relative z-10 px-4 py-6 md:px-8 md:py-10 max-w-[1400px] mx-auto min-h-full">
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
         </div>
       </main>
 
