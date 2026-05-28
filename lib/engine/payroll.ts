@@ -153,8 +153,12 @@ export function calculateBPJS(basis: number, k: KaryawanTetap) {
 export function calculateMonthlySalary(k: KaryawanTetap) {
     const grup = PTKP_TER_GRUP[k.status_ptkp] as "A" | "B" | "C";
     // BPJS basis is the declared salary registered with BPJS, which is often
-    // separate from (lower than) gaji_pokok. Falls back to gaji_pokok when not set.
-    const basis = k.bpjs_basis ?? k.gaji_pokok;
+    // separate from (lower than) gaji_pokok. Falls back to gaji_pokok when not
+    // set OR when explicitly zero (a zero bpjs_basis with active BPJS flags is
+    // a UI artefact — the import parser converts 0 to undefined; the form
+    // saves whatever the user types). Treating 0 as "use gaji_pokok" matches
+    // the import semantics and avoids accidental zeroed BPJS deductions.
+    const basis = k.bpjs_basis && k.bpjs_basis > 0 ? k.bpjs_basis : k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const irregular_total = k.thr + k.bonus;

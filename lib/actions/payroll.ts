@@ -50,6 +50,17 @@ export async function savePayrollRun(
     recomputed.map(r => [r.employee_id, r])
   );
 
+  // Concurrency guard: if a run exists and is already locked, refuse the save.
+  // Otherwise a stale tab calling save would silently un-lock production data.
+  const { data: existing } = await supabase
+    .from('payroll_runs')
+    .select('id, status')
+    .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan)
+    .maybeSingle();
+  if (existing?.status === 'locked') {
+    return { error: 'Payroll ini sudah dikunci. Refresh halaman untuk melihat versi terbaru.' };
+  }
+
   const { data: run, error: runError } = await supabase
     .from('payroll_runs')
     .upsert({
