@@ -156,7 +156,19 @@ export async function savePayrollRun(
 export async function lockPayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+  // Locking is the act of declaring "this period is closed" — regulatory in
+  // nature and irreversible (delete is also blocked once locked). Restrict
+  // to accountant/dev. CAN.lockPayroll documents the same rule.
+  if (role === 'staff') return { error: 'Staff tidak punya akses mengunci payroll.' };
+
+  // Re-check current status; refuse re-lock if already locked (idempotent
+  // but logs a no-op audit entry otherwise).
+  const { data: cur } = await supabase.from('payroll_runs')
+    .select('status').eq('id', runId).maybeSingle();
+  if (cur?.status === 'locked') {
+    return { error: 'Payroll ini sudah dikunci sebelumnya.' };
+  }
 
   const { error } = await supabase.from('payroll_runs').update({
     status: 'locked', locked_at: new Date().toISOString(),
