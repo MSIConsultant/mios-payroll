@@ -93,6 +93,8 @@ export function NikInput({
   label: string;
 }) {
   const [val, setVal] = useState(defaultValue);
+  const isKTP = /^\d{16}$/.test(val);
+  const isPassport = /[A-Z]/.test(val) && val.length >= 5;
   const len = val.length;
   return (
     <div>
@@ -100,28 +102,30 @@ export function NikInput({
       <input
         id={name}
         type="text"
-        inputMode="numeric"
+        inputMode="text"
         name={name}
         value={val}
         required={required}
-        placeholder="0000000000000000"
+        placeholder="16 digit KTP / Paspor TKA"
         onChange={(e) => setVal(formatNIK(e.target.value))}
         className={`${BASE} font-mono`}
       />
       <p
         className={`text-[11px] mt-1 font-medium ${
-          len === 16
+          isKTP || isPassport
             ? 'text-emerald-700'
             : len > 0
             ? 'text-amber-700'
             : 'text-[var(--text-muted)]'
         }`}
       >
-        {len === 16
-          ? '✓ 16 digit valid'
+        {isKTP
+          ? '✓ KTP — 16 digit'
+          : isPassport
+          ? `✓ Paspor TKA — ${len} karakter`
           : len > 0
-          ? `${16 - len} digit lagi`
-          : '16 digit diperlukan'}
+          ? `${len} karakter — KTP butuh 16 digit, paspor min. 5`
+          : 'KTP (16 digit) atau paspor TKA (alfanumerik)'}
       </p>
     </div>
   );

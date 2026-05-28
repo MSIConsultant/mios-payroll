@@ -57,14 +57,17 @@ export function parseTetap(ws: any): ParsedEmp[] {
     const g = (c: number) => ws[XLSX.utils.encode_cell({ r, c })]?.v ?? null;
     const nama = String(g(3) ?? '').trim();
     if (!nama || nama.length < 2) continue;
-    const nik = String(g(2) ?? '').trim().replace(/\D/g, '');
+    // Accept alphanumeric — TKA employees use passport numbers (e.g. "TZ1069131").
+    // Uppercase + strip whitespace/symbols only, NEVER strip letters.
+    const nik = String(g(2) ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     const punya_npwp = String(g(0) ?? '').toUpperCase() === 'NPWP';
     const ptkp = String(g(11) ?? '').trim().toUpperCase();
     const gaji = Number(g(14)) || 0;
     const jkk_amt = Number(g(15)) || 0;
     const jkk_rate = gaji > 0 ? closestJKK(jkk_amt / gaji) : 0.0024;
     const errs: string[] = [];
-    if (nik.length < 8) errs.push('NIK tidak valid');
+    // Min 5 chars to allow short passport numbers; warn-but-not-block on non-16-digit.
+    if (nik.length < 5) errs.push('NIK / paspor tidak valid');
     if (!PTKP_VALID.includes(ptkp)) errs.push(`PTKP tidak dikenal: ${ptkp}`);
     if (gaji <= 0) errs.push('Gaji tidak terbaca');
     out.push({
@@ -104,10 +107,11 @@ export function parseHarian(ws: any): ParsedEmp[] {
     if (!g(2) || isNaN(Number(g(2)))) continue;
     const nama = String(g(5) ?? '').trim();
     if (!nama || nama.length < 2) continue;
-    const nik = String(g(4) ?? '').trim().replace(/\D/g, '');
+    // Same alphanumeric-safe parsing as parseTetap.
+    const nik = String(g(4) ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     const ptkp = String(g(6) ?? '').trim().toUpperCase();
     const errs: string[] = [];
-    if (nik.length < 8) errs.push('NIK tidak valid');
+    if (nik.length < 5) errs.push('NIK / paspor tidak valid');
     const bruto = Number(g(10)) || 0;
     out.push({
       nik, nama,
@@ -154,7 +158,9 @@ export function reconcileEmployee(
       tunj_lain: 0, kasbon: 0, alpha_telat: 0, pot_lain: 0,
       thr: 0, bonus: 0, pph_jan_nov, akum_bruto,
       bpjs_basis: options?.bpjs_basis ?? null,
-      ikut_jkp: false,
+      // JKP is mandatory for all wage-employees per Perpres 82/2020.
+      // Employer-only contribution, so no THP impact but matters for CTC.
+      ikut_jkp: emp.ikut_jht,
       tanggung_jht_k: emp.ikut_jht,
       tanggung_jp_k: emp.ikut_jp,
       tanggung_kes_k: emp.ikut_kes,
