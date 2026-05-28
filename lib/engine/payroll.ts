@@ -455,7 +455,8 @@ export function calculateDecember(k: KaryawanTetap, bpjs: ReturnType<typeof calc
 
 export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: number = 0) {
     const ptkp = PTKP[k.status_ptkp];
-    const basis = k.bpjs_basis ?? k.gaji_pokok;
+    // Same defensive fallback as calculateMonthlySalary: explicit 0 → gaji_pokok.
+    const basis = k.bpjs_basis && k.bpjs_basis > 0 ? k.bpjs_basis : k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
     const bpjs = calculateBPJS(basis, k);
