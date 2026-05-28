@@ -56,9 +56,35 @@ function BLine({ label, value, bold }: { label: string; value: number; bold?: bo
   );
 }
 
+function P17RecLine({ label, value, sub, bold, accent, minus, indent }: {
+  label: string; value: number; sub?: string; bold?: boolean; accent?: boolean; minus?: boolean; indent?: boolean;
+}) {
+  if (value === 0 && !bold) return null;
+  return (
+    <div className={`flex items-baseline justify-between gap-2 py-[3px] ${bold ? 'pt-2 mt-1 border-t border-violet-200' : 'border-b border-violet-50'} ${indent ? 'pl-3' : ''}`}>
+      <span className={`text-[12px] leading-relaxed ${bold ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+        {minus && <span className="text-[var(--text-muted)] mr-1">−</span>}{label}
+        {sub && <span className="ml-1.5 text-[10px] text-[var(--text-muted)] font-normal">{sub}</span>}
+      </span>
+      <span className={`font-mono text-[12px] shrink-0 ml-2 ${bold ? 'font-bold' : 'font-medium'} ${accent ? 'text-violet-700' : minus ? 'text-[var(--red)]' : 'text-[var(--text-primary)]'}`}>
+        {rpFull(value)}
+      </span>
+    </div>
+  );
+}
+
 function MonthDetail({ row }: { row: ProjRow }) {
   const totalDeductions = row.pot_bpjs_jht + row.pot_bpjs_jp + row.pot_bpjs_kes + row.pot_pph;
   const isGrossup = row.tunj_pph > 0;
+  const hasP17 = row.bulan === 12 && row.p17_bruto_setahun !== undefined;
+
+  // Derived: iuran BPJS TK deductible (JHT + JP karyawan) = bruto - biaya_jab - netto
+  const iuranBpjsTk = hasP17
+    ? (row.p17_bruto_setahun! - row.p17_biaya_jabatan_setahun! - row.p17_netto_setahun!)
+    : 0;
+  const ptkpSetahun = hasP17
+    ? Math.max(0, row.p17_netto_setahun! - row.p17_pkp_setahun!)
+    : 0;
 
   return (
     <div className="mx-4 mb-2 rounded-xl border border-[var(--border-default)] bg-white overflow-hidden shadow-[var(--shadow-sm)]">
@@ -118,6 +144,32 @@ function MonthDetail({ row }: { row: ProjRow }) {
         </div>
 
       </div>
+
+      {/* December only — Pasal 17 annual reconciliation */}
+      {hasP17 && (
+        <div className="border-t border-violet-100 bg-violet-50/40 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[9px] font-bold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-full tracking-widest uppercase">P17</span>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-violet-700">Rekonsiliasi Pasal 17 — Setahun</p>
+            {row.p17_is_estimate && (
+              <span className="ml-auto text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">estimasi</span>
+            )}
+          </div>
+          <div className="max-w-sm">
+            <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} sub="akumulasi 12 bulan" />
+            <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="5% bruto, maks Rp 500rb/bln · PMK 252/2008" minus indent />
+            {iuranBpjsTk > 0 && (
+              <P17RecLine label="Iuran BPJS TK Karyawan" value={iuranBpjsTk} sub="JHT 2% + JP 1% · PMK 168/2023 Ps.10" minus indent />
+            )}
+            <P17RecLine label="Netto Setahun" value={row.p17_netto_setahun!} bold />
+            <P17RecLine label="PTKP" value={ptkpSetahun} sub="sesuai status PTKP" minus indent />
+            <P17RecLine label="PKP Setahun" value={row.p17_pkp_setahun!} bold accent />
+            <P17RecLine label="PPh Pasal 17 Setahun" value={row.p17_pph_setahun!} sub="tarif progresif 5–35%" bold />
+            <P17RecLine label="PPh Jan–Nov (sudah dipotong)" value={row.p17_pph_jan_nov!} minus indent />
+            <P17RecLine label="PPh Desember" value={row.p17_pph_desember!} bold accent />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

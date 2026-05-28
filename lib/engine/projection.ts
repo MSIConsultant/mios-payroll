@@ -69,6 +69,15 @@ export type ProjRow = {
   pot_bpjs_kes: number;
   pot_pph: number;
   bpjs_employer_offslip: number;
+  // December Pasal 17 reconciliation (only populated for bulan === 12)
+  p17_bruto_setahun?: number;
+  p17_biaya_jabatan_setahun?: number;
+  p17_netto_setahun?: number;
+  p17_pkp_setahun?: number;
+  p17_pph_setahun?: number;
+  p17_pph_jan_nov?: number;
+  p17_pph_desember?: number;
+  p17_is_estimate?: boolean;
 };
 
 export type ProjResult = {
@@ -117,7 +126,16 @@ export function runProjection(p: ProjParams): ProjResult | null {
         karyawan_potong: number; karyawan_tunj: number;
         pot_jht: number; pot_jp: number; pot_kes: number;
       };
-      proyeksi: { pph_setahun: number };
+      proyeksi: {
+        pph_setahun: number;
+        bruto_setahun: number;
+        biaya_jabatan_setahun: number;
+        netto_setahun: number;
+        pkp_setahun: number;
+        pph_jan_nov_proyeksi: number;
+        pph_desember_proyeksi: number;
+        is_estimate?: boolean;
+      };
     };
     const isRefund = bulan === 12 && (res.proyeksi.pph_setahun - pph_jan_nov) < 0;
     rows.push({
@@ -139,6 +157,16 @@ export function runProjection(p: ProjParams): ProjResult | null {
       pot_bpjs_kes: res.bpjs?.pot_kes ?? 0,
       pot_pph: res.pot_pph ?? 0,
       bpjs_employer_offslip: res.bpjs?.employer_offslip ?? 0,
+      ...(bulan === 12 ? {
+        p17_bruto_setahun: res.proyeksi.bruto_setahun,
+        p17_biaya_jabatan_setahun: res.proyeksi.biaya_jabatan_setahun,
+        p17_netto_setahun: res.proyeksi.netto_setahun,
+        p17_pkp_setahun: res.proyeksi.pkp_setahun,
+        p17_pph_setahun: res.proyeksi.pph_setahun,
+        p17_pph_jan_nov: res.proyeksi.pph_jan_nov_proyeksi,
+        p17_pph_desember: res.proyeksi.pph_desember_proyeksi,
+        p17_is_estimate: res.proyeksi.is_estimate,
+      } : {}),
     });
     if (bulan < 12) { akum_bruto += res.bruto; pph_jan_nov += res.pph; }
   }
