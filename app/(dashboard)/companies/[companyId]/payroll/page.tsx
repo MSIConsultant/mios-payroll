@@ -3,36 +3,22 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import {
-  ArrowLeft, ChevronRight, Plus, Trash2, Calendar, Lock, CheckCircle2, Clock,
-} from 'lucide-react';
+import { ArrowLeft, Lock, CheckCircle2, Clock, Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { deletePayrollRun } from '@/lib/actions/payroll';
 import { toast } from 'sonner';
 
-const BULAN_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const BULAN_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
-const STATUS_CHIP: Record<string, string> = {
-  locked: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  calculated: 'bg-sky-50 text-sky-700 ring-sky-200',
-  draft: 'bg-amber-50 text-amber-700 ring-amber-200',
-};
-
-const STATUS_ICON: Record<string, typeof Lock> = {
-  locked: Lock,
-  calculated: CheckCircle2,
-  draft: Clock,
-};
-
-export default function PayrollOverviewPage() {
+export default function PayrollHubPage() {
   const { companyId } = useParams();
-  const [runs, setRuns]           = useState<any[]>([]);
   const [company, setCompany]     = useState<any>(null);
+  const [runs, setRuns]           = useState<any[]>([]);
   const [totalsMap, setTotalsMap] = useState<Record<string, any>>({});
   const [loading, setLoading]     = useState(true);
+  const [year, setYear]           = useState(new Date().getFullYear());
   const [deleting, setDeleting]   = useState<string | null>(null);
-  const [selTahun, setSelTahun]   = useState(new Date().getFullYear());
-  const [selBulan, setSelBulan]   = useState(new Date().getMonth() + 1);
 
   useEffect(() => {
     async function fetchData() {
@@ -48,9 +34,7 @@ export default function PayrollOverviewPage() {
         const runIds = runsData.map((r) => r.id);
         if (runIds.length > 0) {
           const { data: totals } = await supabase
-            .from('payroll_results')
-            .select('run_id, thp, bruto, pph')
-            .in('run_id', runIds);
+            .from('payroll_results').select('run_id, thp, bruto, pph').in('run_id', runIds);
           const map: Record<string, any> = {};
           for (const t of totals ?? []) {
             if (!map[t.run_id]) map[t.run_id] = { thp: 0, bruto: 0, pph: 0, count: 0 };
@@ -67,254 +51,171 @@ export default function PayrollOverviewPage() {
     fetchData();
   }, [companyId]);
 
-  async function handleDeleteRun(run: any) {
-    if (run.status === 'locked') {
-      toast.error('Run yang sudah dikunci tidak bisa dihapus.');
-      return;
-    }
-    if (
-      !confirm(
-        `Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}? Semua hasil kalkulasi akan hilang.`,
-      )
-    )
-      return;
+  async function handleDelete(run: any, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (run.status === 'locked') { toast.error('Run yang sudah dikunci tidak bisa dihapus.'); return; }
+    if (!confirm(`Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}? Semua hasil kalkulasi akan hilang.`)) return;
     setDeleting(run.id);
     const res = await deletePayrollRun(run.id, companyId as string, run.tahun, run.bulan);
-    if (res.error) {
-      toast.error(res.error);
-      setDeleting(null);
-    } else {
-      toast.success('Run dihapus');
-      setRuns((r) => r.filter((x) => x.id !== run.id));
-      setDeleting(null);
-    }
+    if (res.error) { toast.error(res.error); setDeleting(null); }
+    else { toast.success('Run dihapus'); setRuns(r => r.filter(x => x.id !== run.id)); setDeleting(null); }
   }
+
+  const now = new Date();
+  const allYears = Array.from(new Set([...runs.map(r => r.tahun), now.getFullYear()])).sort((a, b) => b - a);
+  const runsForYear = runs.filter(r => r.tahun === year);
+  const runByMonth: Record<number, any> = Object.fromEntries(runsForYear.map(r => [r.bulan, r]));
+  const yearTotals = runsForYear.reduce((acc, r) => {
+    const t = totalsMap[r.id];
+    if (!t) return acc;
+    return { thp: acc.thp + t.thp, pph: acc.pph + t.pph, count: acc.count + t.count };
+  }, { thp: 0, pph: 0, count: 0 });
+
+  const statusCfg = {
+    locked:     { cls: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80', text: 'text-emerald-700', icon: Lock },
+    calculated: { cls: 'border-sky-200 bg-sky-50 hover:bg-sky-100/80',             text: 'text-sky-700',     icon: CheckCircle2 },
+    draft:      { cls: 'border-amber-200 bg-amber-50 hover:bg-amber-100/80',       text: 'text-amber-700',   icon: Clock },
+  } as const;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-        <Link
-          href={`/companies/${companyId}`}
-          className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors"
-        >
+        <Link href={`/companies/${companyId}`} className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors">
           <ArrowLeft size={14} />
           {company?.name ?? 'Perusahaan'}
         </Link>
       </div>
 
-      <header>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-          Payroll Hub
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">
-          Buat run baru atau lanjutkan dari riwayat.
-        </p>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* New Run */}
-        <div className="bg-white border border-[var(--border-default)] rounded-xl p-5 lg:sticky lg:top-4 h-fit">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center">
-              <Plus size={16} />
-            </div>
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Payroll Baru</h2>
-          </div>
-
-          <div className="space-y-3 mb-4">
-            <div>
-              <label
-                htmlFor="run-year"
-                className="block text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5"
-              >
-                Tahun
-              </label>
-              <select
-                id="run-year"
-                value={selTahun}
-                onChange={(e) => setSelTahun(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm font-mono outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
-              >
-                {[2024, 2025, 2026].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="run-month"
-                className="block text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5"
-              >
-                Bulan
-              </label>
-              <select
-                id="run-month"
-                value={selBulan}
-                onChange={(e) => setSelBulan(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
-              >
-                {BULAN_NAMES.map((n, i) => (
-                  <option key={i} value={i + 1}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <Link
-            href={`/companies/${companyId}/payroll/${selTahun}/${selBulan}`}
-            className="group flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-lg font-semibold text-sm transition-colors shadow-sm"
-          >
-            <Calendar size={15} />
-            Mulai Hitung
-            <ChevronRight
-              size={15}
-              className="group-hover:translate-x-0.5 transition-transform"
-            />
-          </Link>
+      {/* Header + year nav */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Payroll Hub</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+            {yearTotals.count > 0
+              ? `${year} · THP ${formatRupiah(yearTotals.thp)} · PPh ${formatRupiah(yearTotals.pph)}`
+              : 'Pilih bulan untuk memulai kalkulasi'}
+          </p>
         </div>
-
-        {/* History */}
-        <div className="lg:col-span-2">
-          <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                Riwayat Payroll{' '}
-                <span className="text-[var(--text-muted)] font-normal">({runs.length})</span>
-              </h2>
-            </div>
-
-            {loading ? (
-              <div className="p-5 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-16 bg-[var(--bg-subtle)] rounded-lg animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : runs.length === 0 ? (
-              <div className="px-5 py-12 text-center">
-                <Calendar size={28} className="mx-auto text-[var(--text-faint)]" />
-                <p className="mt-3 text-sm text-[var(--text-secondary)]">
-                  Belum ada riwayat payroll.
-                </p>
-                <p className="text-[12px] text-[var(--text-muted)] mt-1">
-                  Pilih periode di samping untuk memulai.
-                </p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-[var(--border-subtle)]">
-                {runs.map((run, i) => {
-                  const t = totalsMap[run.id];
-                  const isLocked = run.status === 'locked';
-                  const StatusIcon = STATUS_ICON[run.status] ?? Clock;
-                  const chip = STATUS_CHIP[run.status] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
-                  return (
-                    <li
-                      key={run.id}
-                      className="animate-fade-in-up"
-                      style={{ animationDelay: `${Math.min(i, 6) * 0.04}s`, opacity: 0 }}
-                    >
-                      <div className="flex items-center gap-3 px-5 py-4 hover:bg-[var(--bg-subtle)] transition-colors group">
-                        <Link
-                          href={`/companies/${companyId}/payroll/${run.tahun}/${run.bulan}`}
-                          className="flex-1 min-w-0"
-                        >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <StatusIcon
-                              size={14}
-                              className={
-                                isLocked
-                                  ? 'text-emerald-600'
-                                  : run.status === 'calculated'
-                                  ? 'text-sky-600'
-                                  : 'text-amber-600'
-                              }
-                            />
-                            <p className="text-[15px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors">
-                              {BULAN_NAMES[run.bulan - 1]} {run.tahun}
-                            </p>
-                            <span
-                              className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset ${chip}`}
-                            >
-                              {run.status}
-                            </span>
-                          </div>
-                          {t ? (
-                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[13px]">
-                              <Field label="Karyawan" value={String(t.count)} />
-                              <Field label="Bruto" value={formatRupiah(t.bruto)} />
-                              <Field
-                                label="PPh 21"
-                                value={formatRupiah(t.pph)}
-                                tone="amber"
-                              />
-                              <Field
-                                label="THP"
-                                value={formatRupiah(t.thp)}
-                                tone="emerald"
-                                strong
-                              />
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-                              Belum ada hasil
-                            </p>
-                          )}
-                        </Link>
-
-                        {!isLocked && (
-                          <button
-                            onClick={() => handleDeleteRun(run)}
-                            disabled={deleting === run.id}
-                            className="shrink-0 p-2 text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
-                            aria-label={`Hapus run ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}`}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                        <ChevronRight
-                          size={16}
-                          className="shrink-0 text-[var(--text-faint)] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all"
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setYear(y => y - 1)}
+            className="p-1.5 rounded-lg border border-[var(--border-default)] hover:border-[var(--brand)] hover:text-[var(--brand)] text-[var(--text-muted)] transition-colors cursor-pointer"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-[18px] font-bold font-mono text-[var(--text-primary)] min-w-[56px] text-center">{year}</span>
+          <button
+            onClick={() => setYear(y => y + 1)}
+            className="p-1.5 rounded-lg border border-[var(--border-default)] hover:border-[var(--brand)] hover:text-[var(--brand)] text-[var(--text-muted)] transition-colors cursor-pointer"
+          >
+            <ChevronRight size={15} />
+          </button>
         </div>
       </div>
-    </div>
-  );
-}
 
-function Field({
-  label, value, tone, strong,
-}: {
-  label: string;
-  value: string;
-  tone?: 'amber' | 'emerald';
-  strong?: boolean;
-}) {
-  const toneClass =
-    tone === 'amber'   ? 'text-amber-700' :
-    tone === 'emerald' ? 'text-emerald-700' :
-    'text-[var(--text-secondary)]';
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-        {label}
-      </p>
-      <p className={`mt-0.5 font-mono ${strong ? 'font-bold' : 'font-semibold'} ${toneClass}`}>
-        {value}
-      </p>
+      {/* 12-month calendar grid */}
+      {loading ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 12 }, (_, i) => (
+            <div key={i} className="h-[88px] bg-[var(--bg-card)] border border-[var(--border-default)] rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 12 }, (_, idx) => {
+            const bulan = idx + 1;
+            const run = runByMonth[bulan];
+            const totals = run ? totalsMap[run.id] : null;
+            const isFuture = year > now.getFullYear() || (year === now.getFullYear() && bulan > now.getMonth() + 1);
+
+            if (!run) {
+              return (
+                <Link
+                  key={bulan}
+                  href={isFuture ? '#' : `/companies/${companyId}/payroll/${year}/${bulan}`}
+                  className={`flex flex-col p-4 border rounded-xl transition-all group ${
+                    isFuture
+                      ? 'border-[var(--border-subtle)] bg-[var(--bg-card)] opacity-35 pointer-events-none'
+                      : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:shadow-sm cursor-pointer'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{BULAN_SHORT[idx]}</span>
+                    <Plus size={12} className="text-[var(--text-faint)] group-hover:text-[var(--brand)] transition-colors" />
+                  </div>
+                  <p className="text-[12px] text-[var(--text-faint)] group-hover:text-[var(--brand)] font-medium transition-colors">Mulai hitung</p>
+                </Link>
+              );
+            }
+
+            const cfg = statusCfg[run.status as keyof typeof statusCfg] ?? statusCfg.draft;
+            const StatusIcon = cfg.icon;
+
+            return (
+              <div key={bulan} className="relative group">
+                <Link
+                  href={`/companies/${companyId}/payroll/${year}/${bulan}`}
+                  className={`flex flex-col p-4 border rounded-xl transition-all shadow-sm ${cfg.cls}`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`text-[11px] font-semibold uppercase tracking-wider ${cfg.text}`}>{BULAN_SHORT[idx]}</span>
+                    <StatusIcon size={12} className={cfg.text} />
+                  </div>
+                  {totals ? (
+                    <>
+                      <p className={`text-[13px] font-bold font-mono leading-snug ${cfg.text}`}>
+                        {formatRupiah(totals.thp)}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 ${cfg.text} opacity-70`}>
+                        {totals.count} karyawan
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`text-[12px] font-medium ${cfg.text} opacity-80`}>{run.status}</p>
+                  )}
+                </Link>
+                {run.status !== 'locked' && (
+                  <button
+                    onClick={(e) => handleDelete(run, e)}
+                    disabled={deleting === run.id}
+                    className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer z-10"
+                    aria-label={`Hapus ${BULAN_NAMES[idx]} ${year}`}
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Other years */}
+      {allYears.filter(y => y !== year).length > 0 && (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
+            <h2 className="text-[13px] font-semibold text-[var(--text-secondary)]">Tahun Lain</h2>
+          </div>
+          <div className="flex flex-wrap gap-2 p-4">
+            {allYears.filter(y => y !== year).map(y => {
+              const runsY = runs.filter(r => r.tahun === y);
+              const locked = runsY.filter(r => r.status === 'locked').length;
+              return (
+                <button
+                  key={y}
+                  onClick={() => setYear(y)}
+                  className="px-4 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] text-[var(--text-secondary)] text-[13px] font-semibold transition-all cursor-pointer"
+                >
+                  {y}
+                  <span className="ml-2 text-[11px] font-normal opacity-60">{locked}/{runsY.length} locked</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

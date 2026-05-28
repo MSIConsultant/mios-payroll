@@ -251,6 +251,7 @@ export default function PayrollRunPage() {
   const [accumMap, setAccumMap]           = useState<Record<string, { akum_bruto: number; pph_jan_nov: number }>>({});
   const [showYTD, setShowYTD]             = useState(false);
   const [quickEditEmp, setQuickEditEmp]   = useState<any>(null);
+  const [expandedEmps, setExpandedEmps]   = useState<Set<string>>(new Set());
   const autoCalcRef = useRef(false);
 
   useEffect(() => {
@@ -342,9 +343,6 @@ export default function PayrollRunPage() {
         const benefit_extra = empEvents.filter((e) => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
         let calcResult: any = {};
         if (emp.jenis_karyawan === 'tetap') {
-          // Mid-year exit detection: if this run's month matches the employee's
-          // tanggal_keluar month/year, route through Pasal 17 reconciliation
-          // (isLastMonth) and scale annual caps to actual months worked.
           const runYear  = Number(tahun);
           const runMonth = Number(bulan);
           const exitDate  = emp.tanggal_keluar ? new Date(`${emp.tanggal_keluar}T00:00:00`) : null;
@@ -507,6 +505,7 @@ export default function PayrollRunPage() {
   const totalCtc   = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0) + (r.bpjs?.employer_offslip || 0), 0);
   const hasYTD     = Object.keys(accumMap).length > 0;
   const isCalcing  = calcProgress.total > 0;
+  const maxThp     = results.length > 0 ? Math.max(...results.map((r) => r.thp ?? 0), 1) : 1;
   const runStatus  = existingRun?.status ?? (isCalcing ? 'calculating' : 'draft');
   const StatusIconCmp = STATUS_ICON[runStatus] ?? Clock;
 
@@ -715,10 +714,30 @@ export default function PayrollRunPage() {
         </div>
       )}
 
-      {/* Per-employee results */}
+      {/* Per-employee results — compact accordion table */}
       {isCalculated && (
-        <div className="space-y-4">
+        <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
+          {/* Table header */}
+          <div className="px-5 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
+            <span className="text-[13px] font-semibold text-[var(--text-secondary)]">
+              {results.length} Karyawan
+            </span>
+            <button
+              onClick={() =>
+                setExpandedEmps(
+                  expandedEmps.size === results.length
+                    ? new Set()
+                    : new Set(results.map((r) => r.employee_id)),
+                )
+              }
+              className="text-[12px] font-medium text-[var(--brand)] hover:opacity-70 transition-opacity cursor-pointer"
+            >
+              {expandedEmps.size === results.length ? 'Collapse Semua' : 'Expand Semua'}
+            </button>
+          </div>
+
           {results.map((res, i) => {
+            const isExpanded  = expandedEmps.has(res.employee_id);
             const isTetap     = !res.mode || res.mode === undefined;
             const bpjsK       = res.bpjs?.karyawan_potong ?? res.tot_bpjs ?? 0;
             const ctc         = (res.bruto || res.total_upah || 0) + (res.bpjs?.employer_offslip ?? 0);
@@ -739,7 +758,6 @@ export default function PayrollRunPage() {
 
             const sourceEmp = employees.find((e) => e.id === res.employee_id);
 
-            // ── Calculation breakdown tooltips ───────────────────────────────
             const basis    = res.bpjs?._basis    ?? res.basis ?? res.gaji_pokok ?? 0;
             const jpBasis  = res.bpjs?._jp_basis  ?? Math.min(basis, JP_MAX_BASIS);
             const kesBasis = res.bpjs?._kes_basis ?? Math.min(basis, KES_MAX_BASIS);
@@ -782,36 +800,27 @@ export default function PayrollRunPage() {
 
               const steps: Array<{ label: string; value: string; op?: '+' | '-' | '×' | '÷' | '='; highlight?: boolean; muted?: boolean }> = [];
 
-              // Step 1: Bruto setahun
               if (res.bulan === 12 && (res.proyeksi?.bruto_setahun ?? 0) > (res.base ?? 0)) {
-                // Show Jan-Nov + this month breakdown when accumulator data available
                 const akum = (res.bs ?? 0) - (res.base ?? 0);
                 steps.push({ label: `Bruto Jan–Nov (akumulasi)`, value: rpFmt(akum), op: '+', muted: true });
                 steps.push({ label: `Bruto bulan ini`, value: rpFmt(res.base ?? 0), op: '+', muted: true });
               }
               steps.push({ label: `Bruto setahun (${M} bulan)`, value: rpFmt(res.bs ?? 0) });
-
-              // Step 2: Biaya Jabatan
               steps.push({
                 label: `− Biaya Jabatan (cap ${formatRupiah(500_000 * M)})`,
                 value: rpFmt(res.bj ?? 0),
                 op: '-',
               });
-
-              // Step 3: Iuran karyawan (JHT + JP separately)
               if ((res.jht_k_tahunan ?? 0) > 0) {
                 steps.push({ label: '− Iuran JHT Karyawan', value: rpFmt(res.jht_k_tahunan ?? 0), op: '-' });
               }
               if ((res.jp_k_tahunan ?? 0) > 0) {
                 steps.push({ label: '− Iuran JP Karyawan', value: rpFmt(res.jp_k_tahunan ?? 0), op: '-' });
               }
-
-              // Netto + PTKP
               steps.push({ label: 'Netto Setahun', value: rpFmt(res.netto ?? 0), muted: true });
               steps.push({ label: `− PTKP ${res.status_ptkp ?? ''}`, value: rpFmt(res.ptkp ?? 0), op: '-' });
               steps.push({ label: 'PKP (pembulatan ribuan)', value: rpFmt(res.pkp ?? 0), muted: true });
 
-              // Step 5: Pasal 17 progressive brackets — show portions actually used
               const pkp = res.pkp ?? 0;
               if (pkp > 0) {
                 const brackets: Array<{ width: number; rate: number }> = [
@@ -841,8 +850,6 @@ export default function PayrollRunPage() {
                 steps.push({ label: 'Non-NPWP (×1.2)', value: '', muted: true });
               }
               steps.push({ label: 'PPh Tahunan', value: rpFmt(res.pph_tahunan ?? 0) });
-
-              // Step 6: Selisih
               steps.push({ label: '− PPh sudah dipotong', value: rpFmt(res.pph_jan_nov ?? 0), op: '-' });
 
               if (res.is_refund) {
@@ -988,214 +995,298 @@ export default function PayrollRunPage() {
               footer: 'Offslip = tidak terlihat di slip gaji',
             };
 
+            const thpVal  = res.thp ?? 0;
+            const thpPct  = maxThp > 0 ? (thpVal / maxThp) * 100 : 0;
+            const barColor = res.is_refund
+              ? 'bg-red-400'
+              : (res.is_last_month || (isDesember && isTetap))
+                ? 'bg-violet-400'
+                : 'bg-emerald-400';
+
             return (
               <div
                 key={i}
-                className="bg-white border border-[var(--border-default)] rounded-xl animate-fade-in-up"
+                className="border-b border-[var(--border-subtle)] last:border-b-0 animate-fade-in-up"
                 style={{ animationDelay: `${Math.min(i, 8) * 0.04}s`, opacity: 0 }}
               >
-                {/* Employee header */}
-                <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-subtle)] rounded-t-xl">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Link
-                      href={`/companies/${companyId}/employees/${res.employee_id}?from=payroll&tahun=${tahun}&bulan=${bulan}`}
-                      className="text-base font-semibold text-[var(--text-primary)] hover:text-[var(--brand)] transition-colors truncate"
-                    >
-                      {res.employee_name}
-                    </Link>
+                {/* Compact summary row — click to expand */}
+                <div
+                  className="px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+                  onClick={() =>
+                    setExpandedEmps((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(res.employee_id)) next.delete(res.employee_id);
+                      else next.add(res.employee_id);
+                      return next;
+                    })
+                  }
+                >
+                  {/* Chevron */}
+                  <div className="shrink-0 text-[var(--text-muted)]">
+                    {isExpanded
+                      ? <ChevronDown size={14} />
+                      : <ChevronRight size={14} />}
+                  </div>
+
+                  {/* Name + badges + bar */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Link
+                        href={`/companies/${companyId}/employees/${res.employee_id}?from=payroll&tahun=${tahun}&bulan=${bulan}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[13px] font-semibold text-[var(--text-primary)] hover:text-[var(--brand)] transition-colors"
+                      >
+                        {res.employee_name}
+                      </Link>
+                      <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {res.mode ?? 'Tetap'}
+                      </span>
+                      <span className="shrink-0 text-[10px] font-medium text-[var(--text-faint)]">
+                        {res.status_ptkp ?? '—'}
+                      </span>
+                      {res.punya_npwp === false && (
+                        <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+                          NO NPWP
+                        </span>
+                      )}
+                      {res.pph_ditanggung && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                          Gross
+                        </span>
+                      )}
+                      {res.is_last_month && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">
+                          P17·{res.months_in_year ?? 12}m
+                        </span>
+                      )}
+                      {res.is_refund && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+                          Refund
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 h-1 w-full max-w-[160px] bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+                        style={{ width: `${thpPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Numbers (hidden on mobile) */}
+                  <div className="hidden sm:flex items-center gap-5 shrink-0">
+                    <div className="text-right">
+                      <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">Bruto</p>
+                      <p className="text-[12px] font-mono font-semibold text-[var(--text-secondary)]">
+                        {formatRupiah(res.bruto ?? res.total_upah ?? 0)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">PPh 21</p>
+                      <p className="text-[12px] font-mono font-semibold text-amber-700">
+                        {formatRupiah(res.pph ?? res.total_pph ?? 0)}
+                      </p>
+                    </div>
+                    <div className="w-[100px] text-right">
+                      <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">THP</p>
+                      <p className="text-[13px] font-mono font-bold text-emerald-700">
+                        {formatRupiah(thpVal)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div
+                    className="flex items-center gap-0.5 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {!isLocked && sourceEmp && (
                       <button
                         onClick={() => setQuickEditEmp(sourceEmp)}
-                        title="Edit kompensasi & hitung ulang"
-                        className="shrink-0 p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-white transition-colors cursor-pointer"
+                        title="Edit kompensasi"
+                        className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
                       >
                         <Pencil size={13} />
                       </button>
                     )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-3 flex-wrap">
-                    <span className="inline-flex text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-slate-100 text-slate-700 ring-slate-200">
-                      {res.mode ? res.mode : 'Tetap'}
-                    </span>
-                    <span className="text-[12px] text-[var(--text-muted)] font-medium">
-                      {res.status_ptkp ?? '—'}
-                    </span>
-                    <span
-                      className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
-                        res.punya_npwp !== false
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-red-50 text-red-700'
-                      }`}
-                    >
-                      {res.punya_npwp !== false ? 'NPWP ✓' : 'NO NPWP'}
-                    </span>
-                    {res.pph_ditanggung && (
-                      <span className="inline-flex text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200">
-                        Grossup
-                      </span>
-                    )}
-                    {res.is_last_month && (
-                      <span
-                        title={`Bulan terakhir kerja — perhitungan Pasal 17 (${res.months_in_year ?? 12} bulan)`}
-                        className="inline-flex text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset bg-purple-50 text-purple-700 ring-purple-200"
-                      >
-                        Bulan Terakhir · {res.months_in_year ?? 12}m
-                      </span>
-                    )}
                     <button
                       onClick={() => printSlipGaji(res, company, Number(bulan), Number(tahun))}
                       title="Cetak Slip Gaji"
-                      className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-white transition-colors cursor-pointer"
+                      className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
                     >
                       <Printer size={14} />
                     </button>
                   </div>
                 </div>
 
-                {/* Ledger body */}
-                <div className="px-5 sm:px-6 py-5">
-                  {res.is_refund && (
-                    <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-                      <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                      <div className="text-[13px] text-amber-900 leading-relaxed">
-                        <p className="font-semibold">Kelebihan potong PPh — karyawan berhak refund</p>
-                        <p className="mt-0.5">
-                          PPh tahunan ({formatRupiah(res.pph_tahunan ?? 0)}) lebih kecil dari PPh yang sudah dipotong
-                          {' '}({formatRupiah(res.pph_jan_nov ?? 0)}). Selisih:
-                          {' '}<span className="font-semibold font-mono">{formatRupiah(res.refund_amount ?? 0)}</span>
-                          {' '}harus dikembalikan tunai kepada karyawan di luar slip ini.
-                        </p>
+                {/* Expanded ledger detail */}
+                {isExpanded && (
+                  <div className="px-5 sm:px-6 py-5 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
+                    {res.is_refund && (
+                      <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                        <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                        <div className="text-[13px] text-amber-900 leading-relaxed">
+                          <p className="font-semibold">Kelebihan potong PPh — karyawan berhak refund</p>
+                          <p className="mt-0.5">
+                            PPh tahunan ({formatRupiah(res.pph_tahunan ?? 0)}) lebih kecil dari PPh yang sudah dipotong
+                            {' '}({formatRupiah(res.pph_jan_nov ?? 0)}). Selisih:
+                            {' '}<span className="font-semibold font-mono">{formatRupiah(res.refund_amount ?? 0)}</span>
+                            {' '}harus dikembalikan tunai kepada karyawan di luar slip ini.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {isTetap ? (
-                    <>
-                      <LedgerSectionLabel text="Pendapatan" />
-                      <LedgerRow label="Gaji Pokok" value={formatRupiah(res.gaji_pokok ?? 0)} />
-                      {(res.benefit ?? 0) > 0 && <LedgerRow label="Benefit / Tunj. Tetap"   value={formatRupiah(res.benefit)}     indent />}
-                      {(res.kendaraan ?? 0) > 0 && <LedgerRow label="Tunjangan Kendaraan"   value={formatRupiah(res.kendaraan)}   indent />}
-                      {(res.pulsa ?? 0) > 0 && <LedgerRow label="Tunjangan Pulsa"           value={formatRupiah(res.pulsa)}       indent />}
-                      {(res.operasional ?? 0) > 0 && <LedgerRow label="Tunjangan Operasional" value={formatRupiah(res.operasional)} indent />}
-                      {(res.tunj_lain ?? 0) > 0 && <LedgerRow label="Tunjangan Lain"        value={formatRupiah(res.tunj_lain)}   indent />}
+                    )}
 
-                      {bpjsInBruto + bpjsTunj > 0 && (
-                        <>
-                          <LedgerSectionLabel text="BPJS Masuk Bruto" />
-                          {bpjsJKK > 0     && <LedgerRow label="JKK Employer"                value={formatRupiah(bpjsJKK)}     indent calc={calcJKK} />}
-                          {bpjsJKM > 0     && <LedgerRow label="JKM Employer"                value={formatRupiah(bpjsJKM)}     indent calc={calcJKM} />}
-                          {bpjsKesE > 0    && <LedgerRow label="Kesehatan 4% (Employer)"     value={formatRupiah(bpjsKesE)}    indent calc={calcKesE} />}
-                          {bpjsTunjJHT > 0 && <LedgerRow label="JHT Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjJHT)} indent calc={calcTunjJHT} />}
-                          {bpjsTunjJP > 0  && <LedgerRow label="JP Karyawan (Co. Tanggung)"  value={formatRupiah(bpjsTunjJP)}  indent calc={calcTunjJP} />}
-                          {bpjsTunjKes > 0 && <LedgerRow label="Kes Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjKes)} indent calc={calcTunjKes} />}
-                        </>
-                      )}
+                    {isTetap ? (
+                      <>
+                        <LedgerSectionLabel text="Pendapatan" />
+                        <LedgerRow label="Gaji Pokok" value={formatRupiah(res.gaji_pokok ?? 0)} />
+                        {(res.benefit ?? 0) > 0 && <LedgerRow label="Benefit / Tunj. Tetap"   value={formatRupiah(res.benefit)}     indent />}
+                        {(res.kendaraan ?? 0) > 0 && <LedgerRow label="Tunjangan Kendaraan"   value={formatRupiah(res.kendaraan)}   indent />}
+                        {(res.pulsa ?? 0) > 0 && <LedgerRow label="Tunjangan Pulsa"           value={formatRupiah(res.pulsa)}       indent />}
+                        {(res.operasional ?? 0) > 0 && <LedgerRow label="Tunjangan Operasional" value={formatRupiah(res.operasional)} indent />}
+                        {(res.tunj_lain ?? 0) > 0 && <LedgerRow label="Tunjangan Lain"        value={formatRupiah(res.tunj_lain)}   indent />}
 
-                      {res.pph_ditanggung && (res.tunj_pph ?? 0) > 0 && (
-                        <>
-                          <LedgerSectionLabel text="PPh Grossup" />
-                          <LedgerRow
-                            label="Tunjangan PPh 21 (Co. Tanggung)"
-                            value={formatRupiah(res.tunj_pph ?? 0)}
-                            color="text-amber-700"
-                            indent
-                            calc={calcGrossup}
-                          />
-                        </>
-                      )}
+                        {bpjsInBruto + bpjsTunj > 0 && (
+                          <>
+                            <LedgerSectionLabel text="BPJS Masuk Bruto" />
+                            {bpjsJKK > 0     && <LedgerRow label="JKK Employer"                value={formatRupiah(bpjsJKK)}     indent calc={calcJKK} />}
+                            {bpjsJKM > 0     && <LedgerRow label="JKM Employer"                value={formatRupiah(bpjsJKM)}     indent calc={calcJKM} />}
+                            {bpjsKesE > 0    && <LedgerRow label="Kesehatan 4% (Employer)"     value={formatRupiah(bpjsKesE)}    indent calc={calcKesE} />}
+                            {bpjsTunjJHT > 0 && <LedgerRow label="JHT Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjJHT)} indent calc={calcTunjJHT} />}
+                            {bpjsTunjJP > 0  && <LedgerRow label="JP Karyawan (Co. Tanggung)"  value={formatRupiah(bpjsTunjJP)}  indent calc={calcTunjJP} />}
+                            {bpjsTunjKes > 0 && <LedgerRow label="Kes Karyawan (Co. Tanggung)" value={formatRupiah(bpjsTunjKes)} indent calc={calcTunjKes} />}
+                          </>
+                        )}
 
-                      <LedgerSep />
-                      <LedgerTotal label="BRUTO" value={formatRupiah(res.bruto ?? 0)} color="text-[var(--text-primary)]" calc={calcBruto} />
-                      <LedgerRow
-                        label="TER Rate"
-                        value={res.ter != null ? `${(res.ter * 100).toFixed(2)}%` : 'Pasal 17 ✓'}
-                        indent
-                        dim
-                      />
-                      <LedgerRow
-                        label={res.ter != null ? "PPh 21 = TER × Bruto" : "PPh 21 (Pasal 17)"}
-                        value={formatRupiah(res.pph ?? 0)}
-                        color="text-amber-700"
-                        indent
-                        calc={calcPph ?? calcPphDes}
-                      />
+                        {res.pph_ditanggung && (res.tunj_pph ?? 0) > 0 && (
+                          <>
+                            <LedgerSectionLabel text="PPh Grossup" />
+                            <LedgerRow
+                              label="Tunjangan PPh 21 (Co. Tanggung)"
+                              value={formatRupiah(res.tunj_pph ?? 0)}
+                              color="text-amber-700"
+                              indent
+                              calc={calcGrossup}
+                            />
+                          </>
+                        )}
 
-                      {(res.thr_nominal > 0 || res.bonus_nominal > 0) && (
-                        <>
-                          <LedgerSectionLabel text="THR / Bonus — Selisih Pasal 17" />
-                          {res.thr_nominal > 0 && (
-                            <>
-                              <LedgerRow label="THR Nominal" value={formatRupiah(res.thr_nominal)}   indent />
-                              <LedgerRow label="PPh THR"     value={formatRupiah(res.thr_pph ?? 0)}  color="text-amber-700" indent />
-                              <LedgerRow label="THR Net"     value={formatRupiah(res.thr_thp ?? 0)}  color="text-emerald-700" indent />
-                            </>
-                          )}
-                          {res.bonus_nominal > 0 && (
-                            <>
-                              <LedgerRow label="Bonus Nominal" value={formatRupiah(res.bonus_nominal)} indent />
-                              <LedgerRow label="PPh Bonus"     value={formatRupiah(res.bonus_pph ?? 0)} color="text-amber-700" indent />
-                              <LedgerRow label="Bonus Net"     value={formatRupiah(res.bonus_thp ?? 0)} color="text-emerald-700" indent />
-                            </>
-                          )}
-                        </>
-                      )}
+                        <LedgerSep />
+                        <LedgerTotal label="BRUTO" value={formatRupiah(res.bruto ?? 0)} color="text-[var(--text-primary)]" calc={calcBruto} />
+                        <LedgerRow
+                          label="TER Rate"
+                          value={res.ter != null ? `${(res.ter * 100).toFixed(2)}%` : 'Pasal 17 ✓'}
+                          indent
+                          dim
+                        />
+                        <LedgerRow
+                          label={res.ter != null ? "PPh 21 = TER × Bruto" : "PPh 21 (Pasal 17)"}
+                          value={formatRupiah(res.pph ?? 0)}
+                          color="text-amber-700"
+                          indent
+                          calc={calcPph ?? calcPphDes}
+                        />
 
-                      {(!res.pph_ditanggung ||
-                        bpjsPotJHT > 0 ||
-                        bpjsPotJP > 0 ||
-                        bpjsPotKes > 0 ||
-                        (res.kasbon ?? 0) > 0 ||
-                        (res.alpha_telat ?? 0) > 0 ||
-                        (res.pot_lain ?? 0) > 0) && (
-                        <>
-                          <LedgerSectionLabel text="Potongan dari Gaji" />
-                          {!res.pph_ditanggung && (res.pph ?? 0) > 0 && (
-                            <LedgerRow label="PPh 21 Dipotong" value={`− ${formatRupiah(res.pph ?? 0)}`} color="text-red-600" indent />
-                          )}
-                          {bpjsPotJHT > 0 && <LedgerRow label="JHT Karyawan 2%"       value={`− ${formatRupiah(bpjsPotJHT)}`}     color="text-red-600" indent calc={calcPotJHT} />}
-                          {bpjsPotJP  > 0 && <LedgerRow label="JP Karyawan 1%"        value={`− ${formatRupiah(bpjsPotJP)}`}      color="text-red-600" indent calc={calcPotJP} />}
-                          {bpjsPotKes > 0 && <LedgerRow label="Kesehatan Karyawan 1%" value={`− ${formatRupiah(bpjsPotKes)}`}     color="text-red-600" indent calc={calcPotKes} />}
-                          {(res.kasbon ?? 0) > 0      && <LedgerRow label="Kasbon"         value={`− ${formatRupiah(res.kasbon)}`}      color="text-red-600" indent />}
-                          {(res.alpha_telat ?? 0) > 0 && <LedgerRow label="Alpha / Telat"  value={`− ${formatRupiah(res.alpha_telat)}`} color="text-red-600" indent />}
-                          {(res.pot_lain ?? 0) > 0    && <LedgerRow label="Potongan Lain"  value={`− ${formatRupiah(res.pot_lain)}`}    color="text-red-600" indent />}
-                        </>
-                      )}
+                        {(res.thr_nominal > 0 || res.bonus_nominal > 0) && (
+                          <>
+                            <LedgerSectionLabel text="THR / Bonus — Selisih Pasal 17" />
+                            {res.thr_nominal > 0 && (
+                              <>
+                                <LedgerRow label="THR Nominal" value={formatRupiah(res.thr_nominal)}   indent />
+                                <LedgerRow label="PPh THR"     value={formatRupiah(res.thr_pph ?? 0)}  color="text-amber-700" indent />
+                                <LedgerRow label="THR Net"     value={formatRupiah(res.thr_thp ?? 0)}  color="text-emerald-700" indent />
+                              </>
+                            )}
+                            {res.bonus_nominal > 0 && (
+                              <>
+                                <LedgerRow label="Bonus Nominal" value={formatRupiah(res.bonus_nominal)} indent />
+                                <LedgerRow label="PPh Bonus"     value={formatRupiah(res.bonus_pph ?? 0)} color="text-amber-700" indent />
+                                <LedgerRow label="Bonus Net"     value={formatRupiah(res.bonus_thp ?? 0)} color="text-emerald-700" indent />
+                              </>
+                            )}
+                          </>
+                        )}
 
-                      <LedgerSep />
-                      <LedgerTotal label="TAKE HOME PAY" value={formatRupiah(res.thp ?? 0)} color="text-emerald-700" calc={calcThp} calcPosition="above" />
-                      <LedgerRow label="Gaji + Tunjangan" value={formatRupiah(grossPend)} indent dim />
-                      {!res.pph_ditanggung && (res.pph ?? 0) > 0 && (
-                        <LedgerRow label="− PPh 21" value={`− ${formatRupiah(res.pph ?? 0)}`} indent dim />
-                      )}
-                      {bpjsK > 0 && (
-                        <LedgerRow label="− BPJS Karyawan Dipotong" value={`− ${formatRupiah(bpjsK)}`} indent dim />
-                      )}
-                      <LedgerSep />
-                      <LedgerTotal label="COST TO COMPANY" value={formatRupiah(ctc)} color="text-sky-700" calc={calcCtc} calcPosition="above" />
-                      <LedgerRow label="Bruto" value={formatRupiah(res.bruto ?? 0)} indent dim />
-                      {bpjsJHTE > 0 && (
-                        <LedgerRow label="+ JHT Employer (offslip)" value={`+ ${formatRupiah(bpjsJHTE)}`} indent dim />
-                      )}
-                      {bpjsJPE > 0 && (
-                        <LedgerRow label="+ JP Employer (offslip)" value={`+ ${formatRupiah(bpjsJPE)}`} indent dim />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <LedgerSectionLabel text="Upah Tidak Tetap" />
-                      <LedgerRow label="Total Upah" value={formatRupiah(res.total_upah ?? 0)} />
-                      <LedgerRow label="PPh 21" value={formatRupiah(res.total_pph ?? 0)} color="text-amber-700" />
-                      {bpjsK > 0 && (
-                        <LedgerRow label="BPJS Karyawan" value={`− ${formatRupiah(bpjsK)}`} color="text-red-600" />
-                      )}
-                      <LedgerSep />
-                      <LedgerTotal label="TAKE HOME PAY" value={formatRupiah(res.thp ?? 0)} color="text-emerald-700" calc={calcThp} calcPosition="above" />
-                      <LedgerTotal label="COST TO COMPANY" value={formatRupiah(ctc)} color="text-sky-700" calc={calcCtc} calcPosition="above" />
-                    </>
-                  )}
-                </div>
+                        {(!res.pph_ditanggung ||
+                          bpjsPotJHT > 0 ||
+                          bpjsPotJP > 0 ||
+                          bpjsPotKes > 0 ||
+                          (res.kasbon ?? 0) > 0 ||
+                          (res.alpha_telat ?? 0) > 0 ||
+                          (res.pot_lain ?? 0) > 0) && (
+                          <>
+                            <LedgerSectionLabel text="Potongan dari Gaji" />
+                            {!res.pph_ditanggung && (res.pph ?? 0) > 0 && (
+                              <LedgerRow label="PPh 21 Dipotong" value={`− ${formatRupiah(res.pph ?? 0)}`} color="text-red-600" indent />
+                            )}
+                            {bpjsPotJHT > 0 && <LedgerRow label="JHT Karyawan 2%"       value={`− ${formatRupiah(bpjsPotJHT)}`}     color="text-red-600" indent calc={calcPotJHT} />}
+                            {bpjsPotJP  > 0 && <LedgerRow label="JP Karyawan 1%"        value={`− ${formatRupiah(bpjsPotJP)}`}      color="text-red-600" indent calc={calcPotJP} />}
+                            {bpjsPotKes > 0 && <LedgerRow label="Kesehatan Karyawan 1%" value={`− ${formatRupiah(bpjsPotKes)}`}     color="text-red-600" indent calc={calcPotKes} />}
+                            {(res.kasbon ?? 0) > 0      && <LedgerRow label="Kasbon"         value={`− ${formatRupiah(res.kasbon)}`}      color="text-red-600" indent />}
+                            {(res.alpha_telat ?? 0) > 0 && <LedgerRow label="Alpha / Telat"  value={`− ${formatRupiah(res.alpha_telat)}`} color="text-red-600" indent />}
+                            {(res.pot_lain ?? 0) > 0    && <LedgerRow label="Potongan Lain"  value={`− ${formatRupiah(res.pot_lain)}`}    color="text-red-600" indent />}
+                          </>
+                        )}
+
+                        <LedgerSep />
+                        <LedgerTotal label="TAKE HOME PAY" value={formatRupiah(res.thp ?? 0)} color="text-emerald-700" calc={calcThp} calcPosition="above" />
+                        <LedgerRow label="Gaji + Tunjangan" value={formatRupiah(grossPend)} indent dim />
+                        {!res.pph_ditanggung && (res.pph ?? 0) > 0 && (
+                          <LedgerRow label="− PPh 21" value={`− ${formatRupiah(res.pph ?? 0)}`} indent dim />
+                        )}
+                        {bpjsK > 0 && (
+                          <LedgerRow label="− BPJS Karyawan Dipotong" value={`− ${formatRupiah(bpjsK)}`} indent dim />
+                        )}
+                        <LedgerSep />
+                        <LedgerTotal label="COST TO COMPANY" value={formatRupiah(ctc)} color="text-sky-700" calc={calcCtc} calcPosition="above" />
+                        <LedgerRow label="Bruto" value={formatRupiah(res.bruto ?? 0)} indent dim />
+                        {bpjsJHTE > 0 && (
+                          <LedgerRow label="+ JHT Employer (offslip)" value={`+ ${formatRupiah(bpjsJHTE)}`} indent dim />
+                        )}
+                        {bpjsJPE > 0 && (
+                          <LedgerRow label="+ JP Employer (offslip)" value={`+ ${formatRupiah(bpjsJPE)}`} indent dim />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <LedgerSectionLabel text="Upah Tidak Tetap" />
+                        <LedgerRow label="Total Upah" value={formatRupiah(res.total_upah ?? 0)} />
+                        <LedgerRow label="PPh 21" value={formatRupiah(res.total_pph ?? 0)} color="text-amber-700" />
+                        {bpjsK > 0 && (
+                          <LedgerRow label="BPJS Karyawan" value={`− ${formatRupiah(bpjsK)}`} color="text-red-600" />
+                        )}
+                        <LedgerSep />
+                        <LedgerTotal label="TAKE HOME PAY" value={formatRupiah(res.thp ?? 0)} color="text-emerald-700" calc={calcThp} calcPosition="above" />
+                        <LedgerTotal label="COST TO COMPANY" value={formatRupiah(ctc)} color="text-sky-700" calc={calcCtc} calcPosition="above" />
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {/* Total footer row */}
+          <div className="px-5 py-3.5 border-t border-[var(--border-default)] bg-[var(--bg-subtle)] flex items-center justify-between flex-wrap gap-3">
+            <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+              {results.length} karyawan
+            </span>
+            <div className="flex items-center gap-5">
+              <div className="text-right">
+                <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">Total Bruto</p>
+                <p className="text-[12px] font-mono font-semibold text-[var(--text-secondary)]">{formatRupiah(totalBruto)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">Total PPh</p>
+                <p className="text-[12px] font-mono font-semibold text-amber-700">{formatRupiah(totalPph)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider">Total THP</p>
+                <p className="text-[13px] font-mono font-bold text-emerald-700">{formatRupiah(totalThp)}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
