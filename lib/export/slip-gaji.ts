@@ -2,9 +2,22 @@ import { formatRupiah } from '@/lib/format';
 
 const BULAN = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+// Escape user-supplied strings (employee_name, company.name, etc.) before
+// they reach window.document.write(). Otherwise a name like "Susi <script>"
+// would execute in the print popup. Apply to every interpolated text value
+// — numeric helpers like formatRupiah are safe by construction.
+function esc(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function row(label: string, value: number, color = '#111') {
   if (!value || value === 0) return '';
-  return `<tr><td>${label}</td><td class="amount" style="color:${color}">${formatRupiah(value)}</td></tr>`;
+  return `<tr><td>${esc(label)}</td><td class="amount" style="color:${color}">${formatRupiah(value)}</td></tr>`;
 }
 
 export function printSlipGaji(result: any, company: any, bulan: number, tahun: number) {
@@ -12,7 +25,7 @@ export function printSlipGaji(result: any, company: any, bulan: number, tahun: n
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Slip Gaji — ${result.employee_name} — ${BULAN[bulan]} ${tahun}</title>
+<title>Slip Gaji — ${esc(result.employee_name)} — ${esc(BULAN[bulan])} ${tahun}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Courier New',monospace;font-size:11px;color:#111;background:#fff;padding:24px;max-width:560px;margin:0 auto}
@@ -38,15 +51,15 @@ export function printSlipGaji(result: any, company: any, bulan: number, tahun: n
 </style>
 </head>
 <body>
-  <div class="co">${company.name}</div>
-  <div class="sub">Slip Gaji · ${BULAN[bulan]} ${tahun}</div>
-  ${company.npwp_perusahaan ? `<div class="sub" style="margin-top:1px">NPWP: ${company.npwp_perusahaan}</div>` : ''}
+  <div class="co">${esc(company.name)}</div>
+  <div class="sub">Slip Gaji · ${esc(BULAN[bulan])} ${tahun}</div>
+  ${company.npwp_perusahaan ? `<div class="sub" style="margin-top:1px">NPWP: ${esc(company.npwp_perusahaan)}</div>` : ''}
   <hr class="divider">
 
   <div class="emp">
-    <div class="emp-name">${result.employee_name}</div>
+    <div class="emp-name">${esc(result.employee_name)}</div>
     <div class="emp-detail">
-      Status PTKP: ${result.status_ptkp ?? '—'} &nbsp;·&nbsp;
+      Status PTKP: ${esc(result.status_ptkp ?? '—')} &nbsp;·&nbsp;
       ${result.punya_npwp !== false ? 'Punya NPWP' : 'Non-NPWP (+20%)'}<br>
       PPh 21: ${result.pph_ditanggung ? 'Ditanggung Perusahaan (Grossup)' : 'Dipotong dari Gaji'}
     </div>
@@ -111,15 +124,15 @@ export function printSlipGaji(result: any, company: any, bulan: number, tahun: n
 
 function slipBody(result: any, company: any, bulan: number, tahun: number): string {
   return `
-  <div class="co">${company.name}</div>
-  <div class="sub">Slip Gaji · ${BULAN[bulan]} ${tahun}</div>
-  ${company.npwp_perusahaan ? `<div class="sub" style="margin-top:1px">NPWP: ${company.npwp_perusahaan}</div>` : ''}
+  <div class="co">${esc(company.name)}</div>
+  <div class="sub">Slip Gaji · ${esc(BULAN[bulan])} ${tahun}</div>
+  ${company.npwp_perusahaan ? `<div class="sub" style="margin-top:1px">NPWP: ${esc(company.npwp_perusahaan)}</div>` : ''}
   <hr class="divider">
 
   <div class="emp">
-    <div class="emp-name">${result.employee_name}</div>
+    <div class="emp-name">${esc(result.employee_name)}</div>
     <div class="emp-detail">
-      Status PTKP: ${result.status_ptkp ?? '—'} &nbsp;·&nbsp;
+      Status PTKP: ${esc(result.status_ptkp ?? '—')} &nbsp;·&nbsp;
       ${result.punya_npwp !== false ? 'Punya NPWP' : 'Non-NPWP (+20%)'}<br>
       PPh 21: ${result.pph_ditanggung ? 'Ditanggung Perusahaan (Grossup)' : 'Dipotong dari Gaji'}
     </div>
@@ -211,7 +224,7 @@ export function printAllSlipGaji(results: any[], company: any, bulan: number, ta
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Slip Gaji — ${company.name} — ${BULAN[bulan]} ${tahun} — Semua Karyawan</title>
+<title>Slip Gaji — ${esc(company.name)} — ${esc(BULAN[bulan])} ${tahun} — Semua Karyawan</title>
 <style>${sharedStyles}</style>
 </head>
 <body>${slips}</body>
