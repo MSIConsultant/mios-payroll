@@ -95,7 +95,8 @@ export async function updateCompany(id: string, formData: FormData) {
 export async function archiveCompany(id: string, aktif: boolean) {
   const access = await assertCompanyAccess(id);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+  if (role === 'staff') return { error: 'Staff tidak punya akses mengarsipkan perusahaan.' };
 
   const { error } = await supabase.from('companies').update({ aktif }).eq('id', id);
   if (error) return { error: error.message };
@@ -117,13 +118,24 @@ export async function archiveCompany(id: string, aktif: boolean) {
 export async function deleteCompany(id: string) {
   const access = await assertCompanyAccess(id);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+
+  // Staff cannot delete companies — they only get assignment-scoped access.
+  if (role === 'staff') return { error: 'Staff tidak punya akses menghapus perusahaan.' };
 
   const { data: company } = await supabase.from('companies').select('name').eq('id', id).single();
   const entity_name = company?.name as string | undefined;
 
+  // Refuse deletion if any payroll run is locked — those are immutable
+  // regulatory records and the cascade would destroy them silently. The
+  // user can still archive (aktif=false) to hide the company from listings
+  // without deleting historical data.
   const { data: runs } = await supabase
-    .from('payroll_runs').select('id').eq('company_id', id);
+    .from('payroll_runs').select('id, status').eq('company_id', id);
+  const lockedCount = (runs ?? []).filter(r => r.status === 'locked').length;
+  if (lockedCount > 0) {
+    return { error: `Tidak bisa dihapus: ${lockedCount} payroll terkunci (catatan regulasi). Gunakan "Arsipkan" untuk menyembunyikan dari daftar.` };
+  }
   const runIds = (runs ?? []).map(r => r.id);
 
   if (runIds.length > 0) {

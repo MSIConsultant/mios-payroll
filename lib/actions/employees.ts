@@ -168,7 +168,8 @@ export async function deleteEmployee(
 ) {
   const access = await assertCompanyAccess(companyId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+  if (role === 'staff') return { error: 'Staff tidak punya akses menghapus karyawan.' };
 
   const { data: existing } = await supabase
     .from('employees').select('nama').eq('id', id).maybeSingle();
