@@ -426,13 +426,15 @@ function EmployeeDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
             <SectionTitle icon={User} label="Identitas" />
-            <Row label="NIK" value={employee.nik} />
-            <Row label="NPWP" value={employee.npwp ?? 'Belum Terdaftar'} />
+            <Row label="NIK / Paspor" value={employee.nik} />
+            <Row label="Jabatan" value={employee.jabatan ?? '—'} />
+            <Row label="Alamat" value={(employee as any).alamat ?? '—'} />
+            <Row label="Jenis Kelamin" value={employee.jenis_kelamin === 'P' ? 'Perempuan' : 'Laki-laki'} />
             <Row label="Status PTKP" value={employee.status_ptkp} />
             <Row
-              label="NPWP Valid"
-              value={employee.punya_npwp ? 'Ya' : 'Tidak (+20%)'}
-              highlight={employee.punya_npwp ? 'green' : 'red'}
+              label="NPWP"
+              value={employee.npwp || 'Tidak terdaftar (NIK = NPWP)'}
+              highlight={employee.npwp ? 'green' : 'default'}
             />
             <Row
               label="Tanggal Masuk"
@@ -685,29 +687,40 @@ function EmployeeDetailPage() {
                   Identitas Diri
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <TF label="Nama Lengkap" name="nama" defaultValue={employee.nama} />
-                  <NikInput label="NIK" name="nik" defaultValue={employee.nik} />
-                  <NpwpInput label="NPWP" name="npwp" defaultValue={employee.npwp ?? ''} />
-                  <SF label="Punya NPWP?" name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}>
-                    <option value="true">Ya (NPWP Valid)</option>
-                    <option value="false">Tidak (+20% PPh)</option>
-                  </SF>
-                  <SF label="Status PTKP" name="status_ptkp" defaultValue={employee.status_ptkp}>
+                  <TF label="Nama Lengkap *" name="nama" defaultValue={employee.nama} />
+                  <NikInput label="NIK / Paspor *" name="nik" defaultValue={employee.nik} />
+                  <NpwpInput label="NPWP (opsional)" name="npwp" defaultValue={employee.npwp ?? ''} />
+                  <SF label="Status PTKP *" name="status_ptkp" defaultValue={employee.status_ptkp}>
                     {['TK0', 'TK1', 'TK2', 'TK3', 'K0', 'K1', 'K2', 'K3'].map((s) => (
                       <option key={s}>{s}</option>
                     ))}
                   </SF>
-                  <SF label="Jenis Kelamin" name="jenis_kelamin" defaultValue={employee.jenis_kelamin}>
+                  <SF label="Jenis Kelamin *" name="jenis_kelamin" defaultValue={employee.jenis_kelamin}>
                     <option value="L">Laki-laki</option>
                     <option value="P">Perempuan</option>
                   </SF>
+                  <TF label="Jabatan *" name="jabatan" defaultValue={employee.jabatan ?? ''} />
+                  <div className="sm:col-span-2">
+                    <label htmlFor="alamat" className="block text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5">
+                      Alamat <span className="text-[var(--red)]">*</span>
+                    </label>
+                    <textarea
+                      id="alamat"
+                      name="alamat"
+                      defaultValue={employee.alamat ?? ''}
+                      rows={2}
+                      className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all resize-none"
+                    />
+                  </div>
                   <DateInput label="Tanggal Masuk" name="tanggal_masuk" defaultValue={employee.tanggal_masuk ?? ''} />
                   <DateInput label="Tanggal Keluar (Opsional)" name="tanggal_keluar" defaultValue={employee.tanggal_keluar ?? ''} />
-                  <TF label="Jabatan" name="jabatan" defaultValue={employee.jabatan ?? ''} />
                   <div className="sm:col-span-2">
-                    <TF label="Divisi" name="divisi" defaultValue={employee.divisi ?? ''} />
+                    <TF label="Divisi (Opsional)" name="divisi" defaultValue={employee.divisi ?? ''} />
                   </div>
                 </div>
+                <p className="text-[11px] text-[var(--text-muted)] mt-3 leading-relaxed">
+                  NPWP opsional sejak PENG-6/PJ.09/2024 — NIK valid sudah berfungsi sebagai NPWP. Tanpa NPWP tidak ada tambahan PPh.
+                </p>
               </div>
 
               <div>

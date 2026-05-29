@@ -46,6 +46,7 @@ export interface Employee {
   npwp: string | null;
   divisi: string | null;
   jabatan: string | null;
+  alamat: string | null;
   jenis_kelamin: 'L' | 'P';
   tanggal_masuk: string | null;
   tanggal_keluar: string | null;

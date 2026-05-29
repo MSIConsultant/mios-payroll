@@ -20,12 +20,15 @@ function Label({ text, htmlFor }: { text: string; htmlFor?: string }) {
 }
 
 export function NpwpInput({
-  name, defaultValue = '', required, label,
+  name, defaultValue = '', required, label, onChange,
 }: {
   name: string;
   defaultValue?: string;
   required?: boolean;
   label: string;
+  /** Optional callback for parent forms that need to react to the value
+   *  (e.g. derive `punya_npwp` from non-empty input). */
+  onChange?: (val: string) => void;
 }) {
   const [val, setVal] = useState(defaultValue);
   return (
@@ -39,7 +42,11 @@ export function NpwpInput({
         value={val}
         required={required}
         placeholder="00.000.000.0-000.000"
-        onChange={(e) => setVal(formatNPWP(e.target.value))}
+        onChange={(e) => {
+          const next = formatNPWP(e.target.value);
+          setVal(next);
+          onChange?.(next);
+        }}
         className={`${BASE} font-mono`}
       />
     </div>
