@@ -96,6 +96,13 @@ export async function recomputePayrollServerSide(
 
   // 4. For each client-supplied row, build the engine input from DB-authoritative
   //    sources and recompute.
+  //    Reject employees who were not employed during this run month:
+  //    - tanggal_keluar before the run month → already gone
+  //    - tanggal_masuk after the run month   → not hired yet
+  //    Either rejects them from the run (no payroll_results row written) so
+  //    the client can't sneak through results for an ex-employee or future hire.
+  const endOfRun = new Date(Number(tahun), Number(bulan), 0);
+  const startOfRun = new Date(Number(tahun), Number(bulan) - 1, 1);
   const out: RecalcedRow[] = [];
   for (const cr of clientResults) {
     const emp = empById[cr.employee_id];
@@ -105,6 +112,10 @@ export async function recomputePayrollServerSide(
       // the caller's workspace; this guards an inconsistent client payload.)
       continue;
     }
+    const exitDateCheck = emp.tanggal_keluar ? new Date(`${emp.tanggal_keluar}T00:00:00`) : null;
+    const entryDateCheck = emp.tanggal_masuk ? new Date(`${emp.tanggal_masuk}T00:00:00`) : null;
+    if (exitDateCheck && exitDateCheck < startOfRun) continue;
+    if (entryDateCheck && entryDateCheck > endOfRun) continue;
 
     const evs = eventsByEmp[emp.id] ?? [];
     const sumEvent = (tipe: string) =>

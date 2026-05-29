@@ -103,6 +103,9 @@ export default function ImportNewPage() {
   const [reconciled, setReconciled] = useState<ImportRecord[]>([]);
   const [mode, setMode] = useState<'employees_only' | 'full'>('full');
   const [updateExisting, setUpdateExisting] = useState(false);
+  // Per-NIK opt-in for updates. Defaults to all changed employees selected when
+  // user flips updateExisting on. null = "all" (backward-compat with master toggle).
+  const [updateNiks, setUpdateNiks] = useState<Set<string> | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { gaji_pokok: number; status_ptkp: string; divisi: string; bpjs_basis: number | null }>>({});
   const [saveProgress, setSaveProgress] = useState(0);
@@ -269,6 +272,7 @@ export default function ImportNewPage() {
     const res = await saveImport({
       workspaceId, companyId, bulan, tahun, fileName, mode,
       update_existing: updateExisting,
+      update_niks: updateExisting && updateNiks ? Array.from(updateNiks) : undefined,
       records: reconciled,
     });
 
@@ -546,6 +550,23 @@ export default function ImportNewPage() {
           </div>
         )}
 
+        {reconciled.some(r => !/^\d{16}$/.test(r.nik)) && (
+          <div className="rounded-xl p-4 flex items-start gap-3 bg-violet-50 border border-violet-200">
+            <AlertTriangle size={16} className="text-violet-600 mt-0.5 shrink-0" />
+            <div className="text-[13px] text-violet-800 leading-relaxed">
+              <p className="font-semibold mb-0.5">
+                {reconciled.filter(r => !/^\d{16}$/.test(r.nik)).length} karyawan TKA terdeteksi
+                (NIK bukan format KTP 16-digit).
+              </p>
+              <p>
+                Engine saat ini menghitung dengan PPh 21 + ×1.2 (jika tanpa NPWP). Untuk TKA tanpa
+                NPWP Indonesia, regulasi DJP mengarahkan ke <strong>PPh 26 (flat 20%)</strong> yang
+                bisa direduksi via tax treaty (P3B). Konfirmasi ke akuntan sebelum mengunci.
+              </p>
+            </div>
+          </div>
+        )}
+
         <section className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
           <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
             <table>
@@ -564,11 +585,17 @@ export default function ImportNewPage() {
                   const dbEmp = dbEmployeeMap[r.nik];
                   const gajiDelta = dbEmp ? r.gaji_pokok - dbEmp.gaji_pokok : null;
                   const ptkpChanged = dbEmp && dbEmp.status_ptkp && r.status_ptkp !== dbEmp.status_ptkp;
+                  const isTKA = !/^\d{16}$/.test(r.nik);
                   return (
                   <tr key={i} className={r.has_diff ? 'bg-amber-50/40' : ''}>
                     <td>
                       <p className="font-semibold text-[var(--text-primary)] truncate">
                         {r.nama}
+                        {isTKA && (
+                          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700" title="NIK bukan KTP 16-digit. Kemungkinan paspor TKA — verifikasi apakah PPh 26 (20% flat) lebih tepat.">
+                            TKA
+                          </span>
+                        )}
                         {gajiDelta !== null && gajiDelta !== 0 && (
                           <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             gajiDelta > 0
@@ -733,36 +760,149 @@ export default function ImportNewPage() {
         </div>
 
         {/* Update existing employees toggle */}
-        <button
-          onClick={() => setUpdateExisting((v) => !v)}
-          className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all cursor-pointer ${
+        <div
+          className={`rounded-xl transition-all ${
             updateExisting
               ? 'bg-amber-50 border border-amber-300'
-              : 'bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)]'
+              : 'bg-white border border-[var(--border-default)]'
           }`}
         >
-          <RefreshCw
-            size={16}
-            className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'}
-          />
-          <div className="flex-1 min-w-0">
-            <p className={`font-semibold text-[14px] ${updateExisting ? 'text-amber-900' : 'text-[var(--text-primary)]'}`}>
-              Perbarui data karyawan yang sudah ada
-            </p>
-            <p className="text-[12px] text-[var(--text-muted)] leading-relaxed mt-0.5">
-              Jika NIK sudah terdaftar, timpa gaji pokok, PTKP, dan tunjangan dari Excel.{' '}
-              {!updateExisting && <span className="font-semibold">Nonaktif — karyawan lama dilewati.</span>}
-              {updateExisting && <span className="font-semibold text-amber-700">Aktif — data karyawan lama akan diperbarui.</span>}
-            </p>
-          </div>
-          <div
-            className={`shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-              updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
-            }`}
+          <button
+            onClick={() => {
+              setUpdateExisting((v) => {
+                const nextOn = !v;
+                if (nextOn) {
+                  // Initialise per-NIK selection with all employees that have
+                  // actual changes (salary delta or PTKP change). User can
+                  // toggle individuals before pressing Import.
+                  const changedNiks = reconciled
+                    .filter((r) => {
+                      const dbEmp = dbEmployeeMap[r.nik];
+                      if (!dbEmp) return false;
+                      const gajiChanged = (r.gaji_pokok ?? 0) !== (dbEmp.gaji_pokok ?? 0);
+                      const ptkpChanged = dbEmp.status_ptkp && r.status_ptkp !== dbEmp.status_ptkp;
+                      return gajiChanged || ptkpChanged;
+                    })
+                    .map((r) => r.nik);
+                  setUpdateNiks(new Set(changedNiks));
+                } else {
+                  setUpdateNiks(null);
+                }
+                return nextOn;
+              });
+            }}
+            className="w-full flex items-center gap-3 p-4 cursor-pointer text-left"
           >
-            {updateExisting && <Check size={12} className="text-white" />}
-          </div>
-        </button>
+            <RefreshCw
+              size={16}
+              className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'}
+            />
+            <div className="flex-1 min-w-0">
+              <p className={`font-semibold text-[14px] ${updateExisting ? 'text-amber-900' : 'text-[var(--text-primary)]'}`}>
+                Perbarui data karyawan yang sudah ada
+              </p>
+              <p className="text-[12px] text-[var(--text-muted)] leading-relaxed mt-0.5">
+                Jika NIK sudah terdaftar, timpa gaji pokok, PTKP, dan tunjangan dari Excel.{' '}
+                {!updateExisting && <span className="font-semibold">Nonaktif — karyawan lama dilewati.</span>}
+                {updateExisting && updateNiks && (
+                  <span className="font-semibold text-amber-700">
+                    {updateNiks.size} karyawan akan diperbarui (pilih di bawah).
+                  </span>
+                )}
+              </p>
+            </div>
+            <div
+              className={`shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
+              }`}
+            >
+              {updateExisting && <Check size={12} className="text-white" />}
+            </div>
+          </button>
+
+          {updateExisting && (() => {
+            const changedRows = reconciled
+              .map((r) => {
+                const dbEmp = dbEmployeeMap[r.nik];
+                if (!dbEmp) return null;
+                const gajiDelta = (r.gaji_pokok ?? 0) - (dbEmp.gaji_pokok ?? 0);
+                const ptkpChanged = dbEmp.status_ptkp && r.status_ptkp !== dbEmp.status_ptkp;
+                if (gajiDelta === 0 && !ptkpChanged) return null;
+                return { r, dbEmp, gajiDelta, ptkpChanged };
+              })
+              .filter((x): x is NonNullable<typeof x> => x !== null);
+
+            if (changedRows.length === 0) {
+              return (
+                <p className="text-[12px] text-amber-700 px-4 pb-4 italic">
+                  Tidak ada perubahan terdeteksi dari karyawan lama.
+                </p>
+              );
+            }
+
+            return (
+              <div className="border-t border-amber-200 max-h-72 overflow-y-auto">
+                <div className="flex items-center gap-2 px-4 py-2 bg-amber-100/50 sticky top-0">
+                  <button
+                    onClick={() => setUpdateNiks(new Set(changedRows.map((c) => c.r.nik)))}
+                    className="text-[11px] font-semibold text-amber-800 hover:underline cursor-pointer"
+                  >
+                    Pilih semua
+                  </button>
+                  <span className="text-amber-700/60">·</span>
+                  <button
+                    onClick={() => setUpdateNiks(new Set())}
+                    className="text-[11px] font-semibold text-amber-800 hover:underline cursor-pointer"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+                <ul className="divide-y divide-amber-200/60">
+                  {changedRows.map(({ r, dbEmp, gajiDelta, ptkpChanged }) => {
+                    const checked = updateNiks?.has(r.nik) ?? false;
+                    return (
+                      <li key={r.nik}>
+                        <label className="flex items-center gap-3 px-4 py-2.5 hover:bg-amber-100/40 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setUpdateNiks((prev) => {
+                                const next = new Set(prev ?? []);
+                                if (e.target.checked) next.add(r.nik);
+                                else next.delete(r.nik);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-300 cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-amber-900 truncate">
+                              {r.nama}
+                            </p>
+                            <p className="text-[11px] text-amber-700/80 mt-0.5">
+                              {gajiDelta !== 0 && (
+                                <span className="mr-2">
+                                  Gaji {fmt(dbEmp.gaji_pokok)} → {fmt(r.gaji_pokok)}
+                                  <span className={`ml-1 font-semibold ${gajiDelta > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                    ({gajiDelta > 0 ? '+' : ''}{Math.round(gajiDelta / 1000)}K)
+                                  </span>
+                                </span>
+                              )}
+                              {ptkpChanged && (
+                                <span>PTKP {dbEmp.status_ptkp} → {r.status_ptkp}</span>
+                              )}
+                            </p>
+                          </div>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
+        </div>
 
         <button
           onClick={handleSave}

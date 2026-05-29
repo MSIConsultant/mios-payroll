@@ -122,9 +122,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(u);
     }
 
-    // Staff trying to access accountant-only paths
+    // Staff trying to access accountant-only paths.
+    // /import is included here because the import flow needs to update
+    // employees and create payroll runs across all companies in the
+    // workspace, which falls outside the staff per-company access model.
     if (profile.role === 'staff') {
-      const staffBlocked = ['/settings', '/dev', '/logs', '/staff'];
+      const staffBlocked = ['/settings', '/dev', '/logs', '/staff', '/import'];
       if (staffBlocked.some(p => pathname.startsWith(p))) {
         const u = request.nextUrl.clone();
         u.pathname = '/dashboard';

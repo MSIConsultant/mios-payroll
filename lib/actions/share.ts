@@ -13,7 +13,11 @@ export async function createShareLink(
 ) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, user } = access;
+  const { supabase, workspaceId, user, role } = access;
+  // Share links produce a public no-auth URL that lists every employee's
+  // bruto/pph/thp for the run. That's the kind of disclosure the
+  // accountant/dev owns, not a per-company staff. Restrict accordingly.
+  if (role === 'staff') return { error: 'Staff tidak punya akses membuat link bagikan.' };
 
   const { allowed } = await checkRateLimit(shareLinkRatelimit, `share:${user.id}`);
   if (!allowed) return { error: 'Terlalu banyak permintaan. Coba lagi dalam beberapa menit.' };

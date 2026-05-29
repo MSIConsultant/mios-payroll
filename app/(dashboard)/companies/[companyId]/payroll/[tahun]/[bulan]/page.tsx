@@ -507,12 +507,28 @@ export default function PayrollRunPage() {
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
-      const [{ data: co }, { data: empData }, { data: eventData }, { data: runData }] = await Promise.all([
+      const [{ data: co }, { data: empDataRaw }, { data: eventData }, { data: runData }] = await Promise.all([
         supabase.from('companies').select('name, npwp_perusahaan').eq('id', companyId).single(),
         supabase.from('employees').select('*').eq('company_id', companyId).eq('aktif', true),
         supabase.from('employee_events').select('*').eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan),
         supabase.from('payroll_runs').select('*, payroll_results(*)').eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan).maybeSingle(),
       ]);
+      // Filter out employees who already exited before this run month AND were
+      // not active at any point in this month. An employee with tanggal_keluar
+      // in 2026-03 is included in March payroll (last month) but NOT in April.
+      // Similarly, an employee with tanggal_masuk in May 2026 is excluded from
+      // earlier months even if still flagged aktif=true (data-entry mistake).
+      const runYear = Number(tahun);
+      const runMonth = Number(bulan);
+      const endOfRun = new Date(runYear, runMonth, 0); // last day of run month
+      const startOfRun = new Date(runYear, runMonth - 1, 1);
+      const empData = (empDataRaw ?? []).filter((emp) => {
+        const exit = emp.tanggal_keluar ? new Date(`${emp.tanggal_keluar}T00:00:00`) : null;
+        const entry = emp.tanggal_masuk ? new Date(`${emp.tanggal_masuk}T00:00:00`) : null;
+        if (exit && exit < startOfRun) return false;
+        if (entry && entry > endOfRun) return false;
+        return true;
+      });
 
       const newAccumMap: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
       if (empData) {

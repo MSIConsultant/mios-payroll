@@ -52,11 +52,17 @@ export default function PayrollHubPage() {
     fetchData();
   }, [companyId]);
 
+  const confirm = useConfirm();
   async function handleDelete(run: any, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (run.status === 'locked') { toast.error('Run yang sudah dikunci tidak bisa dihapus.'); return; }
-    if (!confirm(`Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}? Semua hasil kalkulasi akan hilang.`)) return;
+    if (!(await confirm({
+      title: `Hapus payroll ${BULAN_NAMES[run.bulan - 1]} ${run.tahun}?`,
+      message: 'Semua hasil kalkulasi untuk periode ini akan hilang dan tidak bisa dipulihkan.',
+      severity: 'danger',
+      confirmLabel: 'Hapus',
+    }))) return;
     setDeleting(run.id);
     const res = await deletePayrollRun(run.id, companyId as string, run.tahun, run.bulan);
     if (res.error) { toast.error(res.error); setDeleting(null); }

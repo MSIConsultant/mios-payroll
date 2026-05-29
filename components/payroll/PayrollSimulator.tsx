@@ -22,7 +22,7 @@ const PRESETS: {
     values: {
       gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
       tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
       pphDitanggung: false, thrPct: 100, bonusPct: 0,
       kesEmployerInBruto: false,
@@ -37,7 +37,7 @@ const PRESETS: {
     values: {
       gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
       tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
       pphDitanggung: false, thrPct: 100, bonusPct: 0,
       kesEmployerInBruto: true,
@@ -52,9 +52,9 @@ const PRESETS: {
     values: {
       gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
       tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
-      pphDitanggung: true, thrPct: 100, bonusPct: 0,
+      pphDitanggung: true, thrPct: 100, bonusBulan: 8, bonusPct: 50,
       kesEmployerInBruto: false,
     },
   },
@@ -67,9 +67,9 @@ const PRESETS: {
     values: {
       gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
       statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
-      ikutJht: true, ikutJp: true, ikutJkp: false, ikutKes: true,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
       tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
-      pphDitanggung: true, thrPct: 100, bonusPct: 0,
+      pphDitanggung: true, thrPct: 100, bonusBulan: 8, bonusPct: 50,
       kesEmployerInBruto: true,
     },
   },

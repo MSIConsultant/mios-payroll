@@ -50,6 +50,17 @@ export async function savePayrollRun(
     recomputed.map(r => [r.employee_id, r])
   );
 
+  // Concurrency guard: if a run exists and is already locked, refuse the save.
+  // Otherwise a stale tab calling save would silently un-lock production data.
+  const { data: existing } = await supabase
+    .from('payroll_runs')
+    .select('id, status')
+    .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan)
+    .maybeSingle();
+  if (existing?.status === 'locked') {
+    return { error: 'Payroll ini sudah dikunci. Refresh halaman untuk melihat versi terbaru.' };
+  }
+
   const { data: run, error: runError } = await supabase
     .from('payroll_runs')
     .upsert({
@@ -145,7 +156,19 @@ export async function savePayrollRun(
 export async function lockPayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+  // Locking is the act of declaring "this period is closed" — regulatory in
+  // nature and irreversible (delete is also blocked once locked). Restrict
+  // to accountant/dev. CAN.lockPayroll documents the same rule.
+  if (role === 'staff') return { error: 'Staff tidak punya akses mengunci payroll.' };
+
+  // Re-check current status; refuse re-lock if already locked (idempotent
+  // but logs a no-op audit entry otherwise).
+  const { data: cur } = await supabase.from('payroll_runs')
+    .select('status').eq('id', runId).maybeSingle();
+  if (cur?.status === 'locked') {
+    return { error: 'Payroll ini sudah dikunci sebelumnya.' };
+  }
 
   const { error } = await supabase.from('payroll_runs').update({
     status: 'locked', locked_at: new Date().toISOString(),
@@ -168,7 +191,19 @@ export async function lockPayrollRun(runId: string, companyId: string, tahun: nu
 export async function deletePayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+
+  // Defense-in-depth: even if UI gates the button, the server must refuse to
+  // delete a locked run. Otherwise a crafted client call could nuke locked data.
+  const { data: run } = await supabase.from('payroll_runs')
+    .select('status').eq('id', runId).maybeSingle();
+  if (!run) return { error: 'Run tidak ditemukan.' };
+  if (run.status === 'locked') {
+    return { error: 'Run yang sudah dikunci tidak bisa dihapus.' };
+  }
+  if (role === 'staff') {
+    return { error: 'Staff tidak punya akses menghapus payroll.' };
+  }
 
   // Delete results first (FK constraint)
   const { error: resErr } = await supabase.from('payroll_results').delete().eq('run_id', runId);

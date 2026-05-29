@@ -97,11 +97,15 @@ export default function NewEmployeePage() {
   const [ikutJht,      setIkutJht]      = useState(true);
   const [ikutJp,       setIkutJp]       = useState(true);
   const [ikutJkp,      setIkutJkp]      = useState(true);
-  const [tanggungJhtK, setTanggungJhtK] = useState(true);
-  const [tanggungJpK,  setTanggungJpK]  = useState(true);
+  // Defaults follow the most common Indonesian payroll scheme:
+  // "BPJS & PPh dipotong dari gaji" (Skema 1 in Simulasi). Switching to
+  // grossup or BPJS-ditanggung is a deliberate per-employee choice the
+  // accountant should make rather than a silent default.
+  const [tanggungJhtK, setTanggungJhtK] = useState(false);
+  const [tanggungJpK,  setTanggungJpK]  = useState(false);
   const [ikutKes,      setIkutKes]      = useState(true);
-  const [tanggungKesK, setTanggungKesK] = useState(true);
-  const [pphDitanggung,setPphDitanggung]= useState(true);
+  const [tanggungKesK, setTanggungKesK] = useState(false);
+  const [pphDitanggung,setPphDitanggung]= useState(false);
   const [thrBulan,     setThrBulan]     = useState(3);
   const [thrPct,       setThrPct]       = useState(100);
   const [bonusBulan,   setBonusBulan]   = useState(8);

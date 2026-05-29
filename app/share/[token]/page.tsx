@@ -51,9 +51,10 @@ export default async function SharePage(props: {
     .eq('run_id', link.run_id)
     .order('thp', { ascending: false });
 
-  const totalBruto = (results ?? []).reduce((a, r) => a + (Number(r.bruto) ?? 0), 0);
-  const totalPph = (results ?? []).reduce((a, r) => a + (Number(r.pph) ?? 0), 0);
-  const totalThp = (results ?? []).reduce((a, r) => a + (Number(r.thp) ?? 0), 0);
+  // Number(null) → NaN, so use || not ?? for the fallback.
+  const totalBruto = (results ?? []).reduce((a, r) => a + (Number(r.bruto) || 0), 0);
+  const totalPph = (results ?? []).reduce((a, r) => a + (Number(r.pph) || 0), 0);
+  const totalThp = (results ?? []).reduce((a, r) => a + (Number(r.thp) || 0), 0);
 
   const company = link.companies as any;
   const run = link.payroll_runs as any;
@@ -121,12 +122,12 @@ export default async function SharePage(props: {
                     <tr key={i}>
                       <td className="font-semibold text-[var(--text-primary)]">{name}</td>
                       <td className="font-mono">{ptkp}</td>
-                      <td className="text-right font-mono">{fmt(Number(r.bruto) ?? 0)}</td>
+                      <td className="text-right font-mono">{fmt(Number(r.bruto) || 0)}</td>
                       <td className="text-right font-mono text-amber-700">
-                        {fmt(Number(r.pph) ?? 0)}
+                        {fmt(Number(r.pph) || 0)}
                       </td>
                       <td className="text-right font-mono font-bold text-emerald-700">
-                        {fmt(Number(r.thp) ?? 0)}
+                        {fmt(Number(r.thp) || 0)}
                       </td>
                     </tr>
                   );

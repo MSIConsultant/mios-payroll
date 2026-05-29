@@ -25,7 +25,12 @@ function LoginForm() {
       setError(err.message);
       setLoading(false);
     } else {
-      window.location.href = next || '/';
+      // Reject off-domain redirects (e.g. ?next=//evil.com) — only allow
+      // same-site relative paths starting with a single `/`.
+      const dest = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')
+        ? next
+        : '/';
+      window.location.href = dest;
     }
   };
 

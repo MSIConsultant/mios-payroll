@@ -82,6 +82,20 @@ export async function createEmployee(formData: FormData) {
   const fields = parseFields(formData, { defaultBooleans: true });
   fields.aktif = true;
 
+  // Minimum validation. The UI hints at format but a crafted submission could
+  // bypass them. Server enforces what the engine actually needs to function:
+  // a non-empty NIK (KTP 16-digit OR passport ≥5 chars), a non-empty name,
+  // a valid PTKP, and non-negative gaji_pokok for tetap employees.
+  const nik = String(fields.nik ?? '').trim();
+  const nama = String(fields.nama ?? '').trim();
+  if (nama.length < 2) return { error: 'Nama wajib diisi.' };
+  if (nik.length < 5) return { error: 'NIK / paspor minimal 5 karakter.' };
+  const validPtkp = ['TK0','TK1','TK2','TK3','K0','K1','K2','K3'];
+  if (!validPtkp.includes(fields.status_ptkp)) return { error: 'Status PTKP tidak valid.' };
+  if (fields.jenis_karyawan === 'tetap' && (Number(fields.gaji_pokok) || 0) < 0) {
+    return { error: 'Gaji pokok tidak boleh negatif.' };
+  }
+
   const access = await assertCompanyAccess(fields.company_id as string);
   if (!access.ok) return { error: 'Akses ditolak.' };
   const { supabase, workspaceId } = access;
@@ -154,7 +168,8 @@ export async function deleteEmployee(
 ) {
   const access = await assertCompanyAccess(companyId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId } = access;
+  const { supabase, workspaceId, role } = access;
+  if (role === 'staff') return { error: 'Staff tidak punya akses menghapus karyawan.' };
 
   const { data: existing } = await supabase
     .from('employees').select('nama').eq('id', id).maybeSingle();

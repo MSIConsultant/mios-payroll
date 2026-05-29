@@ -42,7 +42,12 @@ export interface SaveImportPayload {
   tahun:            number;
   fileName:         string;
   mode:             'employees_only' | 'full';
+  /** Master toggle. If false, existing employees are skipped entirely. */
   update_existing?: boolean;
+  /** When provided alongside update_existing=true, ONLY the NIKs in this set
+   *  are updated; other existing employees are still skipped. Lets the user
+   *  approve salary changes per-employee on the confirm screen. */
+  update_niks?:     string[];
   records:          ImportRecord[];
 }
 
@@ -50,9 +55,13 @@ export async function saveImport(payload: SaveImportPayload) {
   const access = await assertCompanyAccess(payload.companyId);
   if (!access.ok) return { error: access.error === 'unauthenticated' ? 'Not authenticated' : 'Akses ditolak' };
   // workspaceId derived server-side from company record, not trusted from client payload
-  const { supabase, user, workspaceId } = access;
+  const { supabase, user, workspaceId, role } = access;
+  // Defense-in-depth: middleware redirects staff away from /import but a
+  // crafted direct call to this action would still mutate. Reject explicitly.
+  if (role === 'staff') return { error: 'Staff tidak punya akses melakukan import.' };
 
-  const { companyId, bulan, tahun, fileName, mode, update_existing = false, records } = payload;
+  const { companyId, bulan, tahun, fileName, mode, update_existing = false, update_niks, records } = payload;
+  const updateNikSet = update_niks ? new Set(update_niks) : null;
 
   // ── 1. Resolve existing employees by NIK ──────────────────────────
   const { data: existing } = await supabase
@@ -69,7 +78,10 @@ export async function saveImport(payload: SaveImportPayload) {
   for (const rec of records) {
     if (existingByNIK[rec.nik]) {
       empIdMap[rec.nik] = existingByNIK[rec.nik];
-      if (update_existing) {
+      // Whitelist takes priority over master toggle: if the user explicitly
+      // listed which NIKs to update, only update those even when toggle is on.
+      const shouldUpdate = update_existing && (!updateNikSet || updateNikSet.has(rec.nik));
+      if (shouldUpdate) {
         await supabase.from('employees').update({
           gaji_pokok:     rec.gaji_pokok,
           status_ptkp:    rec.status_ptkp,

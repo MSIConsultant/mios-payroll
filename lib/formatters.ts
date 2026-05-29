@@ -27,9 +27,21 @@ export function formatNPWPCompany(raw: string): string {
   return out;
 }
 
-/** NIK: exactly 16 numeric digits */
+/** NIK: 16 numeric digits (KTP) OR alphanumeric passport (TKA, max 20 chars).
+ *  Strips whitespace + symbols, allows A-Z and 0-9. Uppercase normalization
+ *  matches DJP convention for foreign tax-payer identifiers. */
 export function formatNIK(raw: string): string {
-  return raw.replace(/\D/g, '').slice(0, 16);
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+}
+
+/** True if value is a valid Indonesian KTP (exactly 16 digits). */
+export function isKTP(value: string): boolean {
+  return /^\d{16}$/.test(value);
+}
+
+/** True if value looks like a foreign passport (alphanumeric, not all digits). */
+export function isPassport(value: string): boolean {
+  return /[A-Z]/.test(value) && value.length >= 5 && value.length <= 20;
 }
 
 /** Nominal: Indonesian thousand separator */
