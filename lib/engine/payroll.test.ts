@@ -271,15 +271,15 @@ describe('calculateMonthlySalary (non-grossup, TER)', () => {
     expect(r.pph).toBe(125_448);
   });
 
-  it('Non-NPWP applies ×1.2 multiplier to PPh', () => {
+  it('Non-NPWP: no surcharge per PENG-6/PJ.09/2024 — PPh matches NPWP case', () => {
     const r = calculateMonthlySalary(tetap({
       gaji_pokok: 8_000_000,
       ikut_jht: true, ikut_jp: true, ikut_kes: true,
       jkk_rate: 0.0024,
       punya_npwp: false,
     }));
-    // Same bruto/TER as above, PPh × 1.2 = 150,538 (rounded)
-    expect(r.pph).toBe(150_538);
+    // Engine no longer multiplies by 1.2. Same bruto/TER as the NPWP case → identical PPh.
+    expect(r.pph).toBe(125_448);
   });
 });
 
@@ -330,7 +330,7 @@ describe('annual projection (every-month forecast columns)', () => {
     expect(r.proyeksi.biaya_jabatan_setahun).toBe(6_000_000); // capped at BIAYA_JAB_MAX × 12
   });
 
-  it('Jan-Nov: non-NPWP multiplies pph_setahun by 1.2', () => {
+  it('Jan-Nov: non-NPWP pph_setahun matches NPWP (surcharge removed 2026-05-29)', () => {
     const withNpwp = calculateMonthlySalary(tetap({
       bulan: 4,
       gaji_pokok: 8_000_000,
@@ -343,7 +343,8 @@ describe('annual projection (every-month forecast columns)', () => {
       jkk_rate: 0,
       punya_npwp: false,
     }));
-    expect(withoutNpwp.proyeksi.pph_setahun).toBe(Math.round(withNpwp.proyeksi.pph_setahun * 1.2));
+    // PENG-6/PJ.09/2024 + NIK=NPWP integration → engine treats both identically.
+    expect(withoutNpwp.proyeksi.pph_setahun).toBe(withNpwp.proyeksi.pph_setahun);
   });
 
   it('December: proyeksi.* reflects actual (not projected) values', () => {
@@ -464,11 +465,11 @@ describe('calculateSeverance (PPh 21 final — PP 68/2009)', () => {
     expect(r.breakdown.map(b => b.rate)).toEqual([0, 0.05, 0.15, 0.25]);
   });
 
-  it('non-NPWP applies ×1.2 to total (not per-bracket)', () => {
+  it('non-NPWP: no surcharge (PENG-6/PJ.09/2024) — PPh equals base brackets', () => {
     const r = calculateSeverance(k({ jumlah_bruto: 100_000_000, punya_npwp: false }));
-    // Base PPh = 2,500,000; × 1.2 = 3,000,000
-    expect(r.pph).toBe(3_000_000);
-    expect(r.npwp_multiplier).toBe(1.2);
+    // 0% on first 50M + 5% on next 50M = 2,500,000. No ×1.2 since 2026-05-29.
+    expect(r.pph).toBe(2_500_000);
+    expect(r.npwp_multiplier).toBe(1.0);
     expect(r.pph_before_npwp_multiplier).toBe(2_500_000);
   });
 
@@ -552,7 +553,7 @@ describe('calculateFreelance harian (TER method per PMK 168/2023)', () => {
     }
   });
 
-  it('harian: non-NPWP applies ×1.2 multiplier on top of TER result', () => {
+  it('harian: non-NPWP yields same PPh as NPWP (surcharge removed 2026-05-29)', () => {
     const r = calculateFreelance({
       nama: 'NoNPWP', nik: '1', npwp: '', divisi: '',
       bulan: 2, tahun: 2026, status_ptkp: 'TK0', punya_npwp: false,
@@ -563,8 +564,8 @@ describe('calculateFreelance harian (TER method per PMK 168/2023)', () => {
       kasbon: 0, pot_lain: 0,
     } satisfies KaryawanTidakTetap);
     if (r.mode === 'harian') {
-      // Same bruto as ALFREDO above, but non-NPWP: 63,106 × 1.2 = 75,727 (rounded)
-      expect(r.total_pph).toBe(75_727);
+      // Engine no longer applies ×1.2 — same bruto as ALFREDO → same PPh 63,106.
+      expect(r.total_pph).toBe(63_106);
     }
   });
 

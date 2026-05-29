@@ -1,5 +1,17 @@
 import { PTKP, PTKP_TER_GRUP, PASAL17, PESANGON_BRACKETS, TER, BPJS, JP_MAX_BASIS, KES_MAX_BASIS, BIAYA_JAB_RATE, BIAYA_JAB_MAX } from "./constants";
 
+// ─── Non-NPWP surcharge (formerly ×1.2) ──────────────────────────────────
+// Removed 2026-05-29 per PENG-6/PJ.09/2024 in combination with the NIK=NPWP
+// integration mandated by PMK 112/2022 (fully effective 2024). The 20%
+// surcharge in UU PPh Pasal 21(5a) / PMK 168/2023 Pasal 11(4) legally still
+// exists, but PENG-6/PJ.09/2024 exempts any income recipient who presents a
+// valid NIK — which is now every Indonesian resident. In practice the
+// surcharge applies only to TKA without Indonesian NPWP, and those workers
+// are routed through PPh 26 (a different calculation; see the pph_26 flag
+// migration `2026-05-29-tka-pph26-fields.sql`). The `punya_npwp` field is
+// preserved on the engine input for reporting (slip gaji, SPT Masa CSV)
+// but no longer multiplies any computed PPh figure.
+
 export interface KaryawanTetap {
     nama: string;
     nik: string;
@@ -173,13 +185,12 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         return calculateLastMonth(k, bpjs, allowance_total, base, grup, k.akum_bruto, monthsInYear);
     }
 
-    const npwp_mult = !k.punya_npwp ? 1.2 : 1.0;
     let pph = 0;
     let tunj_pph = 0;
     let pot_pph = 0;
     // Grossup convergence diagnostics. _converged === false on:
-    //   1. `mt >= 1.0` early break — the TER × non-NPWP multiplier saturates
-    //      (impossible/extreme PKP); the loop bails with stale `pph`.
+    //   1. `t >= 1.0` early break — the TER rate saturates (impossible at
+    //      current bracket maximum 0.34, but kept as a guard).
     //   2. The 200-iteration fall-through path with no convergence detected.
     // Calling code (UI) should surface a warning in these cases.
     let _converged = !k.pph_ditanggung; // non-grossup branch is trivially converged
@@ -195,12 +206,11 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
                 _converged = true;
                 break;
             }
-            const mt = npwp_mult * t;
-            if (mt >= 1.0) {
-                // mt saturation — leave _converged false and exit
+            if (t >= 1.0) {
+                // TER saturation — leave _converged false and exit
                 break;
             }
-            const n = (mt * base) / (1 - mt);
+            const n = (t * base) / (1 - t);
             if (Math.abs(n - prev) < 0.01) {
                 pph = Math.round((n + prev) / 2);
                 _converged = true;
@@ -221,7 +231,7 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         pot_pph = 0;
     } else {
         const t = getTerRate(base, grup);
-        pph = Math.round(npwp_mult * t * base);
+        pph = Math.round(t * base);
         tunj_pph = 0;
         pot_pph = pph;
     }
@@ -282,10 +292,8 @@ function computeAnnualProjection(
     const jp_k_tahunan  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * 12 : 0;
     const netto_setahun = bruto_setahun - biaya_jabatan_setahun - jht_k_tahunan - jp_k_tahunan;
     const pkp_setahun = Math.max(0, Math.floor((netto_setahun - ptkp) / 1000) * 1000);
-    let pph_setahun = getPasal17Tax(pkp_setahun);
-    if (!k.punya_npwp) {
-        pph_setahun = Math.round(pph_setahun * 1.2);
-    }
+    const pph_setahun = getPasal17Tax(pkp_setahun);
+    // Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
     const pph_jan_nov_proyeksi = Math.round(monthlyPph * 11);
     const pph_desember_proyeksi = Math.max(0, pph_setahun - pph_jan_nov_proyeksi);
     return {
@@ -355,8 +363,8 @@ export function calculateLastMonth(
         const jp_k_ann  = (k.ikut_jp  && !k.tanggung_jp_k)  ? bpjs.jp_k  * M : 0;
         const netto = bs - bj - jht_k_ann - jp_k_ann;
         const pkp = Math.max(0, Math.floor((netto - ptkp) / 1000) * 1000);
-        let pth = getPasal17Tax(pkp);
-        if (!k.punya_npwp) pth = Math.round(pth * 1.2);
+        const pth = getPasal17Tax(pkp);
+        // Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
         return { bj, jht_k_tahunan: jht_k_ann, jp_k_tahunan: jp_k_ann, netto, pkp, pth };
     };
 
@@ -477,11 +485,8 @@ export function calculateTHRBonus(k: KaryawanTetap, thr: number = 0, bonus: numb
         const n_dgn = br_dgn - bj - jp_k_y;
         const pkp_dgn = Math.max(0, Math.floor((n_dgn - ptkp) / 1000) * 1000);
         const pph_dgn = getPasal17Tax(pkp_dgn);
-        let pph_item = Math.max(0, Math.round(pph_dgn - pph_reg));
-
-        if (!k.punya_npwp) {
-            pph_item = Math.round(pph_item * 1.2);
-        }
+        const pph_item = Math.max(0, Math.round(pph_dgn - pph_reg));
+        // Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
 
         const tunj_pph = k.pph_ditanggung ? pph_item : 0;
         const pot_pph = k.pph_ditanggung ? 0 : pph_item;
@@ -543,8 +548,7 @@ export interface KompensasiBracketApplied {
  *   next   Rp 400,000,000 → 15% (100M..500M)
  *   above  Rp 500,000,000 → 25%
  *
- * Non-NPWP: PPh × 1.2 per UU PPh Pasal 17 ayat (5). Applied to the final
- * total (not to each bracket individually).
+ * Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
  */
 export function calculateSeverance(k: KompensasiInput) {
     const jumlah = Math.max(0, Math.floor(k.jumlah_bruto));
@@ -552,7 +556,7 @@ export function calculateSeverance(k: KompensasiInput) {
 
     let lo = 0;
     let remaining = jumlah;
-    let pph_before_npwp = 0;
+    let pph_raw = 0;
 
     for (const [width, rate] of PESANGON_BRACKETS) {
         const hi = lo + width;
@@ -566,13 +570,12 @@ export function calculateSeverance(k: KompensasiInput) {
             taxable,
             tax,
         });
-        pph_before_npwp += tax;
+        pph_raw += tax;
         remaining -= taxable;
         lo = hi;
     }
 
-    const npwp_mult = k.punya_npwp ? 1.0 : 1.2;
-    const pph = Math.round(pph_before_npwp * npwp_mult);
+    const pph = Math.round(pph_raw);
     const thp = jumlah - pph;
 
     return {
@@ -586,8 +589,11 @@ export function calculateSeverance(k: KompensasiInput) {
         divisi: k.divisi ?? null,
         jumlah_bruto: jumlah,
         breakdown,
-        pph_before_npwp_multiplier: Math.round(pph_before_npwp),
-        npwp_multiplier: npwp_mult,
+        // Kept for backward compatibility with consumers reading result_json.
+        // npwp_multiplier is always 1.0 since 2026-05-29; pph_before_npwp_multiplier
+        // is now identical to pph (the rounded total).
+        pph_before_npwp_multiplier: pph,
+        npwp_multiplier: 1.0,
         pph,
         thp,
     };
@@ -606,10 +612,8 @@ export function calculateFreelance(k: KaryawanTidakTetap) {
         const total_upah = upah_reg + (k.thr || 0) + (k.bonus || 0);
         const ter = getTerRate(total_upah, grup);
 
-        let total_pph = Math.round(total_upah * ter);
-        if (!k.punya_npwp) {
-            total_pph = Math.round(total_pph * 1.2);
-        }
+        const total_pph = Math.round(total_upah * ter);
+        // Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
 
         const pph_per_hari = k.hari_kerja > 0
             ? Math.round(total_pph / k.hari_kerja)
@@ -647,9 +651,7 @@ export function calculateFreelance(k: KaryawanTidakTetap) {
             pkp = Math.max(0, Math.floor((bt - bj - ptkp) / 1000) * 1000);
             pph = Math.round(getPasal17Tax(pkp) / 12);
             keterangan = "Pasal 17 (annualized) / 12";
-            if (!k.punya_npwp) {
-                pph = Math.round(pph * 1.2);
-            }
+            // Non-NPWP surcharge removed 2026-05-29 — see top-of-file note.
         }
         
         const bk: Record<string, number> = {};
