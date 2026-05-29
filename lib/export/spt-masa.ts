@@ -35,7 +35,7 @@ export function exportSPTMasa(
   const headers = [
     'No', 'NPWP Karyawan', 'NIK', 'Nama', 'Status PTKP',
     'Kode Objek Pajak', 'Penghasilan Bruto (Rp)', 'PPh 21 Dipotong (Rp)',
-    'Tunjangan PPh / Grossup (Rp)', 'THP (Rp)', 'Metode', 'Non-NPWP', 'Keterangan'
+    'Tunjangan PPh / Grossup (Rp)', 'THP (Rp)', 'Metode', 'Tanpa NPWP', 'Keterangan'
   ];
   lines.push(headers.join(','));
 
@@ -54,7 +54,9 @@ export function exportSPTMasa(
     const isTetap = !r.mode || r.mode === 'tetap';
     const kodeObjek = isTetap ? '21-100-01' : '21-100-03';
     const metode = r.ter != null ? `TER ${(r.ter * 100).toFixed(2)}%` : 'Pasal 17 Equalisasi';
-    const nonNpwp = emp.punya_npwp === false ? 'Ya (+20%)' : 'Tidak';
+    // Tanpa NPWP column kept for accountant reference. Engine no longer applies
+    // the +20% surcharge (PENG-6/PJ.09/2024), so the value is purely informational.
+    const nonNpwp = emp.punya_npwp === false ? 'Ya (NIK = NPWP)' : 'Tidak';
 
     totalBruto += bruto;
     totalPph += pph;

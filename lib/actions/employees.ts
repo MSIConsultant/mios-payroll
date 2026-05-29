@@ -323,3 +323,95 @@ export async function deleteEvent(
 
   return { success: true };
 }
+
+/**
+ * Per-month upah override for tidak_tetap_bulanan workers.
+ *
+ * Bulanan workers' upah can vary month to month. Rather than touch the
+ * static `employees.upah_bulanan_tt` (which acts as the default), this
+ * action writes an `employee_events` row with `tipe='upah_bulanan_override'`
+ * scoped to (employee_id, tahun, bulan). The unique partial index in the
+ * 2026-05-29-employee-flexibility migration guarantees one row per period.
+ *
+ * The engine (server-recalc.ts and the client runCalculation) reads this
+ * override when computing payroll for the month; absent an override, it
+ * falls back to upah_bulanan_tt.
+ *
+ * Passing nilai === null clears any existing override for that period.
+ */
+export async function setUpahBulananOverride(
+  employeeId: string,
+  tahun: number,
+  bulan: number,
+  nilai: number | null,
+) {
+  // Resolve company from employee row first so we can run assertCompanyAccess.
+  const sb0 = await createClient();
+  const { data: emp } = await sb0
+    .from('employees')
+    .select('id, company_id, jenis_karyawan')
+    .eq('id', employeeId)
+    .maybeSingle();
+  if (!emp) return { error: 'Karyawan tidak ditemukan.' };
+  if (emp.jenis_karyawan !== 'tidak_tetap_bulanan') {
+    return { error: 'Upah per bulan hanya berlaku untuk karyawan Tidak Tetap Bulanan.' };
+  }
+
+  const access = await assertCompanyAccess(emp.company_id as string);
+  if (!access.ok) return { error: 'Akses ditolak.' };
+  const { supabase, workspaceId, role } = access;
+  if (role === 'staff') return { error: 'Staff tidak punya akses mengubah upah bulanan.' };
+
+  if (!Number.isInteger(tahun) || tahun < 2020 || tahun > 2100) {
+    return { error: 'Tahun tidak valid.' };
+  }
+  if (!Number.isInteger(bulan) || bulan < 1 || bulan > 12) {
+    return { error: 'Bulan harus 1–12.' };
+  }
+  if (nilai !== null) {
+    if (typeof nilai !== 'number' || !Number.isFinite(nilai) || nilai < 0) {
+      return { error: 'Nilai upah tidak valid.' };
+    }
+  }
+
+  // Delete any existing override for this period (partial unique index allows
+  // at most one, but be defensive). Then insert the new value if provided.
+  const { error: delErr } = await supabase
+    .from('employee_events')
+    .delete()
+    .eq('employee_id', employeeId)
+    .eq('tahun', tahun)
+    .eq('bulan', bulan)
+    .eq('tipe', 'upah_bulanan_override');
+  if (delErr) return { error: delErr.message };
+
+  if (nilai !== null) {
+    const { error: insErr } = await supabase.from('employee_events').insert({
+      employee_id: employeeId,
+      company_id: emp.company_id,
+      tahun, bulan,
+      tipe: 'upah_bulanan_override',
+      nilai: Math.round(nilai),
+    });
+    if (insErr) return { error: insErr.message };
+  }
+
+  await audit({
+    workspace_id: workspaceId,
+    company_id: emp.company_id as string,
+    action: 'EVENT_ADDED',
+    entity_type: 'employee_event',
+    new_values: {
+      employee_id: employeeId,
+      tipe: 'upah_bulanan_override',
+      nilai: nilai ?? 0,
+      cleared: nilai === null,
+      tahun, bulan,
+    },
+  });
+
+  revalidatePath(`/companies/${emp.company_id}/employees/${employeeId}`);
+  revalidatePath(`/companies/${emp.company_id}/payroll/${tahun}/${bulan}`);
+
+  return { success: true };
+}

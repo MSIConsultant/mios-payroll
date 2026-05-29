@@ -84,7 +84,7 @@ export interface EmployeeEvent {
   company_id: string;
   tahun: number;
   bulan: number;
-  tipe: 'thr' | 'bonus' | 'alpha_telat' | 'kasbon' | 'pot_lain' | 'benefit_extra' | 'kendaraan_extra' | 'pulsa_extra' | 'operasional_extra' | 'hari_kerja';
+  tipe: 'thr' | 'bonus' | 'alpha_telat' | 'kasbon' | 'pot_lain' | 'benefit_extra' | 'kendaraan_extra' | 'pulsa_extra' | 'operasional_extra' | 'hari_kerja' | 'upah_bulanan_override';
   nilai: number;
   keterangan: string | null;
   created_at: string;

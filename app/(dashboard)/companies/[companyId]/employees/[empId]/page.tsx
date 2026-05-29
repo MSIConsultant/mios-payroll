@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -9,7 +9,7 @@ import {
   User, Wallet, Shield, FileText, CheckCircle2, Lock, Clock,
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
-import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/actions/employees';
+import { addEvent, deleteEvent, deleteEmployee, updateEmployee, setUpahBulananOverride } from '@/lib/actions/employees';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
 import { PayrollSimulator } from '@/components/payroll/PayrollSimulator';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
@@ -317,6 +317,9 @@ function EmployeeDetailPage() {
   if (employee.jenis_karyawan === 'tetap') {
     tabs.splice(1, 0, { id: 'proyeksi', label: 'Proyeksi' });
   }
+  if (employee.jenis_karyawan === 'tidak_tetap_bulanan') {
+    tabs.splice(1, 0, { id: 'upah_bulan', label: 'Upah per Bulan' });
+  }
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -536,6 +539,16 @@ function EmployeeDetailPage() {
             tanggungKesK: !!employee.tanggung_kes_k,
             pphDitanggung:!!employee.pph_ditanggung,
           }}
+        />
+      )}
+
+      {/* UPAH PER BULAN (tidak_tetap_bulanan only) */}
+      {activeTab === 'upah_bulan' && employee.jenis_karyawan === 'tidak_tetap_bulanan' && (
+        <UpahPerBulanGrid
+          employee={employee}
+          companyId={companyId as string}
+          allEvents={events}
+          onChange={loadEvents}
         />
       )}
 
@@ -982,6 +995,199 @@ function Metric({
       <p className={`mt-0.5 font-mono ${strong ? 'font-bold' : 'font-semibold'} ${toneClass}`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+const BULAN_FULL_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+/**
+ * 12-month grid for setting per-month upah on a tidak_tetap_bulanan employee.
+ * Cells show the default upah faintly; an override (if any) is highlighted
+ * with the current value and "OVERRIDE" badge. Clicking any cell opens an
+ * inline editor that saves via setUpahBulananOverride.
+ */
+function UpahPerBulanGrid({ employee, allEvents, onChange }: {
+  employee: Employee;
+  companyId: string;
+  allEvents: EmployeeEvent[];
+  onChange: () => Promise<void>;
+}) {
+  const now = new Date();
+  const [year, setYear] = useState<number>(now.getFullYear());
+  const [editingBulan, setEditingBulan] = useState<number | null>(null);
+  const [editVal, setEditVal] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
+
+  const defaultUpah = employee.upah_bulanan_tt ?? 0;
+  const overrides = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const e of allEvents) {
+      if (e.tipe === 'upah_bulanan_override' && e.tahun === year) {
+        map[e.bulan] = Number(e.nilai);
+      }
+    }
+    return map;
+  }, [allEvents, year]);
+
+  function startEdit(bulan: number) {
+    setEditingBulan(bulan);
+    setEditVal(overrides[bulan] ?? defaultUpah);
+  }
+
+  async function save() {
+    if (editingBulan === null) return;
+    setSaving(true);
+    const res = await setUpahBulananOverride(employee.id, year, editingBulan, editVal);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success(`Upah ${BULAN_FULL_NAMES[editingBulan - 1]} ${year} disimpan`);
+    setSaving(false);
+    setEditingBulan(null);
+    await onChange();
+  }
+
+  async function reset(bulan: number) {
+    setSaving(true);
+    const res = await setUpahBulananOverride(employee.id, year, bulan, null);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success('Override dihapus — kembali ke upah default');
+    setSaving(false);
+    setEditingBulan(null);
+    await onChange();
+  }
+
+  return (
+    <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Upah per Bulan</h2>
+          <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
+            Default upah: <span className="font-mono font-semibold text-[var(--text-secondary)]">{formatRupiah(defaultUpah)}</span>.
+            Klik bulan untuk override.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setYear(y => y - 1)}
+            className="p-1.5 rounded-lg border border-[var(--border-default)] hover:border-[var(--brand)] hover:text-[var(--brand)] text-[var(--text-muted)] transition-colors cursor-pointer"
+            aria-label="Tahun sebelumnya"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <span className="text-[15px] font-bold font-mono text-[var(--text-primary)] min-w-[56px] text-center">{year}</span>
+          <button
+            onClick={() => setYear(y => y + 1)}
+            className="p-1.5 rounded-lg border border-[var(--border-default)] hover:border-[var(--brand)] hover:text-[var(--brand)] text-[var(--text-muted)] transition-colors cursor-pointer rotate-180"
+            aria-label="Tahun berikutnya"
+          >
+            <ArrowLeft size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-5">
+        {Array.from({ length: 12 }, (_, idx) => {
+          const bulan = idx + 1;
+          const overrideVal = overrides[bulan];
+          const hasOverride = overrideVal !== undefined;
+          const isEditing = editingBulan === bulan;
+          const value = hasOverride ? overrideVal : defaultUpah;
+
+          if (isEditing) {
+            return (
+              <div key={bulan} className="rounded-xl border-2 border-[var(--brand)] bg-[var(--brand-soft)] p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand)]">
+                    {BULAN_FULL_NAMES[idx]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingBulan(null)}
+                    className="p-0.5 rounded hover:bg-white/60 text-[var(--text-muted)]"
+                    aria-label="Tutup"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                <NominalInput
+                  key={`edit-${bulan}-${year}`}
+                  label=""
+                  name={`upah_${bulan}`}
+                  defaultValue={editVal}
+                  onChange={setEditVal}
+                />
+                <div className="mt-2 flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving}
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-[12px] font-semibold rounded-md disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    <Save size={12} /> Simpan
+                  </button>
+                  {hasOverride && (
+                    <button
+                      type="button"
+                      onClick={() => reset(bulan)}
+                      disabled={saving}
+                      className="px-2 py-1.5 bg-white border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[12px] font-medium rounded-md disabled:opacity-50 transition-colors cursor-pointer"
+                      title="Hapus override, kembali ke default"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={bulan}
+              type="button"
+              onClick={() => startEdit(bulan)}
+              className={`rounded-xl border p-3 text-left transition-all cursor-pointer ${
+                hasOverride
+                  ? 'border-amber-300 bg-amber-50/60 hover:border-amber-400 hover:shadow-sm'
+                  : 'border-[var(--border-default)] bg-white hover:border-[var(--border-strong)] hover:bg-[var(--bg-subtle)]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  hasOverride ? 'text-amber-700' : 'text-[var(--text-muted)]'
+                }`}>
+                  {BULAN_FULL_NAMES[idx]}
+                </span>
+                {hasOverride && (
+                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 tracking-wider">
+                    Override
+                  </span>
+                )}
+              </div>
+              <p className={`font-mono font-bold text-[14px] ${
+                hasOverride ? 'text-amber-800' : 'text-[var(--text-secondary)]'
+              }`}>
+                {formatRupiah(value)}
+              </p>
+              {hasOverride && (
+                <p className="text-[10px] text-[var(--text-muted)] mt-0.5 font-mono">
+                  Default: {formatRupiah(defaultUpah)}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Footer hint */}
+      <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
+        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+          <strong>Catatan:</strong> override hanya memengaruhi perhitungan payroll bulan tersebut.
+          Untuk mengubah default upah bulanan, gunakan tombol <strong>Edit</strong> di atas.
+        </p>
+      </div>
     </div>
   );
 }

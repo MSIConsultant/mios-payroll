@@ -7,11 +7,12 @@ import {
   ArrowLeft, Save, Lock, Printer, Download,
   AlertTriangle, Share2, ChevronDown, ChevronRight,
   TrendingUp, Pencil, X, RefreshCw, CheckCircle2, Clock,
+  Wallet, RotateCcw,
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll';
 import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
-import { updateEmployee } from '@/lib/actions/employees';
+import { updateEmployee, setUpahBulananOverride } from '@/lib/actions/employees';
 import { printSlipGaji, printAllSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
 import { exportBPJSTK, exportBPJSKes } from '@/lib/export/bpjs';
@@ -481,6 +482,101 @@ function QuickEditModal({ employee, onClose, onSaveAndRecalc }: {
   );
 }
 
+/* ── Upah bulanan override modal (tidak_tetap_bulanan) ── */
+
+function UpahBulananModal({ employee, tahun, bulan, currentOverride, onClose, onSaved }: {
+  employee: any;
+  tahun: number;
+  bulan: number;
+  /** Current override nilai for this (employee, tahun, bulan), or null when only the default applies. */
+  currentOverride: number | null;
+  onClose: () => void;
+  /** Called after the action succeeds; parent should refetch events + recalc. */
+  onSaved: () => void;
+}) {
+  const [val, setVal] = useState<number>(currentOverride ?? employee.upah_bulanan_tt ?? 0);
+  const [saving, setSaving] = useState(false);
+  const monthLabel = BULAN_NAMES[bulan - 1] ?? '';
+
+  async function handleSave() {
+    setSaving(true);
+    const res = await setUpahBulananOverride(employee.id, tahun, bulan, val);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success(`Upah ${monthLabel} ${tahun} disimpan`);
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  async function handleResetToDefault() {
+    setSaving(true);
+    const res = await setUpahBulananOverride(employee.id, tahun, bulan, null);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    toast.success('Override dihapus — kembali ke upah default');
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-[var(--bg-overlay)] z-50 flex items-center justify-center p-4 animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-md bg-white rounded-xl overflow-hidden shadow-xl">
+        <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--border-default)]">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">Upah Bulan Ini</h3>
+            <p className="text-[13px] text-[var(--text-muted)] mt-0.5 truncate">
+              {employee.nama} · {monthLabel} {tahun}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] cursor-pointer" aria-label="Tutup">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="text-[12px] text-[var(--text-muted)] leading-relaxed bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 flex items-start gap-2">
+            <Wallet size={14} className="mt-0.5 shrink-0 text-[var(--brand)]" />
+            <div>
+              <p>Default upah karyawan: <span className="font-mono font-semibold text-[var(--text-primary)]">{formatRupiah(employee.upah_bulanan_tt ?? 0)}</span></p>
+              <p className="mt-1">Nilai di bawah akan menggantikan default <strong>khusus bulan {monthLabel} {tahun}</strong>. Bulan lain tetap pakai default.</p>
+            </div>
+          </div>
+          <NominalInput
+            key={`${employee.id}-${tahun}-${bulan}`}
+            label={`Upah ${monthLabel} ${tahun}`}
+            name="upah"
+            defaultValue={val}
+            onChange={setVal}
+          />
+          <div className="flex gap-3 pt-3 border-t border-[var(--border-subtle)]">
+            {currentOverride !== null && (
+              <button
+                type="button"
+                onClick={handleResetToDefault}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+              >
+                <RotateCcw size={13} />
+                Reset ke default
+              </button>
+            )}
+            <div className="flex-1" />
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer">Batal</button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw size={14} className={saving ? 'animate-spin' : ''} />
+              {saving ? 'Menyimpan…' : 'Simpan'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ── */
 
 export default function PayrollRunPage() {
@@ -501,6 +597,7 @@ export default function PayrollRunPage() {
   const [accumMap, setAccumMap]           = useState<Record<string, { akum_bruto: number; pph_jan_nov: number }>>({});
   const [showYTD, setShowYTD]             = useState(false);
   const [quickEditEmp, setQuickEditEmp]   = useState<any>(null);
+  const [upahEditEmp, setUpahEditEmp]     = useState<any>(null);
   const [expandedEmps, setExpandedEmps]   = useState<Set<string>>(new Set());
   const autoCalcRef = useRef(false);
 
@@ -585,6 +682,7 @@ export default function PayrollRunPage() {
         const thr           = empEvents.filter((e) => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
         const bonus         = empEvents.filter((e) => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
         const benefit_extra = empEvents.filter((e) => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
+        const upahOverride  = empEvents.find((e) => e.tipe === 'upah_bulanan_override');
         let calcResult: any = {};
         if (emp.jenis_karyawan === 'tetap') {
           const runYear = Number(tahun), runMonth = Number(bulan);
@@ -598,7 +696,12 @@ export default function PayrollRunPage() {
           }
           calcResult = calculateMonthlySalary({ ...emp, bulan: runMonth, tahun: runYear, kasbon, alpha_telat, pot_lain: pot_lain + (emp.pot_lain || 0), tunj_lain: (emp.tunj_lain ?? 0) + benefit_extra, thr, bonus, pph_jan_nov: emp._pph_jan_nov ?? 0, akum_bruto: emp._akum_bruto ?? 0, isLastMonth, months_in_year });
         } else {
-          calcResult = calculateFreelance({ ...emp, mode: emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan', upah_harian: emp.upah_harian, hari_kerja: emp.hari_kerja_default || 22, upah_bulanan: emp.upah_bulanan_tt, tunjangan: (emp.tunjangan_tt || 0) + benefit_extra, thr, bonus, ikut_bpjs_tk: emp.ikut_jht || emp.ikut_jp, ikut_kes: emp.ikut_kes, kasbon, pot_lain: pot_lain + (emp.pot_lain || 0) });
+          // For tidak_tetap_bulanan, an upah_bulanan_override event for this
+          // (employee, tahun, bulan) replaces the static employees.upah_bulanan_tt.
+          const upahBulanan = emp.jenis_karyawan === 'tidak_tetap_bulanan' && upahOverride
+            ? Number(upahOverride.nilai)
+            : emp.upah_bulanan_tt;
+          calcResult = calculateFreelance({ ...emp, mode: emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan', upah_harian: emp.upah_harian, hari_kerja: emp.hari_kerja_default || 22, upah_bulanan: upahBulanan, tunjangan: (emp.tunjangan_tt || 0) + benefit_extra, thr, bonus, ikut_bpjs_tk: emp.ikut_jht || emp.ikut_jp, ikut_kes: emp.ikut_kes, kasbon, pot_lain: pot_lain + (emp.pot_lain || 0) });
         }
         newResults.push({ ...calcResult, employee_id: emp.id, employee_name: emp.nama });
         i++;
@@ -684,6 +787,38 @@ export default function PayrollRunPage() {
     <div className="space-y-6 animate-fade-in-up">
       {quickEditEmp && !isLocked && (
         <QuickEditModal employee={quickEditEmp} onClose={() => setQuickEditEmp(null)} onSaveAndRecalc={handleQuickEdit} />
+      )}
+
+      {upahEditEmp && !isLocked && (
+        <UpahBulananModal
+          employee={upahEditEmp}
+          tahun={Number(tahun)}
+          bulan={Number(bulan)}
+          currentOverride={
+            events.find(
+              (e) =>
+                e.employee_id === upahEditEmp.id &&
+                e.tipe === 'upah_bulanan_override' &&
+                e.tahun === Number(tahun) &&
+                e.bulan === Number(bulan),
+            )?.nilai ?? null
+          }
+          onClose={() => setUpahEditEmp(null)}
+          onSaved={async () => {
+            // Refetch events for this period, then recompute the affected employee.
+            const supabase = createClient();
+            const { data: refreshed } = await supabase
+              .from('employee_events').select('*')
+              .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan);
+            const nextEvents = refreshed ?? events;
+            setEvents(nextEvents);
+            const emp = employees.find((e) => e.id === upahEditEmp.id);
+            if (emp) {
+              const singleResult = await runCalculation([emp], nextEvents.filter((e) => e.employee_id === emp.id));
+              setResults((prev) => prev.map((r) => r.employee_id === emp.id ? { ...singleResult[0], employee_id: emp.id, employee_name: emp.nama } : r));
+            }
+          }}
+        />
       )}
 
       {/* Breadcrumb */}
@@ -888,7 +1023,6 @@ export default function PayrollRunPage() {
                 { label: `PTKP ${res.status_ptkp ?? '—'} → Grup ${res.grup ?? '—'}`, value: '', muted: true },
                 { label: 'Bruto', value: rpFmt(res.bruto ?? 0), op: '×' },
                 { label: 'TER Rate', value: pct(res.ter), op: '=' },
-                ...((res.punya_npwp === false) ? [{ label: 'Non-NPWP (×1.2)', value: '', muted: true }] : []),
                 { label: 'PPh 21', value: rpFmt(res.pph ?? 0), highlight: true },
               ],
               footer: 'PMK 168/2023',
@@ -922,7 +1056,6 @@ export default function PayrollRunPage() {
                   cumLo += portion; remaining -= portion;
                 }
               }
-              if (res.punya_npwp === false) steps.push({ label: 'Non-NPWP (×1.2)', value: '', muted: true });
               steps.push({ label: 'PPh Tahunan', value: rpFmt(res.pph_tahunan ?? 0) });
               steps.push({ label: '− PPh sudah dipotong', value: rpFmt(res.pph_jan_nov ?? 0), op: '-' });
               if (res.is_refund) steps.push({ label: 'Refund (kelebihan potong)', value: `−${rpFmt(res.refund_amount ?? 0)}`, highlight: true });
@@ -1024,6 +1157,28 @@ export default function PayrollRunPage() {
                   </div>
 
                   <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {!isLocked && sourceEmp?.jenis_karyawan === 'tidak_tetap_bulanan' && (() => {
+                      const hasOverride = events.some(
+                        (e) =>
+                          e.employee_id === sourceEmp.id &&
+                          e.tipe === 'upah_bulanan_override' &&
+                          e.tahun === Number(tahun) &&
+                          e.bulan === Number(bulan),
+                      );
+                      return (
+                        <button
+                          onClick={() => setUpahEditEmp(sourceEmp)}
+                          title={hasOverride ? 'Edit upah bulan ini (sedang di-override)' : 'Set upah berbeda untuk bulan ini'}
+                          className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                            hasOverride
+                              ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+                              : 'text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-[var(--bg-subtle)]'
+                          }`}
+                        >
+                          <Wallet size={13} />
+                        </button>
+                      );
+                    })()}
                     {!isLocked && sourceEmp && (
                       <button onClick={() => setQuickEditEmp(sourceEmp)} title="Edit kompensasi" className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--brand)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer">
                         <Pencil size={13} />
