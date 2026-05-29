@@ -18,6 +18,7 @@ import { exportSPTMasa } from '@/lib/export/spt-masa';
 import { exportBPJSTK, exportBPJSKes } from '@/lib/export/bpjs';
 import { toast } from 'sonner';
 import { createShareLink } from '@/lib/actions/share';
+import type { EmployeeYTDRow } from '@/lib/cache';
 import { NominalInput } from '@/components/ui/FormattedInput';
 import { CalcTooltipPopover, InfoDot, type CalcTooltipData } from '@/components/payroll/CalcTooltip';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
@@ -627,16 +628,19 @@ export default function PayrollRunPage() {
         return true;
       });
 
+      // Server-side GROUP BY via get_employee_ytd RPC — one indexed query
+      // replaces the prior two-fetch waterfall (prior-month runs + their
+      // results) plus the JS sum loop.
       const newAccumMap: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
-      if (empData) {
-        const { data: prevRuns } = await supabase.from('payroll_runs').select('id, bulan').eq('company_id', companyId).eq('tahun', tahun).lt('bulan', Number(bulan));
-        if (prevRuns?.length) {
-          const { data: prevResults } = await supabase.from('payroll_results').select('employee_id, bruto, pph').in('run_id', prevRuns.map((r) => r.id));
-          for (const r of prevResults ?? []) {
-            if (!newAccumMap[r.employee_id]) newAccumMap[r.employee_id] = { akum_bruto: 0, pph_jan_nov: 0 };
-            newAccumMap[r.employee_id].akum_bruto  += r.bruto ?? 0;
-            newAccumMap[r.employee_id].pph_jan_nov += r.pph   ?? 0;
-          }
+      if (empData && empData.length > 0) {
+        const { data: ytdRows, error: ytdErr } = await supabase.rpc('get_employee_ytd', {
+          p_company_id: companyId,
+          p_tahun: Number(tahun),
+          p_exclude_bulan: Number(bulan),
+        });
+        if (ytdErr) console.error('[ytd] get_employee_ytd failed', ytdErr);
+        for (const r of (ytdRows ?? []) as EmployeeYTDRow[]) {
+          newAccumMap[r.employee_id] = { akum_bruto: r.akum_bruto, pph_jan_nov: r.pph_jan_nov };
         }
       }
 
@@ -670,19 +674,32 @@ export default function PayrollRunPage() {
   function runCalculation(emps: any[], evts: any[]) {
     return new Promise<any[]>((resolve) => {
       setCalcProgress({ current: 0, total: emps.length });
+
+      // Pre-index events by (employee_id, tipe) once — replaces 7× linear
+      // .filter() scans per employee inside the calculation loop.
+      const byEmp = new Map<string, Map<string, any[]>>();
+      for (const e of evts) {
+        let byTipe = byEmp.get(e.employee_id);
+        if (!byTipe) { byTipe = new Map(); byEmp.set(e.employee_id, byTipe); }
+        const arr = byTipe.get(e.tipe);
+        if (arr) arr.push(e); else byTipe.set(e.tipe, [e]);
+      }
+
       const newResults: any[] = [];
       let i = 0;
       function processNext() {
         if (i >= emps.length) { setCalcProgress({ current: 0, total: 0 }); resolve(newResults); return; }
         const emp = emps[i];
-        const empEvents     = evts.filter((e) => e.employee_id === emp.id);
-        const kasbon        = empEvents.filter((e) => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
-        const alpha_telat   = empEvents.filter((e) => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
-        const pot_lain      = empEvents.filter((e) => e.tipe === 'pot_lain').reduce((a: number, b: any) => a + b.nilai, 0);
-        const thr           = empEvents.filter((e) => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
-        const bonus         = empEvents.filter((e) => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
-        const benefit_extra = empEvents.filter((e) => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
-        const upahOverride  = empEvents.find((e) => e.tipe === 'upah_bulanan_override');
+        const byTipe = byEmp.get(emp.id) ?? new Map<string, any[]>();
+        const sumOf  = (tipe: string) =>
+          (byTipe.get(tipe) ?? []).reduce((a: number, b: any) => a + Number(b.nilai), 0);
+        const kasbon        = sumOf('kasbon');
+        const alpha_telat   = sumOf('alpha_telat');
+        const pot_lain      = sumOf('pot_lain');
+        const thr           = sumOf('thr');
+        const bonus         = sumOf('bonus');
+        const benefit_extra = sumOf('benefit_extra');
+        const upahOverride  = (byTipe.get('upah_bulanan_override') ?? [])[0];
         let calcResult: any = {};
         if (emp.jenis_karyawan === 'tetap') {
           const runYear = Number(tahun), runMonth = Number(bulan);

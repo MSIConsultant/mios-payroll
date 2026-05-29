@@ -1,10 +1,14 @@
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   Lock, CheckCircle2, Clock, Plus, Building2, Users, Play,
   ArrowRight, TrendingUp,
 } from 'lucide-react';
+import {
+  cachedAuth,
+  cachedWorkspaceForUser,
+  getDashboardSnapshot,
+} from '@/lib/cache';
 import DashboardRealtime from './DashboardRealtime';
 
 const BULAN_ID    = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -25,95 +29,62 @@ const STATUS_BORDER: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await cachedAuth();
   if (!user) redirect('/login');
 
   const now      = new Date();
   const bulanIni = now.getMonth() + 1;
   const tahunIni = now.getFullYear();
 
-  const { data: membership } = await supabase
-    .from('workspace_members').select('workspace_id, workspaces(id, name)')
-    .eq('user_id', user.id).limit(1).single();
+  const ws          = await cachedWorkspaceForUser(user.id);
+  const workspaceId = ws?.workspace_id;
+  const wsName      = ws?.name ?? '—';
 
-  const workspaceId = membership?.workspace_id;
-  const ws          = membership?.workspaces;
-  const wsName      = (Array.isArray(ws) ? ws[0]?.name : (ws as any)?.name) ?? '—';
-
-  // Staff users see only the companies explicitly granted to them via
-  // company_staff_access. Without this filter the dashboard leaked
-  // every company name in the workspace (and aggregate totals derived
-  // from them) regardless of assignment.
-  const { data: profile } = await supabase
-    .from('user_profiles').select('role').eq('id', user.id).maybeSingle();
-  const isStaff = profile?.role === 'staff';
-
-  let staffAllowedIds: string[] | null = null;
-  if (isStaff) {
-    const { data: access } = await supabase
-      .from('company_staff_access').select('company_id')
-      .eq('staff_user_id', user.id);
-    staffAllowedIds = (access ?? []).map(a => a.company_id as string);
-  }
-
-  // NOTE: We previously wired this through lib/cache.ts's unstable_cache
-  // wrappers, but those wrappers call createClient() (which reads cookies)
-  // inside the unstable_cache callback — disallowed in Next.js 15 and crashed
-  // /dashboard in production. Reverted to inline queries for now; the cache
-  // layer needs to be re-designed (pass auth out, use anon client, or use
-  // React's `cache()` instead) before re-wiring.
+  // No workspace yet (mid-onboarding) — render the empty-state branch with
+  // stub data. Staff filtering, company list, payroll status, recent-run
+  // totals all collapse into one RPC call below.
   let companies: { id: string; name: string; kota: string | null }[] = [];
-  if (!isStaff || (staffAllowedIds && staffAllowedIds.length > 0)) {
-    const baseQ = supabase
-      .from('companies').select('id, name, kota')
-      .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
-    const q = isStaff ? baseQ.in('id', staffAllowedIds!) : baseQ;
-    const { data } = await q;
-    companies = (data ?? []) as typeof companies;
+  let companyIds: string[] = [];
+  let empCount = 0;
+  let thisMonthRuns: { id: string; company_id: string; status: string }[] = [];
+  let recentRuns: Array<{
+    id: string; company_id: string; tahun: number; bulan: number; status: string;
+    calculated_at: string | null; total_bruto: number; total_pph: number;
+    total_thp: number; employee_count: number;
+  }> = [];
+
+  if (workspaceId) {
+    const result = await getDashboardSnapshot(supabase, workspaceId, tahunIni, bulanIni);
+    if (!result.ok) {
+      throw new Error(`Dashboard snapshot failed: ${result.error}`);
+    }
+    companies     = result.snapshot.companies;
+    companyIds    = result.snapshot.company_ids;
+    empCount      = result.snapshot.employee_count;
+    thisMonthRuns = result.snapshot.this_month_runs;
+    recentRuns    = result.snapshot.recent_runs;
   }
 
-  const companyIds = companies.map((c) => c.id);
+  const runMap     = Object.fromEntries(thisMonthRuns.map((r) => [r.company_id, r.status]));
+  const locked     = thisMonthRuns.filter((r) => r.status === 'locked').length;
+  const calculated = thisMonthRuns.filter((r) => r.status === 'calculated').length;
+  const pending    = companies.length - locked - calculated;
+  const lockedPct  = companies.length > 0 ? (locked / companies.length) * 100 : 0;
+  const calcPct    = companies.length > 0 ? (calculated / companies.length) * 100 : 0;
 
-  const { count: empCount } = companyIds.length > 0
-    ? await supabase.from('employees').select('*', { count: 'exact', head: true })
-        .in('company_id', companyIds).eq('aktif', true)
-    : { count: 0 };
-
-  const { data: thisMonthRuns } = companyIds.length > 0
-    ? await supabase.from('payroll_runs').select('company_id, status')
-        .in('company_id', companyIds).eq('tahun', tahunIni).eq('bulan', bulanIni)
-    : { data: [] };
-
-  const runMap     = Object.fromEntries((thisMonthRuns ?? []).map((r) => [r.company_id, r.status]));
-  const locked     = (thisMonthRuns ?? []).filter((r) => r.status === 'locked').length;
-  const calculated = (thisMonthRuns ?? []).filter((r) => r.status === 'calculated').length;
-  const pending    = (companies?.length ?? 0) - locked - calculated;
-  const lockedPct  = (companies?.length ?? 0) > 0 ? (locked / (companies?.length ?? 1)) * 100 : 0;
-  const calcPct    = (companies?.length ?? 0) > 0 ? (calculated / (companies?.length ?? 1)) * 100 : 0;
-
-  const { data: recentRuns } = companyIds.length > 0
-    ? await supabase.from('payroll_runs')
-        .select('id, company_id, tahun, bulan, status, calculated_at')
-        .in('company_id', companyIds)
-        .order('calculated_at', { ascending: false }).limit(8)
-    : { data: [] };
-
-  const runIds = (recentRuns ?? []).map((r) => r.id);
-  const { data: runTotals } = runIds.length > 0
-    ? await supabase.from('payroll_results').select('run_id, thp, bruto, pph').in('run_id', runIds)
-    : { data: [] };
-
+  // Rebuild the legacy totalsMap shape from the RPC payload so the rendering
+  // JSX below stays unchanged (one less moving part per diff).
   const totalsMap: Record<string, { thp: number; bruto: number; pph: number; count: number }> = {};
-  for (const r of runTotals ?? []) {
-    if (!totalsMap[r.run_id]) totalsMap[r.run_id] = { thp: 0, bruto: 0, pph: 0, count: 0 };
-    totalsMap[r.run_id].thp   += r.thp   ?? 0;
-    totalsMap[r.run_id].bruto += r.bruto ?? 0;
-    totalsMap[r.run_id].pph   += r.pph   ?? 0;
-    totalsMap[r.run_id].count += 1;
+  for (const r of recentRuns) {
+    totalsMap[r.id] = {
+      thp:   r.total_thp,
+      bruto: r.total_bruto,
+      pph:   r.total_pph,
+      count: r.employee_count,
+    };
   }
-  const companyMap = Object.fromEntries((companies ?? []).map((c) => [c.id, c]));
-  const isEmpty    = (companies?.length ?? 0) === 0;
+  const companyMap = Object.fromEntries(companies.map((c) => [c.id, c]));
+  const isEmpty    = companies.length === 0;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
