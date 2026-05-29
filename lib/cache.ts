@@ -60,7 +60,7 @@ export const cachedUserProfile = cache(async (userId: string) => {
   const { supabase } = await cachedAuth();
   const { data } = await supabase
     .from('user_profiles')
-    .select('id, email, role, status, workspace_id')
+    .select('id, email, full_name, role, status, workspace_id')
     .eq('id', userId)
     .maybeSingle();
   return data ?? null;
