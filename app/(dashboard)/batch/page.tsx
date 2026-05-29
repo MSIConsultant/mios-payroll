@@ -8,6 +8,7 @@ import {
   TrendingUp, TrendingDown, Layers,
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
+import type { PayrollRunTotal } from '@/lib/cache';
 
 const BULAN_FULL  = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -83,26 +84,24 @@ export default function BatchPage() {
       const thisRunIds = (thisRuns ?? []).map((r) => r.id);
       const prevRunIds = (prevRuns ?? []).map((r) => r.id);
 
+      // Server-side GROUP BY via get_payroll_run_totals RPC (one row per run).
+      // Replaces the previous fetch-all-then-sum loops over payroll_results.
       const [{ data: thisTotals }, { data: prevTotals }] = await Promise.all([
         thisRunIds.length > 0
-          ? supabase.from('payroll_results').select('run_id, bruto, pph, thp').in('run_id', thisRunIds)
+          ? supabase.rpc('get_payroll_run_totals', { p_run_ids: thisRunIds })
           : { data: [] },
         prevRunIds.length > 0
-          ? supabase.from('payroll_results').select('run_id, bruto').in('run_id', prevRunIds)
+          ? supabase.rpc('get_payroll_run_totals', { p_run_ids: prevRunIds })
           : { data: [] },
       ]);
 
       const thisMap: Record<string, { bruto: number; pph: number; thp: number }> = {};
-      for (const r of thisTotals ?? []) {
-        if (!thisMap[r.run_id]) thisMap[r.run_id] = { bruto: 0, pph: 0, thp: 0 };
-        thisMap[r.run_id].bruto += r.bruto ?? 0;
-        thisMap[r.run_id].pph   += r.pph   ?? 0;
-        thisMap[r.run_id].thp   += r.thp   ?? 0;
+      for (const r of (thisTotals ?? []) as PayrollRunTotal[]) {
+        thisMap[r.run_id] = { bruto: r.total_bruto, pph: r.total_pph, thp: r.total_thp };
       }
       const prevMap: Record<string, { bruto: number }> = {};
-      for (const r of prevTotals ?? []) {
-        if (!prevMap[r.run_id]) prevMap[r.run_id] = { bruto: 0 };
-        prevMap[r.run_id].bruto += r.bruto ?? 0;
+      for (const r of (prevTotals ?? []) as PayrollRunTotal[]) {
+        prevMap[r.run_id] = { bruto: r.total_bruto };
       }
 
       const thisRunByCompany = Object.fromEntries((thisRuns ?? []).map((r) => [r.company_id, r]));
