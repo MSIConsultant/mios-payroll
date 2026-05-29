@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -115,7 +115,13 @@ function P17Row({ label, value, muted, bold, accent, tooltip }: {
 
 function P17Divider() { return <div className="my-2 border-t border-violet-100" />; }
 
-function Pasal17BreakdownPanel({ res }: { res: any }) {
+// Wrapped in memo so parent re-renders (sidebar collapse, quick-edit on a
+// different employee, calc-progress ticks) don't re-fire the bracket-table
+// loops and tooltip-object construction for every expanded panel. Default
+// shallow comparison on `res` is exactly what we want — the page rebuilds
+// the results array but each unchanged employee's res reference is preserved
+// across renders.
+const Pasal17BreakdownPanel = memo(function Pasal17BreakdownPanel({ res }: { res: any }) {
   const M = (res.months_in_year ?? 12) as number;
   const isGrossup = !!(res.pph_ditanggung && (res.tunj_pph_setahun ?? 0) > 0);
   const isEstimate = !!(res.proyeksi?.is_estimate);
@@ -417,7 +423,7 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
       </div>
     </div>
   );
-}
+});
 
 /* ── Quick edit modal ── */
 
