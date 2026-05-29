@@ -60,7 +60,7 @@ export function printSlipGaji(result: any, company: any, bulan: number, tahun: n
     <div class="emp-name">${esc(result.employee_name)}</div>
     <div class="emp-detail">
       Status PTKP: ${esc(result.status_ptkp ?? '—')} &nbsp;·&nbsp;
-      ${result.punya_npwp !== false ? 'Punya NPWP' : 'Non-NPWP (+20%)'}<br>
+      ${result.punya_npwp !== false ? 'Punya NPWP' : 'Tanpa NPWP (NIK = NPWP)'}<br>
       PPh 21: ${result.pph_ditanggung ? 'Ditanggung Perusahaan (Grossup)' : 'Dipotong dari Gaji'}
     </div>
   </div>
@@ -133,7 +133,7 @@ function slipBody(result: any, company: any, bulan: number, tahun: number): stri
     <div class="emp-name">${esc(result.employee_name)}</div>
     <div class="emp-detail">
       Status PTKP: ${esc(result.status_ptkp ?? '—')} &nbsp;·&nbsp;
-      ${result.punya_npwp !== false ? 'Punya NPWP' : 'Non-NPWP (+20%)'}<br>
+      ${result.punya_npwp !== false ? 'Punya NPWP' : 'Tanpa NPWP (NIK = NPWP)'}<br>
       PPh 21: ${result.pph_ditanggung ? 'Ditanggung Perusahaan (Grossup)' : 'Dipotong dari Gaji'}
     </div>
   </div>

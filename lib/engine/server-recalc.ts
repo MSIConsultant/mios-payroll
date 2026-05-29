@@ -127,6 +127,10 @@ export async function recomputePayrollServerSide(
     const thr           = sumEvent('thr');
     const bonus         = sumEvent('bonus');
     const benefit_extra = sumEvent('benefit_extra');
+    // Per-month upah override for tidak_tetap_bulanan workers. Partial
+    // unique index guarantees at most one row per (employee, year, month).
+    const upah_override = evs.find(e => e.tipe === 'upah_bulanan_override');
+    const upah_override_val = upah_override ? Number(upah_override.nilai) : null;
 
     let computed: any;
     if (emp.jenis_karyawan === 'tetap') {
@@ -160,12 +164,19 @@ export async function recomputePayrollServerSide(
         months_in_year,
       });
     } else {
+      // For tidak_tetap_bulanan, an upah_bulanan_override event for this
+      // (employee, tahun, bulan) replaces the static default from
+      // employees.upah_bulanan_tt. Harian uses upah_harian only.
+      const upahBulanan = emp.jenis_karyawan === 'tidak_tetap_bulanan' && upah_override_val !== null
+        ? upah_override_val
+        : Number(emp.upah_bulanan_tt) || 0;
+
       computed = calculateFreelance({
         ...emp,
         mode: emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan',
         upah_harian:  Number(emp.upah_harian) || 0,
         hari_kerja:   Number(emp.hari_kerja_default) || 22,
-        upah_bulanan: Number(emp.upah_bulanan_tt) || 0,
+        upah_bulanan: upahBulanan,
         tunjangan:    (Number(emp.tunjangan_tt) || 0) + benefit_extra,
         thr, bonus,
         ikut_bpjs_tk: !!(emp.ikut_jht || emp.ikut_jp),

@@ -92,8 +92,12 @@ user_profiles           — id, email, role (dev/accountant/staff), status, work
 company_staff_access    — staff_user_id, company_id, workspace_id
 
 companies               — workspace_id, name, npwp_perusahaan, aktif
-employees               — company_id, nik, nama, gaji_pokok, bpjs flags, etc.
-employee_events         — tipe (thr/bonus/kasbon/pot_lain/benefit_extra), nilai
+employees               — company_id, nik (KTP or passport), nama, jabatan, alamat,
+                          gaji_pokok, bpjs flags, etc.
+employee_events         — tipe (thr/bonus/kasbon/pot_lain/benefit_extra/
+                          upah_bulanan_override), nilai. The override tipe
+                          is unique per (employee, tahun, bulan) via partial
+                          index — used for per-month tidak_tetap_bulanan upah.
 
 payroll_runs            — company_id, tahun, bulan, status (draft/calculated/locked)
 payroll_results         — run_id, employee_id, bruto, pph, thp, result_json
@@ -272,8 +276,8 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
   - Mid-year exit (e.g. starts Jun, ends Aug → 3 months): caller passes `isLastMonth: true` and `months_in_year: 3`. Engine scales `biaya_jabatan` cap and per-month iuran by `M`, annualizes the partial-year base correctly.
   - **Fallback hazard**: if `akum_bruto === 0`, falls back to `base × M` with no warning surfaced yet. Known gap (AUDIT.md MEDIUM #4) — should set `proyeksi.is_estimate: true` when this path triggers.
 - **Refund case (over-withholding)**: if `pph_jan_nov > pph_setahun`, the on-slip `pph` is clamped to `0` and the engine sets `is_refund: true`, `refund_amount: <positive>`, `raw_pph: <negative>`. Note: these fields are returned in `result_json` but not yet persisted as columns on `payroll_results`.
-- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter × non-NPWP-multiplier ≥ 1`, the loop breaks with a stale value — no warning surfaced yet (AUDIT.md HIGH #3).
-- **Non-NPWP**: ×1.2 multiplier on PPh.
+- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter ≥ 1`, the loop breaks with a stale value — no warning surfaced yet (AUDIT.md HIGH #3).
+- **Non-NPWP**: ×1.2 surcharge **removed 2026-05-29** per PENG-6/PJ.09/2024 + NIK=NPWP integration (PMK 112/2022). `punya_npwp` is preserved on the engine input for slip-gaji / SPT Masa display but no longer multiplies PPh. For TKA without Indonesian NPWP, PPh 26 routing is the correct path (deferred — `pph_26` column added by `2026-05-29-tka-pph26-fields.sql`).
 
 ### Karyawan Tidak Tetap
 - **Harian** (PMK 168/2023): `pph = TER_rate × monthly_bruto`, looked up by PTKP grup. Replaced the pre-2024 Pasal 17 + Rp 450k daily threshold method on 2026-05-20.
@@ -303,7 +307,7 @@ For Jan–Nov these are forecasts (current bruto × 12); for December they are a
 ### Kompensasi / Severance (PP 68/2009)
 - One-off severance payments via `calculateSeverance(KompensasiInput)`.
 - PPh 21 final with progressive brackets (cumulative widths): 0% first Rp 50M; 5% next 50M; 15% next 400M; 25% above 500M.
-- Non-NPWP applies ×1.2 to the total, not per-bracket.
+- `npwp_multiplier` is always 1.0 since 2026-05-29 (non-NPWP surcharge removed — see Karyawan Tetap section above). The field is retained in the return shape for backward compatibility with `result_json` consumers.
 - Returns the full bracket-by-bracket `breakdown[]` for transparency — stored in `kompensasi_payments.result_json` once slice 3 schema lands.
 - Categories: `pesangon | penghargaan | manfaat_pensiun | penggantian_hak | other`. All use the same brackets when paid sekaligus.
 

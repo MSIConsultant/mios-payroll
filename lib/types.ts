@@ -46,6 +46,7 @@ export interface Employee {
   npwp: string | null;
   divisi: string | null;
   jabatan: string | null;
+  alamat: string | null;
   jenis_kelamin: 'L' | 'P';
   tanggal_masuk: string | null;
   tanggal_keluar: string | null;
@@ -83,7 +84,7 @@ export interface EmployeeEvent {
   company_id: string;
   tahun: number;
   bulan: number;
-  tipe: 'thr' | 'bonus' | 'alpha_telat' | 'kasbon' | 'pot_lain' | 'benefit_extra' | 'kendaraan_extra' | 'pulsa_extra' | 'operasional_extra' | 'hari_kerja';
+  tipe: 'thr' | 'bonus' | 'alpha_telat' | 'kasbon' | 'pot_lain' | 'benefit_extra' | 'kendaraan_extra' | 'pulsa_extra' | 'operasional_extra' | 'hari_kerja' | 'upah_bulanan_override';
   nilai: number;
   keterangan: string | null;
   created_at: string;

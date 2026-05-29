@@ -559,9 +559,10 @@ export default function ImportNewPage() {
                 (NIK bukan format KTP 16-digit).
               </p>
               <p>
-                Engine saat ini menghitung dengan PPh 21 + ×1.2 (jika tanpa NPWP). Untuk TKA tanpa
-                NPWP Indonesia, regulasi DJP mengarahkan ke <strong>PPh 26 (flat 20%)</strong> yang
-                bisa direduksi via tax treaty (P3B). Konfirmasi ke akuntan sebelum mengunci.
+                Engine menghitung dengan PPh 21 tanpa tambahan 20% (per PENG-6/PJ.09/2024).
+                Untuk TKA tanpa NPWP Indonesia, regulasi DJP mengarahkan ke{' '}
+                <strong>PPh 26 (flat 20%)</strong> yang bisa direduksi via tax treaty (P3B) —
+                kalkulasi berbeda dari PPh 21. Konfirmasi ke akuntan sebelum mengunci.
               </p>
             </div>
           </div>

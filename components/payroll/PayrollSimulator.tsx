@@ -189,7 +189,7 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
             </Sel>
             <Sel label="NPWP" value={punyaNpwp ? 'true' : 'false'} onChange={v => { setPunyaNpwp(v === 'true'); setActivePreset(null); }}>
               <option value="true">Ya — NPWP Valid</option>
-              <option value="false">Tidak — +20% PPh</option>
+              <option value="false">Tidak — NIK = NPWP</option>
             </Sel>
           </div>
         </Section>
@@ -226,8 +226,8 @@ export function PayrollSimulator({ initialValues, intro, showPresets }: {
               <p className="text-[11px] text-[var(--text-muted)] mt-1.5 leading-relaxed">PPh 21 jadi tunj. pajak → THP = gaji bersih.</p>
             </div>
             {!punyaNpwp && (
-              <div className="rounded-lg border border-[var(--amber-border)] bg-[var(--amber-soft)] px-3 py-2.5">
-                <p className="text-[12px] text-[var(--amber)] font-medium">⚠ Non-NPWP: PPh ×1.2 berlaku</p>
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3 py-2.5">
+                <p className="text-[12px] text-[var(--text-muted)] font-medium">NIK valid sudah berfungsi sebagai NPWP (PENG-6/PJ.09/2024) — tidak ada tambahan PPh.</p>
               </div>
             )}
           </div>
