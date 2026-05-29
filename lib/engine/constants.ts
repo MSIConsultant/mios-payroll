@@ -93,5 +93,7 @@ export const BPJS = {
 
 export const JP_MAX_BASIS = 10_547_400;
 export const KES_MAX_BASIS = 12_000_000;
+// Biaya Jabatan — PMK 168/2023 Pasal 10 (efektif 1 Jan 2024, gantikan PMK 252/2008).
+// Substansi tetap: 5% bruto, cap Rp 500.000/bulan (Rp 6.000.000/tahun).
 export const BIAYA_JAB_RATE = 0.05;
 export const BIAYA_JAB_MAX = 500_000;
