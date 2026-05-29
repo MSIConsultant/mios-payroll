@@ -175,7 +175,7 @@ export default function CompaniesPage() {
         if (allowedIds.length > 0) {
           const { data } = await supabase
             .from('companies')
-            .select('*')
+            .select('id, name, kota, industri')
             .eq('workspace_id', workspaceId)
             .in('id', allowedIds)
             .eq('aktif', true)
@@ -186,7 +186,7 @@ export default function CompaniesPage() {
       } else {
         const { data } = await supabase
           .from('companies')
-          .select('*')
+          .select('id, name, kota, industri')
           .eq('workspace_id', workspaceId)
           .eq('aktif', true)
           .order('name');

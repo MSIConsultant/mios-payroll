@@ -72,15 +72,24 @@ export default function CompanyDetailPage() {
     async function fetchData() {
       const supabase = createClient();
       const [{ data: co }, { data: emps }, { data: run }] = await Promise.all([
-        supabase.from('companies').select('*').eq('id', companyId).single(),
-        supabase.from('employees').select('*').eq('company_id', companyId).eq('aktif', true).order('nama'),
-        supabase.from('payroll_runs').select('*').eq('company_id', companyId)
+        supabase.from('companies')
+          .select('id, name, npwp_perusahaan, aktif, industri, kota, alamat')
+          .eq('id', companyId).single(),
+        supabase.from('employees')
+          .select('id, nama, nik, jenis_karyawan, status_ptkp, punya_npwp, gaji_pokok, benefit')
+          .eq('company_id', companyId).eq('aktif', true).order('nama'),
+        supabase.from('payroll_runs')
+          .select('id, bulan, tahun, status')
+          .eq('company_id', companyId)
           .order('tahun', { ascending: false }).order('bulan', { ascending: false })
           .limit(1).maybeSingle(),
       ]);
-      if (co) setCompany(co);
-      if (emps) setEmployees(emps);
-      if (run) setLastRun(run);
+      // Narrow projections — the trimmed selects return only the fields this
+      // page actually reads, but the Company/Employee state types still hold
+      // the full shape. Cast acknowledges the deliberately partial response.
+      if (co)   setCompany(co as Company);
+      if (emps) setEmployees(emps as Employee[]);
+      if (run)  setLastRun(run);
       setLoading(false);
     }
     if (companyId) fetchData();
@@ -95,8 +104,10 @@ export default function CompanyDetailPage() {
       toast.success('Data perusahaan diperbarui');
       setShowEdit(false);
       const supabase = createClient();
-      const { data } = await supabase.from('companies').select('*').eq('id', companyId).single();
-      if (data) setCompany(data);
+      const { data } = await supabase.from('companies')
+        .select('id, name, npwp_perusahaan, aktif, industri, kota, alamat')
+        .eq('id', companyId).single();
+      if (data) setCompany(data as Company);
     }
     setSaving(false);
   }
