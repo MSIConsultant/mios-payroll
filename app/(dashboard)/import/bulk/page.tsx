@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -10,7 +9,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { saveImport, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
-  parseWorkbook, reconcileEmployee, type ParsedEmp,
+  parseWorkbook, readWorkbook, reconcileEmployee, type ParsedEmp,
 } from '@/lib/import/excel';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -144,27 +143,11 @@ export default function ImportBulkPage() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...partial } : i)));
   }
 
-  async function readWorkbook(file: File): Promise<XLSX.WorkBook> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const wb = XLSX.read(e.target?.result, { type: 'array' });
-          resolve(wb);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = () => reject(new Error('Gagal membaca file'));
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
   async function processOne(item: QueueItem) {
     patch(item.id, { status: 'parsing', error: null });
     try {
       const wb = await readWorkbook(item.file);
-      const { month: detMonth, rows } = parseWorkbook(wb);
+      const { month: detMonth, rows } = await parseWorkbook(wb);
       const effectiveMonth = item.month ?? detMonth;
       if (!effectiveMonth) {
         patch(item.id, { status: 'error', error: 'Tidak bisa mendeteksi bulan' });
