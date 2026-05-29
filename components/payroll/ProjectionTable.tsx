@@ -157,7 +157,7 @@ function MonthDetail({ row }: { row: ProjRow }) {
           </div>
           <div className="max-w-sm">
             <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} sub="akumulasi 12 bulan" />
-            <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="5% bruto, maks Rp 500rb/bln · PMK 252/2008" minus indent />
+            <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="5% bruto, maks Rp 500rb/bln · PMK 168/2023 Ps.10" minus indent />
             {iuranBpjsTk > 0 && (
               <P17RecLine label="Iuran BPJS TK Karyawan" value={iuranBpjsTk} sub="JHT 2% + JP 1% · PMK 168/2023 Ps.10" minus indent />
             )}

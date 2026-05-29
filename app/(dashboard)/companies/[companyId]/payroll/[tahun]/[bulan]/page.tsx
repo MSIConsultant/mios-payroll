@@ -161,7 +161,7 @@ function Pasal17BreakdownPanel({ res }: { res: any }) {
   /* ── tooltips ── */
   const bjTooltip: CalcTooltipData = {
     title: 'Biaya Jabatan',
-    description: 'PMK 252/PMK.03/2008 (berlaku)',
+    description: 'PMK 168/2023 Pasal 10 (efektif 1 Jan 2024 — gantikan PMK 252/2008)',
     steps: [
       { label: 'Bruto Setahun', value: rp(res.bs ?? bsBase) },
       { label: '5% × Bruto', value: rp((res.bs ?? bsBase) * BIAYA_JAB_RATE), op: '×' },
