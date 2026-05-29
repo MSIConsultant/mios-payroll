@@ -9,6 +9,7 @@
 //   const { supabase, user, workspaceId } = access;
 
 import { createClient } from '@/lib/supabase/server';
+import { cachedAuth } from '@/lib/cache';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 type User = NonNullable<Awaited<ReturnType<Supabase['auth']['getUser']>>['data']['user']>;
@@ -19,8 +20,7 @@ export type AccessFail = { ok: false; error: 'unauthenticated' | 'forbidden' | '
 export async function assertAuth(): Promise<
   AccessOk<{ supabase: Supabase; user: User }> | AccessFail
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await cachedAuth();
   if (!user) return { ok: false, error: 'unauthenticated' };
   return { ok: true, supabase, user };
 }
