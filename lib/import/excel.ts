@@ -12,8 +12,21 @@
  * MIOS engine for verification (gaji_pokok, BPJS flags, etc.).
  */
 
-import * as XLSX from 'xlsx';
+import type { WorkBook, WorkSheet } from 'xlsx';
 import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll';
+
+// XLSX is ~68 KB gzipped and only needed when the user actually drops a file.
+// Lazy-loading it keeps /import/new and /import/bulk initial bundles lean.
+// The module promise is memoized so repeated parses share one fetch.
+let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null;
+const getXlsx = () => (xlsxModulePromise ??= import('xlsx'));
+
+/** Read an Excel file into a workbook, lazy-loading the xlsx runtime. */
+export async function readWorkbook(input: File | ArrayBuffer): Promise<WorkBook> {
+  const buffer = input instanceof File ? await input.arrayBuffer() : input;
+  const XLSX = await getXlsx();
+  return XLSX.read(new Uint8Array(buffer), { type: 'array' });
+}
 
 export interface ParsedEmp {
   nik: string;
@@ -50,7 +63,8 @@ export function closestJKK(rate: number): number {
   return JKK_RATES.reduce((p, c) => (Math.abs(c - rate) < Math.abs(p - rate) ? c : p));
 }
 
-export function parseTetap(ws: any): ParsedEmp[] {
+export async function parseTetap(ws: WorkSheet): Promise<ParsedEmp[]> {
+  const XLSX = await getXlsx();
   const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
   const out: ParsedEmp[] = [];
   for (let r = 4; r <= range.e.r; r++) {
@@ -99,7 +113,8 @@ export function parseTetap(ws: any): ParsedEmp[] {
   return out;
 }
 
-export function parseHarian(ws: any): ParsedEmp[] {
+export async function parseHarian(ws: WorkSheet): Promise<ParsedEmp[]> {
+  const XLSX = await getXlsx();
   const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
   const out: ParsedEmp[] = [];
   for (let r = 1; r <= range.e.r; r++) {
@@ -206,17 +221,19 @@ export function reconcileEmployee(
  * Extract month + tetap rows + harian rows from an Excel workbook.
  * Month is detected from sheet names "01".."12" — falls back to null if none.
  */
-export function parseWorkbook(wb: XLSX.WorkBook): { month: number | null; rows: ParsedEmp[] } {
+export async function parseWorkbook(
+  wb: WorkBook,
+): Promise<{ month: number | null; rows: ParsedEmp[] }> {
   let detectedMonth: number | null = null;
   const all: ParsedEmp[] = [];
   for (const name of wb.SheetNames) {
     const num = parseInt(name.trim(), 10);
     if (!isNaN(num) && num >= 1 && num <= 12) {
       detectedMonth = num;
-      all.push(...parseTetap(wb.Sheets[name]));
+      all.push(...(await parseTetap(wb.Sheets[name])));
     }
     if (name.toUpperCase().includes('HARIAN')) {
-      all.push(...parseHarian(wb.Sheets[name]));
+      all.push(...(await parseHarian(wb.Sheets[name])));
     }
   }
   return { month: detectedMonth, rows: all };

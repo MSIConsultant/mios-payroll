@@ -1,10 +1,9 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 import { saveImport, fetchEmployeeAccumDataByNik, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
-  parseTetap, parseHarian, reconcileEmployee,
+  parseTetap, parseHarian, readWorkbook, reconcileEmployee,
   PTKP_VALID, type ParsedEmp,
 } from '@/lib/import/excel';
 import Link from 'next/link';
@@ -137,40 +136,34 @@ export default function ImportNewPage() {
     load();
   }, []);
 
-  function processFile(file: File) {
+  async function processFile(file: File) {
     setFileName(file.name);
     const monthMatch = file.name.match(/_(\d{2})-(\d{4})/);
     if (monthMatch) {
       setBulan(parseInt(monthMatch[1], 10));
       setTahun(parseInt(monthMatch[2], 10));
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), {
-          type: 'array',
-        });
-        let all: ParsedEmp[] = [];
-        let detectedMonth = bulan;
-        for (const name of wb.SheetNames) {
-          const num = parseInt(name.trim(), 10);
-          if (!isNaN(num) && num >= 1 && num <= 12) {
-            detectedMonth = num;
-            all = [...all, ...parseTetap(wb.Sheets[name])];
-          }
-          if (name.toUpperCase().includes('HARIAN')) {
-            all = [...all, ...parseHarian(wb.Sheets[name])];
-          }
+    try {
+      const wb = await readWorkbook(file);
+      let all: ParsedEmp[] = [];
+      let detectedMonth = bulan;
+      for (const name of wb.SheetNames) {
+        const num = parseInt(name.trim(), 10);
+        if (!isNaN(num) && num >= 1 && num <= 12) {
+          detectedMonth = num;
+          all = [...all, ...(await parseTetap(wb.Sheets[name]))];
         }
-        setBulan(detectedMonth);
-        setParsed(all);
-        if (all.length === 0) toast.error('Tidak ada data terbaca. Periksa format sheet.');
-        else toast.success(`${all.length} karyawan terbaca dari ${file.name}`);
-      } catch {
-        toast.error('Gagal membaca file Excel.');
+        if (name.toUpperCase().includes('HARIAN')) {
+          all = [...all, ...(await parseHarian(wb.Sheets[name]))];
+        }
       }
-    };
-    reader.readAsArrayBuffer(file);
+      setBulan(detectedMonth);
+      setParsed(all);
+      if (all.length === 0) toast.error('Tidak ada data terbaca. Periksa format sheet.');
+      else toast.success(`${all.length} karyawan terbaca dari ${file.name}`);
+    } catch {
+      toast.error('Gagal membaca file Excel.');
+    }
   }
 
   const onDrop = useCallback(

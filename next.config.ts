@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  // Per-icon tree-shaking for libraries that ship a barrel file. Even with our
+  // existing named-import discipline, this guarantees one bundle entry per
+  // used symbol — protects against future regressions if someone adds a
+  // wildcard import.
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns'],
+  },
   // Allow access to remote image placeholder.
   images: {
     remotePatterns: [
