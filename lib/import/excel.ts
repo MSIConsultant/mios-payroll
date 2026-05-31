@@ -179,11 +179,15 @@ export async function parseTidakFinal(ws: WorkSheet): Promise<ParsedEmp[]> {
     if (nik.length < 5) errs.push('NIK / paspor tidak valid');
     if (!PTKP_VALID.includes(ptkp)) errs.push(`PTKP tidak dikenal: ${ptkp}`);
     if (upahBulanan <= 0 && bruto <= 0) errs.push('Upah tidak terbaca');
+    // punya_npwp: require ≥10 digits after stripping formatting — rules out
+    // placeholders ('-', '0', blank) while accepting any NPWP/TIN number.
+    // Indonesian NPWP is 15 digits; TKA TIN may differ but still ≥10.
+    const npwpRaw = String(g(4) ?? '').trim();
     out.push({
       nik, nama,
       divisi: String(g(3) ?? '').trim(),
-      npwp:   String(g(4) ?? '').trim(),
-      punya_npwp: String(g(4) ?? '').trim().length > 0,
+      npwp:   npwpRaw,
+      punya_npwp: npwpRaw.replace(/\D/g, '').length >= 10,
       status_ptkp: PTKP_VALID.includes(ptkp) ? ptkp : 'TK0',
       jenis_kelamin: 'L',
       gaji_pokok: 0,
