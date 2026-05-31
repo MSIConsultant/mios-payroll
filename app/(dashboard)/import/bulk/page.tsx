@@ -54,7 +54,7 @@ interface QueueItem {
     created: number;
     skipped: number;
     diffs: number;
-    sessionId?: string;
+    sessionIds: string[];
   } | null;
   error: string | null;
 }
@@ -149,11 +149,14 @@ export default function ImportBulkPage() {
     try {
       const wb = await readWorkbook(item.file);
       const parsed = await parseWorkbook(wb);
-      const effectiveMonth = item.month ?? parsed.month;
-      if (!effectiveMonth) {
+      const effectiveMonthRaw = item.month ?? parsed.month;
+      if (!effectiveMonthRaw) {
         patch(item.id, { status: 'error', error: 'Tidak bisa mendeteksi bulan' });
         return;
       }
+      // Narrowed to number after the guard — captured as a const so nested
+      // functions inherit the type without needing a non-null assertion.
+      const effectiveMonth: number = effectiveMonthRaw;
       if (parsed.rows.length === 0) {
         patch(item.id, { status: 'error', error: 'Tidak ada data karyawan terbaca' });
         return;
@@ -190,7 +193,7 @@ export default function ImportBulkPage() {
             };
           }
           const bpjs_basis = dbEmployeeMap[emp.nik]?.bpjs_basis ?? null;
-          const rec = reconcileEmployee(emp, effectiveMonth!, year, { bpjs_basis });
+          const rec = reconcileEmployee(emp, effectiveMonth, year, { bpjs_basis });
           return {
             ...emp,
             engine_bruto: rec.engine_bruto,
@@ -214,7 +217,7 @@ export default function ImportBulkPage() {
       ).filter((g) => g.rows.length > 0);
 
       let totalCreated = 0, totalSkipped = 0, totalDiffs = 0;
-      let lastSessionId: string | undefined;
+      const sessionIds: string[] = [];
 
       for (const group of groups) {
         const records = buildRecords(group.rows);
@@ -234,12 +237,12 @@ export default function ImportBulkPage() {
         totalCreated += res.created ?? 0;
         totalSkipped += res.skipped ?? 0;
         totalDiffs   += records.filter((r) => r.has_diff).length;
-        if (res.sessionId) lastSessionId = res.sessionId;
+        if (res.sessionId) sessionIds.push(res.sessionId);
       }
 
       patch(item.id, {
         status: 'done',
-        saved: { created: totalCreated, skipped: totalSkipped, diffs: totalDiffs, sessionId: lastSessionId },
+        saved: { created: totalCreated, skipped: totalSkipped, diffs: totalDiffs, sessionIds },
       });
     } catch (err: any) {
       patch(item.id, { status: 'error', error: err?.message ?? 'Gagal memproses file' });
@@ -596,13 +599,18 @@ function QueueRow({ item, onRemove, onMonthChange, onYearChange, running }: {
 
       <StatusBadge status={item.status} />
 
-      {item.status === 'done' && item.saved?.sessionId && (
-        <Link
-          href={`/import/${item.saved.sessionId}`}
-          className="text-[12px] font-semibold text-[var(--brand)] hover:underline shrink-0"
-        >
-          Lihat detail →
-        </Link>
+      {item.status === 'done' && item.saved && item.saved.sessionIds.length > 0 && (
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {item.saved.sessionIds.map((sid, i) => (
+            <Link
+              key={sid}
+              href={`/import/${sid}`}
+              className="text-[12px] font-semibold text-[var(--brand)] hover:underline"
+            >
+              {item.saved!.sessionIds.length > 1 ? `Lihat detail ${i + 1} →` : 'Lihat detail →'}
+            </Link>
+          ))}
+        </div>
       )}
 
       {!running && (item.status === 'pending' || item.status === 'error' || item.status === 'done') && (
