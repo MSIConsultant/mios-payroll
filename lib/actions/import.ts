@@ -42,6 +42,12 @@ export interface SaveImportPayload {
   tahun:            number;
   fileName:         string;
   mode:             'employees_only' | 'full';
+  /** Which payroll_run type this import belongs to. Slice-3 added UNIQUE(company_id,
+   *  tahun, bulan, jenis) so tetap and harian must be separate runs. */
+  jenis?:           'tetap' | 'harian' | 'tidak_final';
+  /** Skip engine reconcile metadata — store Excel values as-is. Used for
+   *  historical archival where the engine would diverge (pre-2024 Pasal 17 era). */
+  archival?:        boolean;
   /** Master toggle. If false, existing employees are skipped entirely. */
   update_existing?: boolean;
   /** When provided alongside update_existing=true, ONLY the NIKs in this set
@@ -60,7 +66,8 @@ export async function saveImport(payload: SaveImportPayload) {
   // crafted direct call to this action would still mutate. Reject explicitly.
   if (role === 'staff') return { error: 'Staff tidak punya akses melakukan import.' };
 
-  const { companyId, bulan, tahun, fileName, mode, update_existing = false, update_niks, records } = payload;
+  const { companyId, bulan, tahun, fileName, mode, jenis = 'tetap', archival = false,
+          update_existing = false, update_niks, records } = payload;
   const updateNikSet = update_niks ? new Set(update_niks) : null;
 
   // ── 1. Resolve existing employees by NIK ──────────────────────────
@@ -151,16 +158,21 @@ export async function saveImport(payload: SaveImportPayload) {
   }
 
   // ── 3. Create payroll run ─────────────────────────────────────────
+  // Scope the lookup to the specific jenis — slice-3 changed the unique
+  // constraint to (company_id, tahun, bulan, jenis) so tetap and harian
+  // must live in separate runs.
   const { data: existingRun } = await supabase
     .from('payroll_runs').select('id')
-    .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan).maybeSingle();
+    .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan)
+    .eq('jenis', jenis)
+    .maybeSingle();
 
   let runId = existingRun?.id;
   if (!runId) {
     const { data: newRun, error: runErr } = await supabase
       .from('payroll_runs')
       .insert({
-        company_id: companyId, tahun, bulan,
+        company_id: companyId, tahun, bulan, jenis,
         status: 'locked',
         calculated_at: new Date().toISOString(),
         locked_at:     new Date().toISOString(),
@@ -210,8 +222,8 @@ export async function saveImport(payload: SaveImportPayload) {
       imported_rows: resultRows.length,
       status:        'completed',
       summary: {
-        created, skipped,
-        has_diffs:   records.filter(r => r.has_diff).length,
+        created, skipped, jenis, archival,
+        has_diffs:   archival ? 0 : records.filter(r => r.has_diff).length,
         total_bruto: records.reduce((a, r) => a + r.excel_bruto, 0),
         total_pph:   records.reduce((a, r) => a + r.excel_pph,   0),
         total_thp:   records.reduce((a, r) => a + r.excel_thp,   0),

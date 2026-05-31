@@ -45,8 +45,9 @@ export interface ParsedEmp {
   ikut_jht: boolean;
   ikut_jp: boolean;
   ikut_kes: boolean;
-  jenis_karyawan: 'tetap' | 'tidak_tetap_harian';
+  jenis_karyawan: 'tetap' | 'tidak_tetap_harian' | 'tidak_tetap_bulanan';
   upah_harian: number;
+  upah_bulanan: number;
   tunj_pph: number;
   excel_bruto: number;
   excel_pph: number;
@@ -102,6 +103,7 @@ export async function parseTetap(ws: WorkSheet): Promise<ParsedEmp[]> {
       ikut_kes: (Number(g(19)) || 0) > 0,
       jenis_karyawan: 'tetap',
       upah_harian: 0,
+      upah_bulanan: 0,
       tunj_pph: Number(g(20)) || 0,
       excel_thp: Number(g(8)) || 0,
       excel_bruto: Number(g(9)) || 0,
@@ -137,10 +139,64 @@ export async function parseHarian(ws: WorkSheet): Promise<ParsedEmp[]> {
       ikut_jht: false, ikut_jp: false, ikut_kes: false,
       jenis_karyawan: 'tidak_tetap_harian',
       upah_harian: bruto > 0 ? Math.round(bruto / 22) : 0,
+      upah_bulanan: 0,
       tunj_pph: 0,
       excel_bruto: bruto,
       excel_pph: Number(g(11)) || 0,
       excel_thp: Number(g(12)) || 0,
+      _valid: errs.length === 0,
+      _errors: errs,
+    });
+  }
+  return out;
+}
+
+/**
+ * Parse a "TIDAK FINAL" / "TT BULANAN" sheet (karyawan tidak tetap bulanan).
+ * Column layout mirrors the accountant's template: row 1 is a header row,
+ * data starts row 2. Columns (0-based):
+ *   0  No  1  NIK  2  Nama  3  Divisi  4  NPWP  5  Status PTKP
+ *   6  Upah Bulanan  7  Tunjangan  8  Bruto  9  PPh  10 THP
+ * BPJS flags are not present on the bulanan sheet — the engine uses
+ * ikut_jht/jp/kes from the employees row if the employee already exists.
+ * For new employees created from this sheet, BPJS is left false (accountant
+ * configures separately).
+ */
+export async function parseTidakFinal(ws: WorkSheet): Promise<ParsedEmp[]> {
+  const XLSX = await getXlsx();
+  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+  const out: ParsedEmp[] = [];
+  for (let r = 1; r <= range.e.r; r++) {
+    const g = (c: number) => ws[XLSX.utils.encode_cell({ r, c })]?.v ?? null;
+    const nama = String(g(2) ?? '').trim();
+    if (!nama || nama.length < 2) continue;
+    const nik = String(g(1) ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const ptkp = String(g(5) ?? '').trim().toUpperCase();
+    const upahBulanan = Number(g(6)) || 0;
+    const tunj = Number(g(7)) || 0;
+    const bruto = Number(g(8)) || 0;
+    const errs: string[] = [];
+    if (nik.length < 5) errs.push('NIK / paspor tidak valid');
+    if (!PTKP_VALID.includes(ptkp)) errs.push(`PTKP tidak dikenal: ${ptkp}`);
+    if (upahBulanan <= 0 && bruto <= 0) errs.push('Upah tidak terbaca');
+    out.push({
+      nik, nama,
+      divisi: String(g(3) ?? '').trim(),
+      npwp:   String(g(4) ?? '').trim(),
+      punya_npwp: String(g(4) ?? '').trim().length > 0,
+      status_ptkp: PTKP_VALID.includes(ptkp) ? ptkp : 'TK0',
+      jenis_kelamin: 'L',
+      gaji_pokok: 0,
+      benefit: tunj, kendaraan: 0, pulsa: 0, operasional: 0,
+      jkk_rate: 0.0024,
+      ikut_jht: false, ikut_jp: false, ikut_kes: false,
+      jenis_karyawan: 'tidak_tetap_bulanan',
+      upah_harian: 0,
+      upah_bulanan: upahBulanan,
+      tunj_pph: 0,
+      excel_bruto: bruto || upahBulanan + tunj,
+      excel_pph: Number(g(9)) || 0,
+      excel_thp: Number(g(10)) || 0,
       _valid: errs.length === 0,
       _errors: errs,
     });
@@ -184,6 +240,16 @@ export function reconcileEmployee(
 
     if (emp.jenis_karyawan === 'tetap') {
       result = calculateMonthlySalary(base);
+    } else if (emp.jenis_karyawan === 'tidak_tetap_bulanan') {
+      result = calculateFreelance({
+        ...emp,
+        mode: 'bulanan' as const,
+        upah_bulanan: emp.upah_bulanan,
+        tunjangan: emp.benefit ?? 0,
+        ikut_bpjs_tk: emp.ikut_jht,
+        ikut_kes: emp.ikut_kes,
+        kasbon: 0, pot_lain: 0, thr: 0, bonus: 0,
+      } as any);
     } else {
       result = calculateFreelance({
         ...emp,
@@ -218,23 +284,43 @@ export function reconcileEmployee(
 }
 
 /**
- * Extract month + tetap rows + harian rows from an Excel workbook.
- * Month is detected from sheet names "01".."12" — falls back to null if none.
+ * Extract month + rows from an Excel workbook, grouped by payroll run type.
+ * Sheet detection:
+ *   "01".."12"          → tetap (karyawan tetap monthly)
+ *   contains "HARIAN"   → harian (karyawan tidak tetap harian)
+ *   contains "TIDAK"    → tidak_final (karyawan tidak tetap bulanan)
+ *     (also matches "TIDAK FINAL", "TT BULANAN", "TT FINAL", etc.)
+ * Month is inferred from the numeric sheet name, e.g. "02" → February.
  */
-export async function parseWorkbook(
-  wb: WorkBook,
-): Promise<{ month: number | null; rows: ParsedEmp[] }> {
+export async function parseWorkbook(wb: WorkBook): Promise<{
+  month:         number | null;
+  tetap:         ParsedEmp[];
+  harian:        ParsedEmp[];
+  tidak_final:   ParsedEmp[];
+  /** Flat union of all rows — kept for backwards compat with /import/new. */
+  rows:          ParsedEmp[];
+}> {
   let detectedMonth: number | null = null;
-  const all: ParsedEmp[] = [];
+  const tetap:       ParsedEmp[] = [];
+  const harian:      ParsedEmp[] = [];
+  const tidak_final: ParsedEmp[] = [];
+
   for (const name of wb.SheetNames) {
-    const num = parseInt(name.trim(), 10);
+    const upper = name.trim().toUpperCase();
+    const num   = parseInt(name.trim(), 10);
     if (!isNaN(num) && num >= 1 && num <= 12) {
       detectedMonth = num;
-      all.push(...(await parseTetap(wb.Sheets[name])));
-    }
-    if (name.toUpperCase().includes('HARIAN')) {
-      all.push(...(await parseHarian(wb.Sheets[name])));
+      tetap.push(...(await parseTetap(wb.Sheets[name])));
+    } else if (upper.includes('HARIAN')) {
+      harian.push(...(await parseHarian(wb.Sheets[name])));
+    } else if (upper.includes('TIDAK') || upper.startsWith('TT ')) {
+      tidak_final.push(...(await parseTidakFinal(wb.Sheets[name])));
     }
   }
-  return { month: detectedMonth, rows: all };
+
+  return {
+    month: detectedMonth,
+    tetap, harian, tidak_final,
+    rows: [...tetap, ...harian, ...tidak_final],
+  };
 }

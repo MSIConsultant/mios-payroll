@@ -69,6 +69,7 @@ export default function ImportBulkPage() {
   const [defaultYear, setDefaultYear] = useState(new Date().getFullYear());
   const [items, setItems] = useState<QueueItem[]>([]);
   const [updateExisting, setUpdateExisting] = useState(false);
+  const [archival, setArchival] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [running, setRunning] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -147,69 +148,98 @@ export default function ImportBulkPage() {
     patch(item.id, { status: 'parsing', error: null });
     try {
       const wb = await readWorkbook(item.file);
-      const { month: detMonth, rows } = await parseWorkbook(wb);
-      const effectiveMonth = item.month ?? detMonth;
+      const parsed = await parseWorkbook(wb);
+      const effectiveMonth = item.month ?? parsed.month;
       if (!effectiveMonth) {
         patch(item.id, { status: 'error', error: 'Tidak bisa mendeteksi bulan' });
         return;
       }
-      if (rows.length === 0) {
+      if (parsed.rows.length === 0) {
         patch(item.id, { status: 'error', error: 'Tidak ada data karyawan terbaca' });
         return;
       }
-      const valid = rows.filter((r) => r._valid);
+
+      const year = item.year ?? defaultYear;
       patch(item.id, {
         status: 'parsed',
         month: effectiveMonth,
-        parsedCount: rows.length,
-        validCount: valid.length,
-        rawRows: rows,
+        parsedCount: parsed.rows.length,
+        validCount: parsed.rows.filter((r) => r._valid).length,
+        rawRows: parsed.rows,
       });
-      if (valid.length === 0) {
+      if (parsed.rows.filter((r) => r._valid).length === 0) {
         patch(item.id, { status: 'error', error: 'Semua baris invalid (NIK/PTKP/Gaji bermasalah)' });
         return;
       }
 
-      // Reconcile
-      const records: ImportRecord[] = valid.map((emp) => {
-        const bpjs_basis = dbEmployeeMap[emp.nik]?.bpjs_basis ?? null;
-        const rec = reconcileEmployee(emp, effectiveMonth, item.year ?? defaultYear, { bpjs_basis });
-        return {
-          ...emp,
-          engine_bruto: rec.engine_bruto,
-          engine_pph: rec.engine_pph,
-          engine_thp: rec.engine_thp,
-          diff_pct: rec.diff_pct,
-          has_diff: rec.has_diff,
-          full_result: rec.full_result,
-        };
-      });
-
-      // Save
       patch(item.id, { status: 'saving' });
-      const res = await saveImport({
-        workspaceId,
-        companyId,
-        bulan: effectiveMonth,
-        tahun: item.year ?? defaultYear,
-        fileName: item.file.name,
-        mode: 'full',
-        update_existing: updateExisting,
-        records,
-      });
-      if (res.error) {
-        patch(item.id, { status: 'error', error: res.error });
-        return;
+
+      // Build ImportRecord per jenis group. In archival mode skip the engine
+      // reconcile and store Excel values as-is (faster + correct for pre-2024).
+      function buildRecords(rows: typeof parsed.rows): ImportRecord[] {
+        return rows.filter((r) => r._valid).map((emp) => {
+          if (archival) {
+            return {
+              ...emp,
+              engine_bruto: emp.excel_bruto,
+              engine_pph:   emp.excel_pph,
+              engine_thp:   emp.excel_thp,
+              diff_pct:     0,
+              has_diff:     false,
+              full_result:  {},
+            };
+          }
+          const bpjs_basis = dbEmployeeMap[emp.nik]?.bpjs_basis ?? null;
+          const rec = reconcileEmployee(emp, effectiveMonth!, year, { bpjs_basis });
+          return {
+            ...emp,
+            engine_bruto: rec.engine_bruto,
+            engine_pph:   rec.engine_pph,
+            engine_thp:   rec.engine_thp,
+            diff_pct:     rec.diff_pct,
+            has_diff:     rec.has_diff,
+            full_result:  rec.full_result,
+          };
+        });
       }
-      const diffs = records.filter((r) => r.has_diff).length;
+
+      // Save one run per jenis — tetap, harian, tidak_final are stored in
+      // separate payroll_runs (slice-3 unique constraint).
+      const groups: Array<{ jenis: 'tetap' | 'harian' | 'tidak_final'; rows: typeof parsed.rows }> = (
+        [
+          { jenis: 'tetap'       as const, rows: parsed.tetap },
+          { jenis: 'harian'      as const, rows: parsed.harian },
+          { jenis: 'tidak_final' as const, rows: parsed.tidak_final },
+        ] satisfies Array<{ jenis: 'tetap' | 'harian' | 'tidak_final'; rows: typeof parsed.rows }>
+      ).filter((g) => g.rows.length > 0);
+
+      let totalCreated = 0, totalSkipped = 0, totalDiffs = 0;
+      let lastSessionId: string | undefined;
+
+      for (const group of groups) {
+        const records = buildRecords(group.rows);
+        if (records.length === 0) continue;
+        const res = await saveImport({
+          workspaceId, companyId,
+          bulan: effectiveMonth, tahun: year,
+          fileName: item.file.name,
+          mode: 'full', jenis: group.jenis, archival,
+          update_existing: updateExisting,
+          records,
+        });
+        if (res.error) {
+          patch(item.id, { status: 'error', error: `[${group.jenis}] ${res.error}` });
+          return;
+        }
+        totalCreated += res.created ?? 0;
+        totalSkipped += res.skipped ?? 0;
+        totalDiffs   += records.filter((r) => r.has_diff).length;
+        if (res.sessionId) lastSessionId = res.sessionId;
+      }
+
       patch(item.id, {
         status: 'done',
-        saved: {
-          created: res.created ?? 0,
-          skipped: res.skipped ?? 0,
-          diffs,
-          sessionId: res.sessionId,
-        },
+        saved: { created: totalCreated, skipped: totalSkipped, diffs: totalDiffs, sessionId: lastSessionId },
       });
     } catch (err: any) {
       patch(item.id, { status: 'error', error: err?.message ?? 'Gagal memproses file' });
@@ -321,29 +351,55 @@ export default function ImportBulkPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setUpdateExisting((v) => !v)}
-          className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-all cursor-pointer ${
-            updateExisting
-              ? 'bg-amber-50 border border-amber-300'
-              : 'bg-[var(--bg-subtle)] border border-[var(--border-default)] hover:border-[var(--border-strong)]'
-          }`}
-        >
-          <RefreshCw size={14} className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'} />
-          <div className="flex-1 min-w-0">
-            <span className={`text-[13px] font-semibold ${updateExisting ? 'text-amber-900' : 'text-[var(--text-secondary)]'}`}>
-              Perbarui karyawan yang sudah ada
-            </span>
-            <span className="ml-2 text-[12px] text-[var(--text-muted)]">
-              {updateExisting ? '— aktif: gaji/PTKP ditimpa dari Excel' : '— nonaktif: karyawan lama dilewati'}
-            </span>
-          </div>
-          <div className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-            updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
-          }`}>
-            {updateExisting && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
-          </div>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={() => setArchival((v) => !v)}
+            className={`flex items-center gap-3 flex-1 p-3 rounded-lg text-left transition-all cursor-pointer ${
+              archival
+                ? 'bg-sky-50 border border-sky-300'
+                : 'bg-[var(--bg-subtle)] border border-[var(--border-default)] hover:border-[var(--border-strong)]'
+            }`}
+          >
+            <FileSpreadsheet size={14} className={archival ? 'text-sky-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'} />
+            <div className="flex-1 min-w-0">
+              <span className={`text-[13px] font-semibold ${archival ? 'text-sky-900' : 'text-[var(--text-secondary)]'}`}>
+                Mode arsip historis
+              </span>
+              <span className="ml-2 text-[12px] text-[var(--text-muted)]">
+                {archival ? '— aktif: simpan angka Excel apa adanya, tanpa hitung ulang' : '— nonaktif: verifikasi engine (cocok untuk data baru)'}
+              </span>
+            </div>
+            <div className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              archival ? 'bg-sky-600 border-sky-600' : 'border-[var(--border-strong)]'
+            }`}>
+              {archival && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+            </div>
+          </button>
+
+          <button
+            onClick={() => setUpdateExisting((v) => !v)}
+            className={`flex items-center gap-3 flex-1 p-3 rounded-lg text-left transition-all cursor-pointer ${
+              updateExisting
+                ? 'bg-amber-50 border border-amber-300'
+                : 'bg-[var(--bg-subtle)] border border-[var(--border-default)] hover:border-[var(--border-strong)]'
+            }`}
+          >
+            <RefreshCw size={14} className={updateExisting ? 'text-amber-700 shrink-0' : 'text-[var(--text-muted)] shrink-0'} />
+            <div className="flex-1 min-w-0">
+              <span className={`text-[13px] font-semibold ${updateExisting ? 'text-amber-900' : 'text-[var(--text-secondary)]'}`}>
+                Perbarui karyawan yang sudah ada
+              </span>
+              <span className="ml-2 text-[12px] text-[var(--text-muted)]">
+                {updateExisting ? '— aktif: gaji/PTKP ditimpa dari Excel' : '— nonaktif: karyawan lama dilewati'}
+              </span>
+            </div>
+            <div className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              updateExisting ? 'bg-amber-600 border-amber-600' : 'border-[var(--border-strong)]'
+            }`}>
+              {updateExisting && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+            </div>
+          </button>
+        </div>
       </section>
 
       {/* Dropzone */}
