@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { saveImport, fetchEmployeeAccumDataByNik, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
 import {
-  parseTetap, parseHarian, readWorkbook, reconcileEmployee,
+  parseTetap, parseHarian, parseTidakFinal, readWorkbook, reconcileEmployee,
   PTKP_VALID, type ParsedEmp,
 } from '@/lib/import/excel';
 import Link from 'next/link';
@@ -148,13 +148,15 @@ export default function ImportNewPage() {
       let all: ParsedEmp[] = [];
       let detectedMonth = bulan;
       for (const name of wb.SheetNames) {
+        const upper = name.trim().toUpperCase();
         const num = parseInt(name.trim(), 10);
         if (!isNaN(num) && num >= 1 && num <= 12) {
           detectedMonth = num;
           all = [...all, ...(await parseTetap(wb.Sheets[name]))];
-        }
-        if (name.toUpperCase().includes('HARIAN')) {
+        } else if (upper.includes('HARIAN')) {
           all = [...all, ...(await parseHarian(wb.Sheets[name]))];
+        } else if (upper.includes('TIDAK') || upper.startsWith('TT ')) {
+          all = [...all, ...(await parseTidakFinal(wb.Sheets[name]))];
         }
       }
       setBulan(detectedMonth);
@@ -262,22 +264,44 @@ export default function ImportNewPage() {
       setSaveProgress(prog);
     }, 200);
 
-    const res = await saveImport({
-      workspaceId, companyId, bulan, tahun, fileName, mode,
-      update_existing: updateExisting,
-      update_niks: updateExisting && updateNiks ? Array.from(updateNiks) : undefined,
-      records: reconciled,
-    });
+    // Split by payroll run type — tetap, harian, and tidak_final must go into
+    // separate payroll_runs (slice-3 unique constraint on company+month+jenis).
+    const jenisMap: Record<string, 'tetap' | 'harian' | 'tidak_final'> = {
+      tetap:               'tetap',
+      tidak_tetap_harian:  'harian',
+      tidak_tetap_bulanan: 'tidak_final',
+    };
+    const groups = Object.entries(
+      reconciled.reduce<Record<string, typeof reconciled>>((acc, r) => {
+        const j = jenisMap[r.jenis_karyawan] ?? 'tetap';
+        (acc[j] ??= []).push(r);
+        return acc;
+      }, {}),
+    ) as [string, typeof reconciled][];
+
+    let lastRes: Awaited<ReturnType<typeof saveImport>> = { error: 'Tidak ada data untuk disimpan.' };
+    for (const [jenis, records] of groups) {
+      const res = await saveImport({
+        workspaceId, companyId, bulan, tahun, fileName, mode,
+        jenis: jenis as 'tetap' | 'harian' | 'tidak_final',
+        update_existing: updateExisting,
+        update_niks: updateExisting && updateNiks ? Array.from(updateNiks) : undefined,
+        records,
+      });
+      if (res.error) {
+        clearInterval(interval);
+        setSaveProgress(100);
+        toast.error(res.error);
+        setStep('confirm');
+        return;
+      }
+      lastRes = res;
+    }
 
     clearInterval(interval);
     setSaveProgress(100);
 
-    if (res.error) {
-      toast.error(res.error);
-      setStep('confirm');
-      return;
-    }
-    setDoneResult(res);
+    setDoneResult(lastRes);
     setStep('done');
   }
 
