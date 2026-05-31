@@ -162,10 +162,15 @@ export async function saveImport(payload: SaveImportPayload) {
   // constraint to (company_id, tahun, bulan, jenis) so tetap and harian
   // must live in separate runs.
   const { data: existingRun } = await supabase
-    .from('payroll_runs').select('id')
+    .from('payroll_runs').select('id, status')
     .eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan)
     .eq('jenis', jenis)
     .maybeSingle();
+
+  // Refuse to overwrite a locked run — same guard as savePayrollRun.
+  if (existingRun?.status === 'locked') {
+    return { error: `Payroll ${jenis} ${bulan}/${tahun} sudah dikunci. Hapus run tersebut lebih dulu sebelum mengimpor ulang.` };
+  }
 
   let runId = existingRun?.id;
   if (!runId) {
