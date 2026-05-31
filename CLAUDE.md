@@ -88,7 +88,11 @@ workspace_members       — user_id, workspace_id, role, user_email
 workspace_invitations   — token-based invites
 workspace_activity      — activity log
 
-user_profiles           — id, email, role (dev/accountant/staff), status, workspace_id
+user_profiles           — id, email, role (dev/accountant/staff), status,
+                          workspace_id (= ACTIVE workspace; N:N membership
+                          lives in workspace_members. Update only via the
+                          `setActiveWorkspace` server action so SSR pages
+                          stay in sync.)
 company_staff_access    — staff_user_id, company_id, workspace_id
 
 companies               — workspace_id, name, npwp_perusahaan, aktif

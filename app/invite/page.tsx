@@ -59,7 +59,6 @@ function InvitePage() {
       setError(res.error);
       setStatus('error');
     } else {
-      localStorage.setItem('active_workspace_id', res.workspaceId!);
       setStatus('done');
       setTimeout(() => router.push('/dashboard'), 2000);
     }

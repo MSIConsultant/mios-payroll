@@ -1,6 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
-import { assertWorkspaceAccess } from '@/lib/auth/assertAccess';
+import { assertAuth, assertWorkspaceAccess } from '@/lib/auth/assertAccess';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
@@ -123,12 +123,49 @@ export async function acceptInvite(token: string) {
   await supabase.from('workspace_invitations')
     .update({ accepted_at: new Date().toISOString() }).eq('id', invite.id);
 
+  // Switch active workspace to the one just joined. Without this, the user
+  // accepts the invite but every server-rendered page still serves their
+  // previous workspace (or none at all for first-time joiners).
+  await supabase
+    .from('user_profiles')
+    .update({ workspace_id: invite.workspace_id })
+    .eq('id', user.id);
+
   const wsName = (invite.workspaces as any)?.name ?? 'workspace';
   await logActivity(supabase, invite.workspace_id, 'MEMBER_JOINED', 'user',
     user.email, { workspace: wsName });
 
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
   return { success: true, workspaceId: invite.workspace_id, workspaceName: wsName };
+}
+
+// Switch the caller's active workspace. user_profiles.workspace_id is the
+// server-side source of truth for which workspace every SSR page renders;
+// the client-side useWorkspace hook reflects this value rather than driving it.
+export async function setActiveWorkspace(workspaceId: string) {
+  const auth = await assertAuth();
+  if (!auth.ok) return { error: 'Not authenticated' };
+
+  // Verify caller is actually a member of the target workspace before
+  // updating their profile. RLS would also block the profile update from
+  // pointing at a workspace they don't belong to, but we want a clean
+  // error message instead of a silent no-op.
+  const { data: member } = await auth.supabase
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', auth.user.id)
+    .maybeSingle();
+  if (!member) return { error: 'Anda bukan anggota workspace ini.' };
+
+  const { error } = await auth.supabase
+    .from('user_profiles')
+    .update({ workspace_id: workspaceId })
+    .eq('id', auth.user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+  return { success: true, workspaceId };
 }
 
 export async function removeMember(workspaceId: string, userId: string, userEmail: string) {

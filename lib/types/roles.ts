@@ -7,6 +7,9 @@ export interface UserProfile {
   full_name:       string | null;
   role:            UserRole;
   status:          UserStatus;
+  // Active workspace. N:N membership lives in `workspace_members`; this
+  // column is just the one the user is currently viewing. Update only via
+  // `setActiveWorkspace` (server action) so SSR pages stay in sync.
   workspace_id:    string | null;
   approved_by:     string | null;
   approved_at:     string | null;
