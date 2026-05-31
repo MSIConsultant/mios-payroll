@@ -4,12 +4,12 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import MiosLogo from '@/components/ui/MiosLogo';
 import { toast } from 'sonner';
-import { ArrowRight, Upload, UserPlus, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
 
-type Step = 'workspace' | 'company' | 'setup' | 'done';
+type Step = 'workspace' | 'company';
 
 function Progress({ step }: { step: Step }) {
-  const steps: Step[] = ['workspace', 'company', 'setup', 'done'];
+  const steps: Step[] = ['workspace', 'company'];
   const idx = steps.indexOf(step);
   return (
     <div className="flex items-center gap-2 mb-8">
@@ -75,7 +75,6 @@ export default function OnboardingPage() {
   const [coNpwp, setCoNpwp] = useState('');
   const [coKota, setCoKota] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
-  const [companyId, setCompanyId] = useState('');
 
   async function handleCreateWorkspace() {
     if (!wsName.trim()) {
@@ -87,6 +86,23 @@ export default function OnboardingPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast.error('Sesi habis, silakan login ulang');
+      setLoading(false);
+      return;
+    }
+
+    // Guard: if user already has a workspace (e.g. page refresh after step 1),
+    // skip creation and move directly to the company step.
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from('user_profiles').select('workspace_id').eq('id', user.id).single();
+    if (profileCheckError) {
+      toast.error('Gagal memverifikasi profil, coba lagi');
+      setLoading(false);
+      return;
+    }
+    if (existingProfile?.workspace_id) {
+      setWorkspaceId(existingProfile.workspace_id);
+      setLoading(false);
+      setStep('company');
       return;
     }
 
@@ -122,9 +138,13 @@ export default function OnboardingPage() {
       toast.error('Nama perusahaan wajib diisi');
       return;
     }
+    if (!workspaceId) {
+      toast.error('Workspace belum ditemukan, muat ulang halaman');
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
-    const { data: co, error } = await supabase
+    const { error } = await supabase
       .from('companies')
       .insert({
         workspace_id: workspaceId,
@@ -132,48 +152,18 @@ export default function OnboardingPage() {
         npwp_perusahaan: coNpwp || null,
         kota: coKota || null,
         aktif: true,
-      })
-      .select('id')
-      .single();
+      });
     if (error) {
       toast.error(error.message);
       setLoading(false);
       return;
     }
-    setCompanyId(co.id);
-    setLoading(false);
-    setStep('setup');
+    router.push('/dashboard');
   }
 
   function handleSkipCompany() {
-    setStep('setup');
+    router.push('/dashboard');
   }
-
-  function handleSetupChoice(choice: 'import' | 'manual' | 'skip') {
-    if (choice === 'import') router.push('/import/new');
-    else if (choice === 'manual' && companyId)
-      router.push(`/companies/${companyId}/employees/new`);
-    else setStep('done');
-  }
-
-  const setupOptions = [
-    {
-      key: 'import' as const,
-      icon: Upload,
-      title: 'Import dari Excel',
-      desc: 'Upload file Grossup_PPh_21 yang sudah ada. Paling cepat untuk data histori.',
-      recommended: true,
-      tint: 'bg-blue-50 text-blue-700',
-    },
-    {
-      key: 'manual' as const,
-      icon: UserPlus,
-      title: 'Input Manual',
-      desc: 'Tambah karyawan satu per satu. Cocok untuk perusahaan baru.',
-      recommended: false,
-      tint: 'bg-violet-50 text-violet-700',
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-[var(--bg-app)] flex items-center justify-center p-4">
@@ -229,6 +219,9 @@ export default function OnboardingPage() {
                 <p className="text-sm text-[var(--text-muted)] mt-1">
                   Tambah perusahaan klien pertama. Anda bisa tambah lebih banyak nanti.
                 </p>
+                <p className="text-[12px] text-[var(--text-faint)] mt-1">
+                  Perusahaan bisa ditambahkan kapan saja dari dashboard.
+                </p>
               </div>
               <TF
                 label="Nama Perusahaan *"
@@ -266,94 +259,9 @@ export default function OnboardingPage() {
               </button>
               <button
                 onClick={handleSkipCompany}
-                className="w-full py-2 text-[13px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-lg border border-[var(--border-default)] text-[14px] font-semibold text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               >
-                Lewati, tambah nanti →
-              </button>
-            </div>
-          )}
-
-          {step === 'setup' && (
-            <div className="px-7 pb-7 space-y-4">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-                  Setup Karyawan
-                </h2>
-                <p className="text-sm text-[var(--text-muted)] mt-1">
-                  Bagaimana Anda ingin memasukkan data karyawan?
-                </p>
-              </div>
-              {setupOptions.map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => handleSetupChoice(opt.key)}
-                  disabled={opt.key === 'manual' && !companyId}
-                  className="w-full p-4 rounded-xl text-left bg-white border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-sm transition-all disabled:opacity-50 group cursor-pointer"
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${opt.tint}`}
-                    >
-                      <opt.icon size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-[15px] text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors">
-                          {opt.title}
-                        </p>
-                        {opt.recommended && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
-                            Direkomendasikan
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-[var(--text-muted)] mt-1 leading-relaxed">
-                        {opt.desc}
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="mt-1 text-[var(--text-faint)] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all"
-                    />
-                  </div>
-                </button>
-              ))}
-              <button
-                onClick={() => handleSetupChoice('skip')}
-                className="w-full py-2 text-[13px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                Lewati, setup nanti →
-              </button>
-            </div>
-          )}
-
-          {step === 'done' && (
-            <div className="px-7 pb-7 text-center space-y-5">
-              <div className="w-16 h-16 rounded-full mx-auto bg-emerald-50 ring-1 ring-emerald-200 flex items-center justify-center">
-                <Check size={28} className="text-emerald-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-                  Siap!
-                </h2>
-                <p className="text-sm text-[var(--text-muted)] mt-1">
-                  Workspace <strong className="text-[var(--text-primary)]">{wsName}</strong>{' '}
-                  berhasil dibuat.
-                  {coName && (
-                    <>
-                      {' '}
-                      Perusahaan{' '}
-                      <strong className="text-[var(--text-primary)]">{coName}</strong> telah
-                      ditambahkan.
-                    </>
-                  )}
-                </p>
-              </div>
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="w-full py-2.5 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold transition-colors shadow-sm cursor-pointer"
-              >
-                Buka Dashboard →
+                Mulai tanpa perusahaan →
               </button>
             </div>
           )}
