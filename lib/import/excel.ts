@@ -313,7 +313,7 @@ export async function parseWorkbook(wb: WorkBook): Promise<{
       tetap.push(...(await parseTetap(wb.Sheets[name])));
     } else if (upper.includes('HARIAN')) {
       harian.push(...(await parseHarian(wb.Sheets[name])));
-    } else if (upper.includes('TIDAK') || upper.startsWith('TT ')) {
+    } else if (upper.includes('TIDAK FINAL') || upper.includes('TIDAK TETAP') || upper.startsWith('TT ')) {
       tidak_final.push(...(await parseTidakFinal(wb.Sheets[name])));
     }
   }

@@ -155,7 +155,7 @@ export default function ImportNewPage() {
           all = [...all, ...(await parseTetap(wb.Sheets[name]))];
         } else if (upper.includes('HARIAN')) {
           all = [...all, ...(await parseHarian(wb.Sheets[name]))];
-        } else if (upper.includes('TIDAK') || upper.startsWith('TT ')) {
+        } else if (upper.includes('TIDAK FINAL') || upper.includes('TIDAK TETAP') || upper.startsWith('TT ')) {
           all = [...all, ...(await parseTidakFinal(wb.Sheets[name]))];
         }
       }
