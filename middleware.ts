@@ -79,7 +79,7 @@ export async function middleware(request: NextRequest) {
       return response;
     }
     const { data: profile } = await supabase
-      .from('user_profiles').select('status, role').eq('id', user.id).single();
+      .from('user_profiles').select('status, role, workspace_id').eq('id', user.id).single();
 
     // No profile yet (race condition after register) → pending
     if (!profile) {
@@ -111,14 +111,17 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // After the approval check, before the end of the function:
-    // Dev with no workspace → skip onboarding, go to dashboard
+    // Approved user with no workspace → must create one before using the app.
+    // Guards direct URL navigation (e.g. bookmark to /companies) before the
+    // workspace creation step in onboarding is complete.
     if (
-      user.email?.toLowerCase() === DEV_EMAIL.toLowerCase() &&
-      pathname === '/onboarding'
+      profile.status === 'approved' &&
+      !profile.workspace_id &&
+      pathname !== '/onboarding' &&
+      !pathname.startsWith('/api/')
     ) {
       const u = request.nextUrl.clone();
-      u.pathname = '/dev/admin';
+      u.pathname = '/onboarding';
       return NextResponse.redirect(u);
     }
 

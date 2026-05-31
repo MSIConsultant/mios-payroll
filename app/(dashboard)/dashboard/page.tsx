@@ -141,7 +141,7 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href="/companies/new"
-                className="mt-7 inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition-colors shadow-[var(--shadow-sm)]"
+                className="mt-7 inline-flex items-center gap-2 px-6 py-3.5 rounded-lg font-semibold text-base bg-[var(--brand)] hover:bg-[var(--brand-hover)] active:scale-[0.98] text-white transition-all shadow-md"
               >
                 <Plus size={16} />
                 Tambah Perusahaan Pertama

@@ -48,13 +48,18 @@ export default function PendingApprovalPage() {
       setEmail(user.email ?? '');
       const { data } = await supabase
         .from('user_profiles')
-        .select('status, rejected_reason')
+        .select('status, rejected_reason, workspace_id')
         .eq('id', user.id)
         .single();
       if (data) {
         setStatus(data.status as keyof typeof CONFIGS);
         setReason(data.rejected_reason);
-        if (data.status === 'approved') window.location.href = '/dashboard';
+        if (data.status === 'approved') {
+          // Smart redirect: skip onboarding if workspace already exists
+          // (covers re-approved suspended users who completed onboarding before)
+          window.location.href = data.workspace_id ? '/dashboard' : '/onboarding';
+          return;
+        }
       }
     }
     check();
