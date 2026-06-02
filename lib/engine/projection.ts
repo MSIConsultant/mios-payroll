@@ -146,9 +146,8 @@ type RowOpts = {
 
 /**
  * Compute one month through the real `calculateMonthlySalary` engine and map
- * its output to a `ProjRow`. Shared by both `runProjection` (single-input
- * yearly forecast) and `runMonthlyProjection` (per-month editable ledger), so
- * both surfaces produce identical math for identical inputs.
+ * its output to a `ProjRow`. Used by `runMonthlyProjection` (the per-month
+ * editable ledger) — one call per month, fed that month's own inputs.
  */
 function computeRow(p: ProjParams, bulan: number, tahun: number, o: RowOpts): ProjRow {
   const kasbon = o.kasbon ?? 0;
@@ -229,32 +228,6 @@ function sumTotals(rows: ProjRow[]): ProjResult['total'] {
     (acc, r) => ({ bruto: acc.bruto + r.bruto, pph: acc.pph + r.pph, thp: acc.thp + r.thp, ctc: acc.ctc + r.ctc }),
     { bruto: 0, pph: 0, thp: 0, ctc: 0 },
   );
-}
-
-/**
- * Single-input yearly forecast: the same parameters applied to every month,
- * with THR/bonus dropped into one chosen month as a % of gaji. Used by the
- * employee-detail and new-employee "what would a year cost" previews.
- */
-export function runProjection(p: ProjParams): ProjResult | null {
-  if (p.gajiPokok === 0) return null;
-  const tahun = new Date().getFullYear();
-  const rows: ProjRow[] = [];
-  let akum_bruto = 0;
-  let pph_jan_nov = 0;
-
-  for (let bulan = 1; bulan <= 12; bulan++) {
-    const thr   = bulan === p.thrBulan   ? Math.round(p.gajiPokok * p.thrPct / 100)   : 0;
-    const bonus = bulan === p.bonusBulan ? Math.round(p.gajiPokok * p.bonusPct / 100) : 0;
-    const row = computeRow(p, bulan, tahun, {
-      thr, bonus, akum_bruto, pph_jan_nov,
-      isLastMonth: bulan === 12, months_in_year: bulan === 12 ? 12 : undefined,
-    });
-    rows.push(row);
-    if (bulan < 12) { akum_bruto += row.bruto; pph_jan_nov += row.pph; }
-  }
-
-  return { rows, total: sumTotals(rows) };
 }
 
 /**
