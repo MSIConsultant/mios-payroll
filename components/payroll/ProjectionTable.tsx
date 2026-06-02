@@ -74,9 +74,10 @@ function P17RecLine({ label, value, sub, bold, accent, minus, indent }: {
 }
 
 function MonthDetail({ row }: { row: ProjRow }) {
-  const totalDeductions = row.pot_bpjs_jht + row.pot_bpjs_jp + row.pot_bpjs_kes + row.pot_pph;
+  const totalDeductions = row.pot_bpjs_jht + row.pot_bpjs_jp + row.pot_bpjs_kes + row.pot_pph
+    + row.kasbon + row.pot_lain + row.alpha_telat;
   const isGrossup = row.tunj_pph > 0;
-  const hasP17 = row.bulan === 12 && row.p17_bruto_setahun !== undefined;
+  const hasP17 = row.isReconciliation && row.p17_bruto_setahun !== undefined;
 
   // Derived: iuran BPJS TK deductible (JHT + JP karyawan) = bruto - biaya_jab - netto
   const iuranBpjsTk = hasP17
@@ -123,6 +124,9 @@ function MonthDetail({ row }: { row: ProjRow }) {
               value={row.pot_pph}
             />
           )}
+          <BLine label="Kasbon" value={row.kasbon} />
+          <BLine label="Potongan Lain" value={row.pot_lain} />
+          <BLine label="Alpha / Telat" value={row.alpha_telat} />
           {isGrossup && totalDeductions === 0 && (
             <p className="text-[12px] text-[var(--text-muted)] italic py-1.5">Tidak ada potongan — PPh ditanggung perusahaan</p>
           )}
@@ -156,7 +160,7 @@ function MonthDetail({ row }: { row: ProjRow }) {
             )}
           </div>
           <div className="max-w-sm">
-            <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} sub="akumulasi 12 bulan" />
+            <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} sub="akumulasi tahun berjalan" />
             <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="5% bruto, maks Rp 500rb/bln · PMK 168/2023 Ps.10" minus indent />
             {iuranBpjsTk > 0 && (
               <P17RecLine label="Iuran BPJS TK Karyawan" value={iuranBpjsTk} sub="JHT 2% + JP 1% · PMK 168/2023 Ps.10" minus indent />
@@ -175,13 +179,17 @@ function MonthDetail({ row }: { row: ProjRow }) {
 }
 
 export function ProjectionTable({
-  projection, gajiPokok, thrBulan, thrPct, bonusBulan, bonusPct, emptyMessage,
+  projection, gajiPokok, thrBulan, thrPct, bonusBulan, bonusPct, emptyMessage, title, subtitle,
 }: {
   projection: ProjResult | null;
   gajiPokok: number;
-  thrBulan: number; thrPct: number;
-  bonusBulan: number; bonusPct: number;
+  /** Single-input callers pass these for the "Asumsi" footer. Omit in the
+   *  monthly ledger — the footer is then derived from the per-month rows. */
+  thrBulan?: number; thrPct?: number;
+  bonusBulan?: number; bonusPct?: number;
   emptyMessage?: string;
+  title?: string;
+  subtitle?: string;
 }) {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
@@ -198,9 +206,20 @@ export function ProjectionTable({
   }
 
   const maxThp = Math.max(...projection.rows.map(r => r.thp));
-  const regularRow = projection.rows.find(r => !r.hasThr && !r.hasBonus && r.bulan !== 12) ?? projection.rows[0];
+  const regularRow =
+    projection.rows.find(r => r.aktif && !r.hasThr && !r.hasBonus && !r.isReconciliation)
+    ?? projection.rows.find(r => r.aktif)
+    ?? projection.rows[0];
   const effectiveRate = projection.total.bruto > 0 ? projection.total.pph / projection.total.bruto : 0;
   const hasCTC = projection.rows.some(r => r.ctc > 0);
+
+  // Monthly-ledger mode: when the single-input THR/bonus props are omitted,
+  // derive the assumptions footer from the actual per-month rows.
+  const derivedFooter = thrBulan == null;
+  const thrMonths = projection.rows.filter(r => r.hasThr).map(r => BULAN_FULL[r.bulan - 1]);
+  const bonusMonths = projection.rows.filter(r => r.hasBonus).map(r => BULAN_FULL[r.bulan - 1]);
+  const thrTotal = projection.rows.reduce((s, r) => s + r.thr_nominal, 0);
+  const bonusTotal = projection.rows.reduce((s, r) => s + r.bonus_nominal, 0);
 
   return (
     <div className="space-y-3">
@@ -225,8 +244,8 @@ export function ProjectionTable({
             <TrendingUp size={14} className="text-[var(--brand)]" />
           </div>
           <div>
-            <h2 className="text-[14px] font-semibold text-[var(--text-primary)] leading-none">Proyeksi 12 Bulan</h2>
-            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{new Date().getFullYear()} · klik baris untuk rincian breakdown</p>
+            <h2 className="text-[14px] font-semibold text-[var(--text-primary)] leading-none">{title ?? 'Proyeksi 12 Bulan'}</h2>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{subtitle ?? `${new Date().getFullYear()} · klik baris untuk rincian breakdown`}</p>
           </div>
         </div>
 
@@ -245,17 +264,37 @@ export function ProjectionTable({
         <div className="divide-y divide-[var(--border-subtle)]">
           {projection.rows.map((row) => {
             const isSelected = selectedMonth === row.bulan;
+
+            // Inactive month (mid-year start/exit) — render muted, not expandable.
+            if (!row.aktif) {
+              return (
+                <div key={row.bulan} className="flex items-center gap-3 px-4 py-2.5 opacity-60">
+                  <span className="w-8 text-[13px] font-medium text-[var(--text-faint)] shrink-0">
+                    {BULAN_SHORT[row.bulan - 1]}
+                  </span>
+                  <div className="w-14 flex gap-1 shrink-0">
+                    <span className="text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-subtle)] border border-[var(--border-subtle)] px-1.5 py-0.5 rounded-full">Nonaktif</span>
+                  </div>
+                  <div className="flex-1 h-3.5" />
+                  <span className="w-20 text-right font-mono text-[13px] text-[var(--text-faint)] shrink-0">–</span>
+                  <span className="w-16 text-right font-mono text-[12px] text-[var(--text-faint)] shrink-0">–</span>
+                  <span className="w-12 text-right text-[11px] text-[var(--text-faint)] hidden sm:block shrink-0">–</span>
+                  <span className="w-4 shrink-0" />
+                </div>
+              );
+            }
+
             const barCls = row.hasThr
               ? 'bg-amber-300'
               : row.hasBonus
                 ? 'bg-blue-300'
-                : row.bulan === 12
+                : row.isReconciliation
                   ? 'bg-violet-300'
                   : 'bg-emerald-300';
             const hoverCls = !isSelected
               ? row.hasThr     ? 'hover:bg-amber-50/60'
               : row.hasBonus   ? 'hover:bg-blue-50/60'
-              : row.bulan === 12 ? 'hover:bg-violet-50/60'
+              : row.isReconciliation ? 'hover:bg-violet-50/60'
               : 'hover:bg-[var(--bg-subtle)]'
               : '';
 
@@ -275,7 +314,7 @@ export function ProjectionTable({
                   <div className="w-14 flex gap-1 shrink-0">
                     {row.hasThr && <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">THR</span>}
                     {row.hasBonus && <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">BON</span>}
-                    {row.bulan === 12 && !row.hasThr && !row.hasBonus && (
+                    {row.isReconciliation && !row.hasThr && !row.hasBonus && (
                       <span className="text-[9px] font-bold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-full">P17</span>
                     )}
                   </div>
@@ -333,22 +372,45 @@ export function ProjectionTable({
 
         {/* Assumptions footer */}
         <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-subtle)]">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-2">Asumsi</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-2">
+            {derivedFooter ? 'Ringkasan' : 'Asumsi'}
+          </p>
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-[12px] text-[var(--text-muted)]">
-            <span>
-              <span className="font-semibold text-amber-600">THR</span>{' '}
-              {BULAN_FULL[thrBulan - 1]} · {thrPct}% gaji
-              {gajiPokok > 0 && (
-                <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(Math.round(gajiPokok * thrPct / 100))}</span>
-              )}
-            </span>
-            <span>
-              <span className="font-semibold text-blue-600">Bonus</span>{' '}
-              {BULAN_FULL[bonusBulan - 1]} · {bonusPct}% gaji
-              {gajiPokok > 0 && bonusPct > 0 && (
-                <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(Math.round(gajiPokok * bonusPct / 100))}</span>
-              )}
-            </span>
+            {derivedFooter ? (
+              <>
+                {thrTotal > 0 && (
+                  <span>
+                    <span className="font-semibold text-amber-600">THR</span>{' '}
+                    {thrMonths.join(', ')}
+                    <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(thrTotal)}</span>
+                  </span>
+                )}
+                {bonusTotal > 0 && (
+                  <span>
+                    <span className="font-semibold text-blue-600">Bonus</span>{' '}
+                    {bonusMonths.join(', ')}
+                    <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(bonusTotal)}</span>
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span>
+                  <span className="font-semibold text-amber-600">THR</span>{' '}
+                  {BULAN_FULL[thrBulan! - 1]} · {thrPct}% gaji
+                  {gajiPokok > 0 && (
+                    <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(Math.round(gajiPokok * thrPct! / 100))}</span>
+                  )}
+                </span>
+                <span>
+                  <span className="font-semibold text-blue-600">Bonus</span>{' '}
+                  {BULAN_FULL[bonusBulan! - 1]} · {bonusPct}% gaji
+                  {gajiPokok > 0 && bonusPct! > 0 && (
+                    <span className="ml-1.5 font-semibold text-[var(--text-secondary)] font-mono">{rpFull(Math.round(gajiPokok * bonusPct! / 100))}</span>
+                  )}
+                </span>
+              </>
+            )}
             {hasCTC && (
               <span>
                 <span className="font-semibold text-[var(--brand)]">CTC / tahun</span>{' '}

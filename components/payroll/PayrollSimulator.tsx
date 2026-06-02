@@ -9,7 +9,7 @@ const BULAN_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Ag
 // 4 schemes from the SALARY sheet of "Grossup PPh 21 RALO.xlsx".
 // All use gaji Rp 9,150,000 · TK0 · NPWP · JKK 0.24%.
 // Axes: BPJS (dipotong vs ditanggung) × PPH (dipotong vs grossup).
-const PRESETS: {
+export const PRESETS: {
   id: string; emoji: string; label: string; desc: string;
   values: Partial<ProjParams>;
 }[] = [
