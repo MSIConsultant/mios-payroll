@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { audit } from '@/lib/audit';
 import { getAppUrl } from '@/lib/env';
 import { inviteRatelimit, checkRateLimit } from '@/lib/ratelimit';
+import { MAX_STAFF_PER_WORKSPACE, MAX_WORKSPACES_PER_USER } from '@/lib/limits';
 
 // Option C: create an auth user immediately (no /register, no pending-approval),
 // wire them into the workspace, and let Supabase send the magic-link email.
@@ -42,6 +43,24 @@ export async function inviteStaffMagicLink(
   if (existing) return { error: 'Email ini sudah menjadi anggota workspace.' };
 
   const admin = createAdminClient();
+
+  // Capacity guards (admin client → bypasses RLS for accurate counts).
+  // The DB trigger backstops these, but we check here for a clean message.
+  const { count: staffCount } = await admin
+    .from('workspace_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('workspace_id', workspaceId)
+    .neq('role', 'owner');
+  if ((staffCount ?? 0) >= MAX_STAFF_PER_WORKSPACE)
+    return { error: `Workspace sudah mencapai batas ${MAX_STAFF_PER_WORKSPACE} staff.` };
+
+  const { count: inviteeWsCount } = await admin
+    .from('workspace_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_email', normalizedEmail);
+  if ((inviteeWsCount ?? 0) >= MAX_WORKSPACES_PER_USER)
+    return { error: `Email ini sudah tergabung di ${MAX_WORKSPACES_PER_USER} workspace (batas maksimal).` };
+
   const appUrl = getAppUrl();
   const redirectTo = appUrl ? `${appUrl}/auth/callback?next=/dashboard` : undefined;
 

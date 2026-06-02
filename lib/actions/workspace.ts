@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { randomBytes } from 'crypto';
 import { getAppUrl } from '@/lib/env';
+import { MAX_STAFF_PER_WORKSPACE, MAX_WORKSPACES_PER_ACCOUNTANT, MAX_WORKSPACES_PER_USER } from '@/lib/limits';
 
 async function logActivity(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -41,13 +42,14 @@ export async function createWorkspace(formData: FormData) {
     .eq('id', user.id)
     .single();
 
-  // Workspace limits per role tier.
-  // dev = unlimited; accountant = 3 (manually approved, trusted);
+  // Workspace limits per role tier (owned workspaces; count above is role='owner').
+  // dev = unlimited; accountant = MAX_WORKSPACES_PER_ACCOUNTANT;
   // staff = 1 (shouldn't be creating workspaces, but allow onboarding).
-  // Replace these with a plan-column lookup once subscription tiers are added.
+  // The DB trigger (2026-06-02-workspace-limits.sql) enforces the per-user
+  // membership cap regardless of which code path inserts.
   const WORKSPACE_LIMIT: Record<string, number | null> = {
     dev:        null,
-    accountant: 3,
+    accountant: MAX_WORKSPACES_PER_ACCOUNTANT,
     staff:      1,
   };
   const role  = (profile?.role as string) ?? 'staff';
@@ -111,6 +113,23 @@ export async function acceptInvite(token: string) {
   if (new Date(invite.expires_at) < new Date()) return { error: 'Undangan sudah kadaluarsa.' };
   if ((invite.invited_email ?? '').toLowerCase() !== (user.email ?? '').toLowerCase())
     return { error: 'Undangan ini bukan untuk akun Anda.' };
+
+  // Capacity guards (best-effort UX; the DB trigger is the authoritative
+  // backstop since RLS may under-count a workspace the user hasn't joined yet).
+  const { count: userWsCount } = await supabase
+    .from('workspace_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id);
+  if ((userWsCount ?? 0) >= MAX_WORKSPACES_PER_USER)
+    return { error: `Anda sudah tergabung di ${MAX_WORKSPACES_PER_USER} workspace (batas maksimal).` };
+
+  const { count: wsMemberCount } = await supabase
+    .from('workspace_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('workspace_id', invite.workspace_id)
+    .neq('role', 'owner');
+  if ((wsMemberCount ?? 0) >= MAX_STAFF_PER_WORKSPACE)
+    return { error: `Workspace sudah penuh (maksimal ${MAX_STAFF_PER_WORKSPACE} anggota).` };
 
   const { error: memErr } = await supabase.from('workspace_members').insert({
     workspace_id: invite.workspace_id,
