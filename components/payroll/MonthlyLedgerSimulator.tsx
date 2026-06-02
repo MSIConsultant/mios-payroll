@@ -7,10 +7,58 @@ import {
   type ProjParams, type MonthOverride,
 } from '@/lib/engine/projection';
 import { ProjectionTable } from './ProjectionTable';
-import { PRESETS } from './PayrollSimulator';
 
 const BULAN_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const BULAN_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+// 4 schemes from the SALARY sheet of "Grossup PPh 21 RALO.xlsx".
+// All use gaji Rp 9,150,000 · TK0 · NPWP · JKK 0.24%.
+// Axes: BPJS (dipotong vs ditanggung) × PPH (dipotong vs grossup).
+const PRESETS: {
+  id: string; emoji: string; label: string; desc: string;
+  values: Partial<ProjParams>;
+}[] = [
+  {
+    id: 'skema1', emoji: '📋', label: 'PPH & BPJS Potong', desc: 'BPJS & PPH dipotong dari gaji',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
+      tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
+      pphDitanggung: false, thrPct: 100, bonusPct: 0, kesEmployerInBruto: false,
+    },
+  },
+  {
+    id: 'skema2', emoji: '🏥', label: 'BPJS Ditanggung', desc: 'BPJS ditanggung · PPH dipotong',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
+      tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
+      pphDitanggung: false, thrPct: 100, bonusPct: 0, kesEmployerInBruto: true,
+    },
+  },
+  {
+    id: 'skema3', emoji: '🧾', label: 'PPH Grossup', desc: 'BPJS dipotong · PPH grossup',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
+      tanggungJhtK: false, tanggungJpK: false, tanggungKesK: false,
+      pphDitanggung: true, thrPct: 100, bonusBulan: 8, bonusPct: 50, kesEmployerInBruto: false,
+    },
+  },
+  {
+    id: 'skema4', emoji: '✅', label: 'Full Grossup', desc: 'BPJS & PPH ditanggung penuh',
+    values: {
+      gajiPokok: 9_150_000, benefit: 0, kendaraan: 0, pulsa: 0, operasional: 0, tunjLain: 0,
+      statusPtkp: 'TK0', punyaNpwp: true, jkkRate: 0.0024,
+      ikutJht: true, ikutJp: true, ikutJkp: true, ikutKes: true,
+      tanggungJhtK: true, tanggungJpK: true, tanggungKesK: true,
+      pphDitanggung: true, thrPct: 100, bonusBulan: 8, bonusPct: 50, kesEmployerInBruto: true,
+    },
+  },
+];
 
 // Fields that describe an ongoing situation (salary, allowances, tax/BPJS
 // status) — these are what "apply forward" copies into later months. THR,

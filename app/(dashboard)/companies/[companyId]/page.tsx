@@ -263,7 +263,7 @@ export default function CompanyDetailPage() {
           value={lastRun ? `${BULAN[lastRun.bulan]} ${lastRun.tahun}` : '—'}
           sub={lastRun?.status}
         />
-        <StatCard label="Est. Bruto Bulanan" value={formatRupiah(totalBruto)} mono />
+        <StatCard label="Total Gaji + Benefit" value={formatRupiah(totalBruto)} mono />
       </div>
 
       {/* Employees */}

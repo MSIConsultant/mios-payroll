@@ -11,7 +11,6 @@ import {
 import { formatRupiah } from '@/lib/format';
 import { addEvent, deleteEvent, deleteEmployee, updateEmployee, setUpahBulananOverride } from '@/lib/actions/employees';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
-import { PayrollSimulator } from '@/components/payroll/PayrollSimulator';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { toast } from 'sonner';
 
@@ -314,9 +313,6 @@ function EmployeeDetailPage() {
     { id: 'events',  label: 'Variasi' },
     { id: 'riwayat', label: 'Riwayat Payroll' },
   ];
-  if (employee.jenis_karyawan === 'tetap') {
-    tabs.splice(1, 0, { id: 'proyeksi', label: 'Proyeksi' });
-  }
   if (employee.jenis_karyawan === 'tidak_tetap_bulanan') {
     tabs.splice(1, 0, { id: 'upah_bulan', label: 'Upah per Bulan' });
   }
@@ -466,7 +462,7 @@ function EmployeeDetailPage() {
             {employee.tunj_lain > 0 && <Row label="Tunjangan Lain" value={formatRupiah(employee.tunj_lain)} />}
             <div className="mt-4 pt-4 border-t border-[var(--border-default)] flex items-baseline justify-between">
               <span className="text-[12px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Est. Total Bruto
+                Total Kompensasi (Bulanan)
               </span>
               <span className="text-xl font-bold text-[var(--brand)] font-mono">
                 {formatRupiah(
@@ -509,37 +505,6 @@ function EmployeeDetailPage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* PROYEKSI */}
-      {activeTab === 'proyeksi' && employee.jenis_karyawan === 'tetap' && (
-        <PayrollSimulator
-          intro={
-            <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-[13px] text-sky-900">
-              <span className="font-semibold">Simulasi:</span> ubah angka apa pun untuk melihat dampak ke proyeksi 12 bulan.
-              Perubahan tidak disimpan ke profil karyawan — klik <span className="font-semibold">Edit</span> di atas untuk menyimpan.
-            </div>
-          }
-          initialValues={{
-            gajiPokok:    employee.gaji_pokok,
-            benefit:      employee.benefit ?? 0,
-            kendaraan:    employee.kendaraan ?? 0,
-            pulsa:        employee.pulsa ?? 0,
-            operasional:  employee.operasional ?? 0,
-            tunjLain:     employee.tunj_lain ?? 0,
-            statusPtkp:   employee.status_ptkp,
-            punyaNpwp:    !!employee.punya_npwp,
-            jkkRate:      employee.jkk_rate,
-            ikutJht:      !!employee.ikut_jht,
-            ikutJp:       !!employee.ikut_jp,
-            ikutJkp:      !!employee.ikut_jkp,
-            tanggungJhtK: !!employee.tanggung_jht_k,
-            tanggungJpK:  !!employee.tanggung_jp_k,
-            ikutKes:      !!employee.ikut_kes,
-            tanggungKesK: !!employee.tanggung_kes_k,
-            pphDitanggung:!!employee.pph_ditanggung,
-          }}
-        />
       )}
 
       {/* UPAH PER BULAN (tidak_tetap_bulanan only) */}

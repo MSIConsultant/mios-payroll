@@ -1,21 +1,16 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createEmployee } from '@/lib/actions/employees';
 import {
-  ArrowLeft, Save, UserPlus, TrendingUp, Sparkles, ChevronDown, ChevronUp, Info,
+  ArrowLeft, Save, UserPlus, Sparkles, ChevronDown, ChevronUp, Info,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
-import { runProjection } from '@/lib/engine/projection';
-import { ProjectionTable } from '@/components/payroll/ProjectionTable';
 
-const BULAN_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const INPUT_CLS  = 'w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] transition-all';
 const TEXTAREA_CLS = `${INPUT_CLS} resize-none min-h-[80px] leading-relaxed`;
-const PCT_INPUT  = 'w-full px-2 py-2 pr-6 bg-white border border-[var(--border-default)] rounded-lg text-[13px] text-right outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
-const MONTH_SEL  = 'flex-1 px-2 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[13px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]';
 
 const TYPE_LABEL: Record<string, string> = {
   tetap: 'Tetap',
@@ -24,8 +19,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // One-click BPJS + PPh 21 scheme presets. Mirrors the PRESETS array in
-// components/payroll/PayrollSimulator.tsx so the accountant gets the same
-// muscle-memory in both flows.
+// components/payroll/MonthlyLedgerSimulator.tsx so the accountant gets the
+// same muscle-memory in both flows.
 type SchemeId = 'skema1' | 'skema2' | 'skema3' | 'skema4';
 const SCHEME_PRESETS: {
   id: SchemeId; emoji: string; label: string; desc: string;
@@ -128,10 +123,6 @@ export default function NewEmployeePage() {
   const [ikutKes,      setIkutKes]      = useState(true);
   const [tanggungKesK, setTanggungKesK] = useState(false);
   const [pphDitanggung,setPphDitanggung]= useState(false);
-  const [thrBulan,     setThrBulan]     = useState(3);
-  const [thrPct,       setThrPct]       = useState(100);
-  const [bonusBulan,   setBonusBulan]   = useState(8);
-  const [bonusPct,     setBonusPct]     = useState(50);
 
   // `punya_npwp` is derived from whether the user entered an NPWP value.
   // No "Punya NPWP?" dropdown — the field's presence IS the answer.
@@ -150,22 +141,6 @@ export default function NewEmployeePage() {
   // If any advanced control diverges from the active scheme, clear the chip
   // highlight so the user knows they're now on a custom config.
   function markCustom() { setActiveScheme('skema1'); /* noop visual reset */ }
-
-  const projection = useMemo(() => runProjection({
-    gajiPokok, benefit, kendaraan, pulsa, operasional, tunjLain,
-    statusPtkp, punyaNpwp, jkkRate,
-    ikutJht, ikutJp, ikutJkp,
-    tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung,
-    thrBulan, thrPct, bonusBulan, bonusPct,
-  }), [
-    gajiPokok, benefit, kendaraan, pulsa, operasional, tunjLain,
-    statusPtkp, punyaNpwp, jkkRate,
-    ikutJht, ikutJp, ikutJkp,
-    tanggungJhtK, tanggungJpK, ikutKes, tanggungKesK,
-    pphDitanggung,
-    thrBulan, thrPct, bonusBulan, bonusPct,
-  ]);
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
@@ -194,11 +169,11 @@ export default function NewEmployeePage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Karyawan Baru</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-0.5">Isi data wajib di kiri — proyeksi 12 bulan otomatis muncul di kanan.</p>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">Isi data karyawan. Untuk simulasi gaji 12 bulan, gunakan halaman Kalkulator.</p>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
+      <div className="max-w-3xl">
         <form action={handleSubmit} className="space-y-4">
           <input type="hidden" name="company_id" value={String(companyId)} />
 
@@ -286,41 +261,6 @@ export default function NewEmployeePage() {
                   <NominalInput label="Tunjangan Lain" name="tunj_lain" onChange={setTunjLain} />
                 </div>
 
-                <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">
-                  <p className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
-                    Default THR & Bonus
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">THR</p>
-                      <div className="flex gap-2">
-                        <select value={thrBulan} onChange={(e) => setThrBulan(Number(e.target.value))} className={MONTH_SEL}>
-                          {BULAN_FULL.map((b, i) => <option key={i + 1} value={i + 1}>{b}</option>)}
-                        </select>
-                        <div className="relative w-24">
-                          <input type="number" min={0} max={500} step={10} value={thrPct}
-                            onChange={(e) => setThrPct(Number(e.target.value))} className={PCT_INPUT}
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Bonus</p>
-                      <div className="flex gap-2">
-                        <select value={bonusBulan} onChange={(e) => setBonusBulan(Number(e.target.value))} className={MONTH_SEL}>
-                          {BULAN_FULL.map((b, i) => <option key={i + 1} value={i + 1}>{b}</option>)}
-                        </select>
-                        <div className="relative w-24">
-                          <input type="number" min={0} max={500} step={10} value={bonusPct}
-                            onChange={(e) => setBonusPct(Number(e.target.value))} className={PCT_INPUT}
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--text-muted)] pointer-events-none">%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
 
@@ -441,30 +381,6 @@ export default function NewEmployeePage() {
             </button>
           </div>
         </form>
-
-        {/* Sticky preview pane */}
-        <div className="lg:sticky lg:top-6">
-          {jenisKaryawan !== 'tetap' ? (
-            <div className="bg-white border border-[var(--border-default)] rounded-xl p-8 text-center">
-              <div className="w-12 h-12 rounded-full bg-[var(--bg-subtle)] flex items-center justify-center mx-auto mb-3">
-                <TrendingUp size={20} className="text-[var(--text-muted)]" />
-              </div>
-              <p className="text-[14px] font-medium text-[var(--text-secondary)]">
-                Proyeksi tahunan tersedia untuk karyawan Tetap
-              </p>
-              <p className="text-[12px] text-[var(--text-muted)] mt-1.5">
-                Karyawan tidak tetap dihitung per periode, bukan tahunan.
-              </p>
-            </div>
-          ) : (
-            <ProjectionTable
-              projection={projection}
-              gajiPokok={gajiPokok}
-              thrBulan={thrBulan} thrPct={thrPct}
-              bonusBulan={bonusBulan} bonusPct={bonusPct}
-            />
-          )}
-        </div>
       </div>
 
     </div>
