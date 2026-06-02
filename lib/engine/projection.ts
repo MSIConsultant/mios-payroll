@@ -99,6 +99,12 @@ export type ProjRow = {
   p17_pph_jan_nov?: number;
   p17_pph_desember?: number;
   p17_is_estimate?: boolean;
+  /** Decomposition of bruto_setahun for the breakdown UI: the accumulated
+   *  bruto of prior active months, and how many months that covers. The
+   *  reconciliation month's own bruto is `row.bruto`, so
+   *  `p17_akum_bruto + row.bruto === p17_bruto_setahun`. */
+  p17_akum_bruto?: number;
+  p17_months_counted?: number;
 };
 
 export type ProjResult = {
@@ -207,6 +213,10 @@ function computeRow(p: ProjParams, bulan: number, tahun: number, o: RowOpts): Pr
       p17_pph_jan_nov: res.proyeksi.pph_jan_nov_proyeksi,
       p17_pph_desember: res.proyeksi.pph_desember_proyeksi,
       p17_is_estimate: res.proyeksi.is_estimate,
+      // bruto_setahun = akum_bruto (prior active months) + this month's bruto.
+      // Surfaced so the UI can show *why* bruto setahun is that large.
+      p17_akum_bruto: o.akum_bruto,
+      p17_months_counted: Math.max(0, (o.months_in_year ?? 12) - 1),
     } : {}),
   };
 }
