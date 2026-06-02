@@ -160,16 +160,27 @@ function MonthDetail({ row }: { row: ProjRow }) {
             )}
           </div>
           <div className="max-w-sm">
-            <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} sub="akumulasi tahun berjalan" />
-            <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="5% bruto, maks Rp 500rb/bln · PMK 168/2023 Ps.10" minus indent />
+            {/* Where does Bruto Setahun come from? Show the sum, not just the total. */}
+            {row.p17_is_estimate ? (
+              <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!}
+                sub={`estimasi · bulan ini × ${(row.p17_months_counted ?? 11) + 1} bln`} bold />
+            ) : (
+              <>
+                <P17RecLine label="Akumulasi bln sebelumnya" value={row.p17_akum_bruto ?? 0}
+                  sub={`${row.p17_months_counted ?? 11} bln`} indent />
+                <P17RecLine label="Bruto bulan ini" value={row.bruto} indent />
+                <P17RecLine label="Bruto Setahun" value={row.p17_bruto_setahun!} bold />
+              </>
+            )}
+            <P17RecLine label="Biaya Jabatan" value={row.p17_biaya_jabatan_setahun!} sub="maks 500rb/bln" minus indent />
             {iuranBpjsTk > 0 && (
-              <P17RecLine label="Iuran BPJS TK Karyawan" value={iuranBpjsTk} sub="JHT 2% + JP 1% · PMK 168/2023 Ps.10" minus indent />
+              <P17RecLine label="Iuran BPJS TK" value={iuranBpjsTk} sub="JHT 2% + JP 1%" minus indent />
             )}
             <P17RecLine label="Netto Setahun" value={row.p17_netto_setahun!} bold />
-            <P17RecLine label="PTKP" value={ptkpSetahun} sub="sesuai status PTKP" minus indent />
+            <P17RecLine label="PTKP" value={ptkpSetahun} minus indent />
             <P17RecLine label="PKP Setahun" value={row.p17_pkp_setahun!} bold accent />
-            <P17RecLine label="PPh Pasal 17 Setahun" value={row.p17_pph_setahun!} sub="tarif progresif 5–35%" bold />
-            <P17RecLine label="PPh Jan–Nov (sudah dipotong)" value={row.p17_pph_jan_nov!} minus indent />
+            <P17RecLine label="PPh Pasal 17 Setahun" value={row.p17_pph_setahun!} sub="progresif 5–35%" bold />
+            <P17RecLine label="PPh Jan–Nov" value={row.p17_pph_jan_nov!} sub="sudah dipotong" minus indent />
             <P17RecLine label="PPh Desember" value={row.p17_pph_desember!} bold accent />
           </div>
         </div>
