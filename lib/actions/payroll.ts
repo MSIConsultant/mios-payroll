@@ -156,11 +156,11 @@ export async function savePayrollRun(
 export async function lockPayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
+  const { supabase, workspaceId, appRole } = access;
   // Locking is the act of declaring "this period is closed" — regulatory in
   // nature and irreversible (delete is also blocked once locked). Restrict
   // to accountant/dev. CAN.lockPayroll documents the same rule.
-  if (role === 'staff') return { error: 'Staff tidak punya akses mengunci payroll.' };
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses mengunci payroll.' };
 
   // Re-check current status; refuse re-lock if already locked (idempotent
   // but logs a no-op audit entry otherwise).
@@ -191,7 +191,7 @@ export async function lockPayrollRun(runId: string, companyId: string, tahun: nu
 export async function deletePayrollRun(runId: string, companyId: string, tahun: number, bulan: number) {
   const access = await assertRunAccess(runId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
+  const { supabase, workspaceId, appRole } = access;
 
   // Defense-in-depth: even if UI gates the button, the server must refuse to
   // delete a locked run. Otherwise a crafted client call could nuke locked data.
@@ -201,7 +201,7 @@ export async function deletePayrollRun(runId: string, companyId: string, tahun: 
   if (run.status === 'locked') {
     return { error: 'Run yang sudah dikunci tidak bisa dihapus.' };
   }
-  if (role === 'staff') {
+  if (appRole === 'staff') {
     return { error: 'Staff tidak punya akses menghapus payroll.' };
   }
 

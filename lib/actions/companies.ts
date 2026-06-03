@@ -7,23 +7,30 @@ import { audit } from '@/lib/audit';
 // Derive workspace_id server-side from the authenticated user's profile rather
 // than trusting whatever the client sent in the form. Prevents IDOR / forged
 // workspace_id from inserting a row into someone else's tenant.
-async function getCallerWorkspaceId() {
+async function getCaller() {
   const auth = await assertAuth();
   if (!auth.ok) return null;
   const { data: profile } = await auth.supabase
     .from('user_profiles')
-    .select('workspace_id')
+    .select('workspace_id, role')
     .eq('id', auth.user.id)
     .maybeSingle();
-  return (profile?.workspace_id as string | null) ?? null;
+  return {
+    workspaceId: (profile?.workspace_id as string | null) ?? null,
+    appRole: (profile?.role as string | undefined) ?? 'staff',
+  };
 }
 
 export async function createCompany(formData: FormData) {
   const name = formData.get('name') as string;
   if (!name) return { error: 'Nama perusahaan wajib diisi.' };
 
-  const workspace_id = await getCallerWorkspaceId();
-  if (!workspace_id) return { error: 'Workspace tidak ditemukan untuk akun Anda.' };
+  const caller = await getCaller();
+  if (!caller?.workspaceId) return { error: 'Workspace tidak ditemukan untuk akun Anda.' };
+  // Staff get assignment-scoped access only; creating companies is an
+  // accountant/dev action (middleware also blocks /companies/new for staff).
+  if (caller.appRole === 'staff') return { error: 'Staff tidak punya akses menambah perusahaan.' };
+  const workspace_id = caller.workspaceId;
 
   const supabase = await createClient();
   const { data: inserted, error } = await supabase
@@ -95,8 +102,8 @@ export async function updateCompany(id: string, formData: FormData) {
 export async function archiveCompany(id: string, aktif: boolean) {
   const access = await assertCompanyAccess(id);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
-  if (role === 'staff') return { error: 'Staff tidak punya akses mengarsipkan perusahaan.' };
+  const { supabase, workspaceId, appRole } = access;
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses mengarsipkan perusahaan.' };
 
   const { error } = await supabase.from('companies').update({ aktif }).eq('id', id);
   if (error) return { error: error.message };
@@ -118,10 +125,10 @@ export async function archiveCompany(id: string, aktif: boolean) {
 export async function deleteCompany(id: string) {
   const access = await assertCompanyAccess(id);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
+  const { supabase, workspaceId, appRole } = access;
 
   // Staff cannot delete companies — they only get assignment-scoped access.
-  if (role === 'staff') return { error: 'Staff tidak punya akses menghapus perusahaan.' };
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses menghapus perusahaan.' };
 
   const { data: company } = await supabase.from('companies').select('name').eq('id', id).single();
   const entity_name = company?.name as string | undefined;

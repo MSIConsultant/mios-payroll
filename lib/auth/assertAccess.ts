@@ -25,6 +25,20 @@ export async function assertAuth(): Promise<
   return { ok: true, supabase, user };
 }
 
+// The caller's APPLICATION role (user_profiles.role ∈ dev/accountant/staff) —
+// distinct from workspace_members.role (owner/admin/member). Staff are stored
+// as workspace_members.role='member', so any "is this user staff?" gate MUST
+// read this, not the membership role. Defaults to the most restrictive role if
+// the profile is missing.
+async function fetchAppRole(supabase: Supabase, userId: string): Promise<string> {
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
+  return (data?.role as string | undefined) ?? 'staff';
+}
+
 export async function assertWorkspaceAccess(workspaceId: string): Promise<
   AccessOk<{ supabase: Supabase; user: User; role: string }> | AccessFail
 > {
@@ -43,7 +57,7 @@ export async function assertWorkspaceAccess(workspaceId: string): Promise<
 }
 
 export async function assertCompanyAccess(companyId: string): Promise<
-  | AccessOk<{ supabase: Supabase; user: User; workspaceId: string; role: string }>
+  | AccessOk<{ supabase: Supabase; user: User; workspaceId: string; role: string; appRole: string }>
   | AccessFail
 > {
   const auth = await assertAuth();
@@ -71,6 +85,7 @@ export async function assertCompanyAccess(companyId: string): Promise<
     user: auth.user,
     workspaceId: company.workspace_id as string,
     role: member.role as string,
+    appRole: await fetchAppRole(auth.supabase, auth.user.id),
   };
 }
 
@@ -81,6 +96,7 @@ export async function assertRunAccess(runId: string): Promise<
       workspaceId: string;
       companyId: string;
       role: string;
+      appRole: string;
     }>
   | AccessFail
 > {
@@ -114,5 +130,6 @@ export async function assertRunAccess(runId: string): Promise<
     workspaceId,
     companyId: run.company_id as string,
     role: member.role as string,
+    appRole: await fetchAppRole(auth.supabase, auth.user.id),
   };
 }

@@ -216,8 +216,8 @@ export async function deleteEmployee(
 ) {
   const access = await assertCompanyAccess(companyId);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
-  if (role === 'staff') return { error: 'Staff tidak punya akses menghapus karyawan.' };
+  const { supabase, workspaceId, appRole } = access;
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses menghapus karyawan.' };
 
   const { data: existing } = await supabase
     .from('employees').select('nama').eq('id', id).maybeSingle();
@@ -359,8 +359,8 @@ export async function setUpahBulananOverride(
 
   const access = await assertCompanyAccess(emp.company_id as string);
   if (!access.ok) return { error: 'Akses ditolak.' };
-  const { supabase, workspaceId, role } = access;
-  if (role === 'staff') return { error: 'Staff tidak punya akses mengubah upah bulanan.' };
+  const { supabase, workspaceId, appRole } = access;
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses mengubah upah bulanan.' };
 
   if (!Number.isInteger(tahun) || tahun < 2020 || tahun > 2100) {
     return { error: 'Tahun tidak valid.' };
