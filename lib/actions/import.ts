@@ -61,10 +61,10 @@ export async function saveImport(payload: SaveImportPayload) {
   const access = await assertCompanyAccess(payload.companyId);
   if (!access.ok) return { error: access.error === 'unauthenticated' ? 'Not authenticated' : 'Akses ditolak' };
   // workspaceId derived server-side from company record, not trusted from client payload
-  const { supabase, user, workspaceId, role } = access;
+  const { supabase, user, workspaceId, appRole } = access;
   // Defense-in-depth: middleware redirects staff away from /import but a
   // crafted direct call to this action would still mutate. Reject explicitly.
-  if (role === 'staff') return { error: 'Staff tidak punya akses melakukan import.' };
+  if (appRole === 'staff') return { error: 'Staff tidak punya akses melakukan import.' };
 
   const { companyId, bulan, tahun, fileName, mode, jenis = 'tetap', archival = false,
           update_existing = false, update_niks, records } = payload;
