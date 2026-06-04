@@ -77,7 +77,7 @@
 ## Database Schema
 
 ### How schema changes happen
-- `supabase/schema.sql` is the **base snapshot** (incomplete per AUDIT.md — to be regenerated from production as a separate audit-cleanup task).
+- `supabase/schema.sql` is the **base snapshot** (incomplete — to be regenerated from production as a separate cleanup task).
 - Schema changes after the snapshot live in `supabase/migrations/YYYY-MM-DD-name.sql` — one file per change set. Each file is self-contained, wraps work in `BEGIN/COMMIT`, and includes a commented-out rollback block.
 - Apply by pasting the file into the Supabase SQL editor and clicking Run. There is no auto-apply / no migration library; tracking lives in git.
 
@@ -278,9 +278,9 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
 - **Last month (`calculateLastMonth`)**: Pasal 17 equalization using `akum_bruto` from saved results.
   - Full-year December: caller passes `monthsInYear = 12` (default; legacy `calculateDecember` is a thin alias).
   - Mid-year exit (e.g. starts Jun, ends Aug → 3 months): caller passes `isLastMonth: true` and `months_in_year: 3`. Engine scales `biaya_jabatan` cap and per-month iuran by `M`, annualizes the partial-year base correctly.
-  - **Fallback hazard**: if `akum_bruto === 0`, falls back to `base × M` with no warning surfaced yet. Known gap (AUDIT.md MEDIUM #4) — should set `proyeksi.is_estimate: true` when this path triggers.
+  - **Fallback hazard**: if `akum_bruto === 0`, falls back to `base × M` with no warning surfaced yet. Known gap — should set `proyeksi.is_estimate: true` when this path triggers.
 - **Refund case (over-withholding)**: if `pph_jan_nov > pph_setahun`, the on-slip `pph` is clamped to `0` and the engine sets `is_refund: true`, `refund_amount: <positive>`, `raw_pph: <negative>`. Note: these fields are returned in `result_json` but not yet persisted as columns on `payroll_results`.
-- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter ≥ 1`, the loop breaks with a stale value — no warning surfaced yet (AUDIT.md HIGH #3).
+- **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter ≥ 1`, the loop breaks with a stale value — no warning surfaced yet.
 - **Non-NPWP**: ×1.2 surcharge **removed 2026-05-29** per PENG-6/PJ.09/2024 + NIK=NPWP integration (PMK 112/2022). `punya_npwp` is preserved on the engine input for slip-gaji / SPT Masa display but no longer multiplies PPh. For TKA without Indonesian NPWP, PPh 26 routing is the correct path (deferred — `pph_26` column added by `2026-05-29-tka-pph26-fields.sql`).
 
 ### Karyawan Tidak Tetap
