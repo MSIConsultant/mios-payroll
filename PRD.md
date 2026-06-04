@@ -13,7 +13,7 @@
 MIOS Payroll is an Indonesian payroll operating system for accounting
 professionals. It runs the full payroll lifecycle for many client companies —
 employee onboarding, PPh 21 calculation (TER + December Pasal 17 equalization),
-BPJS, slip generation, SPT export, severance, and a legal audit trail — and lets
+BPJS, slip generation, SPT export, and a legal audit trail — and lets
 an accountant migrate years of Excel history into a structured, reconciled store.
 
 **Phase 1 (now):** the internal payroll system for MSI's own accountants.
@@ -29,7 +29,7 @@ an accountant migrate years of Excel history into a structured, reconciled store
 - **Staff** — Data entry, scoped to assigned companies only. No logs, settings, deletes, imports, or locks.
 
 ## Core Problems Solved
-1. **Indonesian payroll math is hard** (TER, BPJS, grossup, December equalization, severance) — the engine does it automatically and is locked by a ~700-line test suite.
+1. **Indonesian payroll math is hard** (TER, BPJS, grossup, December equalization) — the engine does it automatically and is locked by a comprehensive test suite.
 2. **Accountants live in Excel across many companies** — MIOS is a structured, auditable alternative that preserves the exact monthly math.
 3. **Years of historical payroll are scattered across spreadsheets** — MIOS bulk-imports them (multi-file, multi-month) with per-employee reconciliation against the engine, and preserves them permanently.
 4. **Multi-user accounting teams have no access control** — MIOS enforces role-based, per-company permissions at the database (RLS), not just the UI.
@@ -43,7 +43,6 @@ an accountant migrate years of Excel history into a structured, reconciled store
 | PMK 168/2023 | TER method Jan–Nov; Pasal 17 equalization in the last month; **harian via TER** (replaced the pre-2024 Pasal 17 + Rp 450k daily threshold, 2026-05-20) |
 | PPh 21 Pasal 17 | December (and mid-year exit) equalization; THR/Bonus selisih method |
 | PENG-6/PJ.09/2024 + PMK 112/2022 | **Non-NPWP ×1.2 surcharge removed** (NIK = NPWP integration); `punya_npwp` retained for slip/SPT display only |
-| PP 68/2009 | Severance / kompensasi — progressive PPh 21 final brackets |
 | BPJS Ketenagakerjaan | JHT 3.7%/2%, JP 2%/1% (cap 10,547,400), JKK/JKM |
 | BPJS Kesehatan | 4%/1% (cap 12,000,000) |
 | PTKP 2024 | TK0–TK3, K0–K3 |
@@ -119,11 +118,6 @@ an accountant migrate years of Excel history into a structured, reconciled store
 - [x] Presets, grossup, BPJS/PTKP toggles
 - [x] Transparent December Pasal 17 reconciliation (Bruto Setahun shown as accumulated months + current month)
 - [ ] Save / share a scenario
-
-### Severance / Kompensasi
-- [x] Engine: `calculateSeverance` (PP 68/2009; progressive final brackets; full bracket-by-bracket breakdown)
-- [ ] UI surface to enter and produce a severance/kompensasi payment
-- [ ] `kompensasi_payments` persistence (schema slice pending)
 
 ### Export
 - [x] Slip gaji PDF (print window, WhatsApp-ready)
