@@ -193,10 +193,10 @@ app/
 
 lib/
 ├── engine/
-│   ├── payroll.ts              — calculateMonthlySalary, calculateLastMonth (full-year + mid-year exit), calculateDecember (alias), calculateFreelance, calculateTHRBonus, calculateSeverance (PP 68/2009)
+│   ├── payroll.ts              — calculateMonthlySalary, calculateLastMonth (full-year + mid-year exit), calculateDecember (alias), calculateFreelance, calculateTHRBonus
 │   ├── projection.ts           — proyeksi.* helpers (annual forecast block on every result)
 │   ├── payroll.test.ts         — Vitest, ~700 lines, locks current math
-│   └── constants.ts            — TER A/B/C tables, PTKP, BPJS rates, severance brackets
+│   └── constants.ts            — TER A/B/C tables, PTKP, BPJS rates
 ├── export/
 │   ├── slip-gaji.ts            — Print window PDF
 │   └── spt-masa.ts             — SPT Masa PPh 21 CSV (BOM-encoded)
@@ -307,13 +307,6 @@ For Jan–Nov these are forecasts (current bruto × 12); for December they are a
 ### THR/Bonus
 - Selisih Pasal 17 method (`calculateTHRBonus`).
 - Stored separately in `employee_events` (tipe = 'thr' or 'bonus').
-
-### Kompensasi / Severance (PP 68/2009)
-- One-off severance payments via `calculateSeverance(KompensasiInput)`.
-- PPh 21 final with progressive brackets (cumulative widths): 0% first Rp 50M; 5% next 50M; 15% next 400M; 25% above 500M.
-- `npwp_multiplier` is always 1.0 since 2026-05-29 (non-NPWP surcharge removed — see Karyawan Tetap section above). The field is retained in the return shape for backward compatibility with `result_json` consumers.
-- Returns the full bracket-by-bracket `breakdown[]` for transparency — stored in `kompensasi_payments.result_json` once slice 3 schema lands.
-- Categories: `pesangon | penghargaan | manfaat_pensiun | penggantian_hak | other`. All use the same brackets when paid sekaligus.
 
 ---
 

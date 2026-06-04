@@ -14,20 +14,6 @@ export const PASAL17: [number, number][] = [
   [4_500_000_000, 0.30], [Infinity, 0.35],
 ];
 
-// PP 68/2009 — PPh 21 final on uang pesangon, uang penghargaan masa kerja,
-// uang penggantian hak, dan uang manfaat pensiun dibayar sekaligus.
-// Brackets are cumulative widths (same shape as PASAL17), not absolute thresholds:
-//   first  Rp 50,000,000  →   0%
-//   next   Rp 50,000,000  →   5%   (cumulative 50M..100M)
-//   next   Rp 400,000,000 →  15%   (cumulative 100M..500M)
-//   above  Rp 500,000,000 →  25%
-export const PESANGON_BRACKETS: [number, number][] = [
-  [50_000_000, 0],
-  [50_000_000, 0.05],
-  [400_000_000, 0.15],
-  [Infinity, 0.25],
-];
-
 function buildTer(rows: [number, number][]): [number, number, number][] {
   const out: [number, number, number][] = [];
   let lo = 0.0;
