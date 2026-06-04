@@ -47,18 +47,16 @@ an accountant migrate years of Excel history into a structured, reconciled store
 | BPJS Ketenagakerjaan | JHT 3.7%/2%, JP 2%/1% (cap 10,547,400), JKK/JKM |
 | BPJS Kesehatan | 4%/1% (cap 12,000,000) |
 | PTKP 2024 | TK0–TK3, K0–K3 |
-| PPh 26 (TKA) | Column reserved (`pph_26`); routing for foreign workers without Indonesian NPWP is **deferred** (see TKA section) |
 
 ---
 
 ## Product Priorities
 
-> Per stakeholder direction. "Done" here means shipped and in production use.
+> "Done" means shipped and in production use. The foundational priorities are delivered.
 
-1. **Excel-migration wedge — DONE.** Multi-file / multi-month bulk historical import with engine reconciliation is the core reason an accountant switches off Excel. Now live (`/import/bulk`).
+1. **Excel-migration wedge — DONE.** Multi-file / multi-month bulk historical import with engine reconciliation is the core reason an accountant switches off Excel. Live at `/import/bulk`.
 2. **Calculation correctness — DONE & guarded.** Engine math is the product's credibility; locked by tests, with transparent December breakdowns.
 3. **Tenant isolation — DONE (hardened 2026-06).** Staff are scoped to assigned companies at the RLS layer; capacity caps enforced by DB triggers.
-4. **Open, high-value next:** bulk recalculate across companies, month-over-month comparison + anomaly alerts, severance UI, and CSV import. (Validate ordering with the accountant before committing.)
 
 ---
 
@@ -190,10 +188,6 @@ an accountant migrate years of Excel history into a structured, reconciled store
 - [ ] Touch-optimized payroll tables
 - [ ] PWA manifest
 
-### TKA / Foreign Workers (deferred)
-- [ ] PPh 26 routing for TKA without Indonesian NPWP (`pph_26` column added 2026-05-29; engine routing deferred)
-- Note: a separate `MIOS TKA` project exists; relationship to this product is undecided.
-
 ---
 
 ## Non-Goals (Explicit Out of Scope)
@@ -204,6 +198,7 @@ an accountant migrate years of Excel history into a structured, reconciled store
 - HR document management
 - Payroll disbursement (bank transfer integration)
 - Accounting journal entries
+- Foreign-worker (TKA) / PPh 26 handling — a separate product, out of scope here
 
 ---
 
