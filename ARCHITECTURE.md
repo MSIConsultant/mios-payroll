@@ -153,8 +153,6 @@ calculateMonthlySalary(input: KaryawanTetap)
 Other engine entry points (in lib/engine/payroll.ts):
 - calculateFreelance({ mode: 'harian' | 'bulanan' }) — TER for harian, Pasal 17/12 for bulanan
 - calculateTHRBonus(...)                              — Selisih Pasal 17 method
-- calculateSeverance(KompensasiInput)                 — PP 68/2009 progressive brackets (0/5/15/25%)
-                                                       returns full bracket-by-bracket breakdown[]
 ```
 
 ## Security Model

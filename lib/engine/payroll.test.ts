@@ -15,10 +15,8 @@ import {
   calculateBPJS,
   calculateMonthlySalary,
   calculateFreelance,
-  calculateSeverance,
   type KaryawanTetap,
   type KaryawanTidakTetap,
-  type KompensasiInput,
 } from './payroll';
 import { PTKP_TER_GRUP, BPJS, JP_MAX_BASIS, KES_MAX_BASIS } from './constants';
 
@@ -392,103 +390,6 @@ describe('calculateMonthlySalary (December equalization)', () => {
     // This test pins current behavior so the fix can change it intentionally.
     expect(r.jenis).toContain('DESEMBER');
     expect(r.pph).toBeGreaterThanOrEqual(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-describe('calculateSeverance (PPh 21 final — PP 68/2009)', () => {
-  function k(overrides: Partial<KompensasiInput> = {}): KompensasiInput {
-    return {
-      nama: 'Test',
-      nik: '0000000000000001',
-      npwp: '000',
-      punya_npwp: true,
-      kategori: 'pesangon',
-      jumlah_bruto: 0,
-      ...overrides,
-    };
-  }
-
-  it('zero jumlah → PPh 0, THP 0, empty breakdown', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 0 }));
-    expect(r.pph).toBe(0);
-    expect(r.thp).toBe(0);
-    expect(r.breakdown).toEqual([]);
-  });
-
-  it('below first bracket (Rp 30M) → 0% only', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 30_000_000 }));
-    expect(r.pph).toBe(0);
-    expect(r.thp).toBe(30_000_000);
-    expect(r.breakdown).toHaveLength(1);
-    expect(r.breakdown[0]).toMatchObject({ rate: 0, taxable: 30_000_000, tax: 0 });
-  });
-
-  it('exactly at first bracket boundary (Rp 50M) → PPh still 0', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 50_000_000 }));
-    expect(r.pph).toBe(0);
-  });
-
-  it('just above first bracket (Rp 51M) → 5% × Rp 1M = Rp 50,000', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 51_000_000 }));
-    expect(r.pph).toBe(50_000);
-    expect(r.thp).toBe(50_950_000);
-    expect(r.breakdown).toHaveLength(2);
-    expect(r.breakdown[1]).toMatchObject({ rate: 0.05, taxable: 1_000_000, tax: 50_000 });
-  });
-
-  it('within second bracket (Rp 75M) → 5% × 25M = Rp 1,250,000', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 75_000_000 }));
-    expect(r.pph).toBe(1_250_000);
-  });
-
-  it('at top of second bracket (Rp 100M) → Rp 2,500,000', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 100_000_000 }));
-    expect(r.pph).toBe(2_500_000);
-  });
-
-  it('within third bracket (Rp 300M) → 2.5M + 15% × 200M = Rp 32.5M', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 300_000_000 }));
-    expect(r.pph).toBe(32_500_000);
-  });
-
-  it('at top of third bracket (Rp 500M) → 2.5M + 15% × 400M = Rp 62.5M', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 500_000_000 }));
-    expect(r.pph).toBe(62_500_000);
-  });
-
-  it('above third bracket (Rp 600M) → 62.5M + 25% × 100M = Rp 87.5M', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 600_000_000 }));
-    expect(r.pph).toBe(87_500_000);
-    // Breakdown must show all 4 brackets used
-    expect(r.breakdown).toHaveLength(4);
-    expect(r.breakdown.map(b => b.rate)).toEqual([0, 0.05, 0.15, 0.25]);
-  });
-
-  it('non-NPWP: no surcharge (PENG-6/PJ.09/2024) — PPh equals base brackets', () => {
-    const r = calculateSeverance(k({ jumlah_bruto: 100_000_000, punya_npwp: false }));
-    // 0% on first 50M + 5% on next 50M = 2,500,000. No ×1.2 since 2026-05-29.
-    expect(r.pph).toBe(2_500_000);
-    expect(r.npwp_multiplier).toBe(1.0);
-    expect(r.pph_before_npwp_multiplier).toBe(2_500_000);
-  });
-
-  it('preserves identity fields in output (for snapshot in result_json)', () => {
-    const r = calculateSeverance(k({
-      nama: 'Budi',
-      nik: '1234567890',
-      npwp: '987654321012000',
-      kategori: 'manfaat_pensiun',
-      divisi: 'IT',
-      status_ptkp: 'K2',
-      jumlah_bruto: 80_000_000,
-    }));
-    expect(r.jenis).toContain('KOMPENSASI');
-    expect(r.kategori).toBe('manfaat_pensiun');
-    expect(r.nama).toBe('Budi');
-    expect(r.nik).toBe('1234567890');
-    expect(r.divisi).toBe('IT');
-    expect(r.status_ptkp).toBe('K2');
   });
 });
 
