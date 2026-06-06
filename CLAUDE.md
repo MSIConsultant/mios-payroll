@@ -26,6 +26,29 @@
 
 ---
 
+## Working Style
+
+> Process rules for *how* features are built (not what to build).
+
+### Agent-team pattern for full-stack features
+For complex features spanning Supabase (backend) and the Next/Vercel frontend, use a lead + teammates split:
+- **Teammate A** — scoped strictly to Supabase migrations + RLS policies.
+- **Teammate B** — frontend UI logic.
+- **Lead (Claude)** — defines the integration contract (RPC/table shape, response JSON, RLS expectations) **before** delegating, then synthesizes both halves and verifies the seams.
+
+Only spin up the team for a concrete, named feature — not speculatively. Subagents are stateless cold starts that report back to the lead; the lead owns the contract between them so the two halves don't drift. Supabase DDL via MCP is read-only — a teammate writes the migration file, the dev applies it in the SQL editor.
+
+### BMAD — spec before code for higher-risk work
+For higher-risk changes (RLS/policies, auth, payroll engine, schema, middleware), follow **BMAD** instead of going straight to code:
+1. **Brainstorm** — enumerate approaches and edge cases.
+2. **Model** — write the spec: data/contract shape, RLS expectations, states.
+3. **Adversarial** — attack the spec: who can read/write what they shouldn't? what contradicts existing policies or the Vercel deployment? what breaks at the boundaries?
+4. **Design** — finalize the contract, then implement.
+
+The point is to catch security holes in Supabase policies and design contradictions **before** any code is written.
+
+---
+
 ## Stack Details
 
 ### Frontend
