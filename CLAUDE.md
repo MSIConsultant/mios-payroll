@@ -401,6 +401,32 @@ update employees set aktif=true where aktif=false;
 select id, email, role, status, workspace_id from user_profiles;
 ```
 
+### Add a new user (e.g. the GM) — registration UI is removed
+
+1. Supabase Dashboard → **Authentication → Users → Add user** — fill email +
+   password, check **Auto Confirm User**. The `handle_new_user` trigger creates
+   a `user_profiles` row with `status = pending_approval` (middleware blocks it
+   until approved below).
+2. Run in the SQL editor (replace the email; if more than one workspace exists,
+   replace the subquery with the right workspace id):
+
+```sql
+update user_profiles
+set role = 'accountant', status = 'approved', approved_at = now(),
+    workspace_id = (select id from workspaces limit 1)
+where email = 'gm@example.com';
+
+insert into workspace_members (workspace_id, user_id, user_email, role)
+select p.workspace_id, p.id, p.email, 'member'
+from user_profiles p
+where p.email = 'gm@example.com'
+on conflict do nothing;
+```
+
+There is no read-only role — `accountant` grants full workspace access
+(including locking payroll). For showing a single payroll result to someone
+without an account, use the public share link instead.
+
 ---
 
 ## Environment Variables
