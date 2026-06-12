@@ -173,9 +173,10 @@ app/
 │   ├── loading.tsx
 │   ├── page.tsx
 │   ├── dashboard/page.tsx      — Server, stats, mission board, payroll log, realtime
-│   ├── batch/page.tsx          — Multi-company status board
+│   ├── batch/                  — Multi-company status board (server page + BatchClient island)
 │   ├── companies/
-│   │   ├── page.tsx            — Company list (staff-filtered)
+│   │   ├── page.tsx            — Server fetch (parallel, lib/cache) → CompaniesClient
+│   │   ├── CompaniesClient.tsx — Search/filter island
 │   │   ├── loading.tsx
 │   │   ├── new/page.tsx
 │   │   └── [companyId]/
