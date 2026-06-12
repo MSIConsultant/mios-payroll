@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Building2, CalendarDays, Users, Database } from 'lucide-react';
+import { ArrowLeft, Building2, CalendarDays, Users, Database, Table } from 'lucide-react';
 
 export function CompanyTabs({ companyId, companyName, aktif }: {
   companyId: string;
@@ -18,6 +18,7 @@ export function CompanyTabs({ companyId, companyName, aktif }: {
 
   const tabs = [
     { id: 'bulan',    label: 'Bulan',    icon: CalendarDays, href: `${base}/payroll/${now.getFullYear()}/${now.getMonth() + 1}`, match: `${base}/payroll` },
+    { id: 'rekap',    label: 'REKAP',    icon: Table,        href: `${base}/rekap`, match: `${base}/rekap` },
     { id: 'karyawan', label: 'Karyawan', icon: Users,        href: `${base}/employees`, match: `${base}/employees` },
     { id: 'data',     label: 'Data',     icon: Database,     href: `${base}/data`, match: `${base}/data` },
   ];

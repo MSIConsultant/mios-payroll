@@ -26,6 +26,7 @@ import { DecemberBanners } from '@/components/payroll/month/DecemberBanners';
 import { YTDLedger } from '@/components/payroll/month/YTDLedger';
 import { ResultsTable, type SortKey } from '@/components/payroll/month/ResultsTable';
 import { EmployeeDetailCard } from '@/components/payroll/month/EmployeeDetailCard';
+import { BreakdownDrawer } from '@/components/payroll/month/BreakdownDrawer';
 import { QuickEditModal } from '@/components/payroll/month/QuickEditModal';
 import { UpahBulananModal } from '@/components/payroll/month/UpahBulananModal';
 
@@ -48,6 +49,7 @@ export default function PayrollRunPage() {
   const [savedMonths, setSavedMonths]     = useState<number[]>([]);
   const [quickEditEmp, setQuickEditEmp]   = useState<any>(null);
   const [upahEditEmp, setUpahEditEmp]     = useState<any>(null);
+  const [drawerEmpId, setDrawerEmpId]     = useState<string | null>(null);
   const [expandedEmps, setExpandedEmps]   = useState<Set<string>>(new Set());
   // Tabel = sortable overview (the accountant's Excel reflex); Detail = the
   // per-employee accordion cards. Choice persists across visits.
@@ -255,10 +257,36 @@ export default function PayrollRunPage() {
   const maxThp     = results.length > 0 ? Math.max(...results.map((r) => r.thp ?? 0), 1) : 1;
   const runStatus  = existingRun?.status ?? (isCalcing ? 'calculating' : 'draft');
 
+  const drawerRes = drawerEmpId ? results.find((r) => r.employee_id === drawerEmpId) : null;
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       {quickEditEmp && !isLocked && (
         <QuickEditModal employee={quickEditEmp} onClose={() => setQuickEditEmp(null)} onSaveAndRecalc={handleQuickEdit} />
+      )}
+
+      {drawerRes && (
+        <BreakdownDrawer
+          res={drawerRes}
+          sourceEmp={employees.find((e) => e.id === drawerRes.employee_id)}
+          hasUpahOverride={events.some(
+            (e) =>
+              e.employee_id === drawerRes.employee_id &&
+              e.tipe === 'upah_bulanan_override' &&
+              e.tahun === Number(tahun) &&
+              e.bulan === Number(bulan),
+          )}
+          isLocked={isLocked}
+          isDesember={isDesember}
+          maxThp={maxThp}
+          company={company}
+          companyId={companyId as string}
+          tahun={Number(tahun)}
+          bulan={Number(bulan)}
+          onQuickEdit={(emp) => { setDrawerEmpId(null); setQuickEditEmp(emp); }}
+          onUpahEdit={(emp) => { setDrawerEmpId(null); setUpahEditEmp(emp); }}
+          onClose={() => setDrawerEmpId(null)}
+        />
       )}
 
       {upahEditEmp && !isLocked && (
@@ -396,7 +424,7 @@ export default function PayrollRunPage() {
               sortKey={sortKey}
               sortDir={sortDir}
               onToggleSort={toggleSort}
-              onShowDetail={(employeeId) => { switchView('detail'); setExpandedEmps(new Set([employeeId])); }}
+              onShowDetail={setDrawerEmpId}
               onQuickEdit={setQuickEditEmp}
               totalBruto={totalBruto}
               totalPph={totalPph}
