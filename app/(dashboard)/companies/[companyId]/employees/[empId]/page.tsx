@@ -239,7 +239,7 @@ function EmployeeDetailPage() {
       setIsDeleting(false);
     } else {
       toast.success('Karyawan dihapus');
-      router.push(`/companies/${companyId}`);
+      router.push(`/companies/${companyId}/employees`);
     }
   }
 
@@ -322,7 +322,7 @@ function EmployeeDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] flex-wrap">
         <Link
-          href={`/companies/${companyId}`}
+          href={`/companies/${companyId}/employees`}
           className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors"
         >
           <ArrowLeft size={14} />

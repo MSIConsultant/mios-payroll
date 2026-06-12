@@ -150,14 +150,14 @@ export default function NewEmployeePage() {
       setLoading(false);
     } else {
       toast.success('Karyawan berhasil ditambahkan');
-      router.push(`/companies/${companyId}`);
+      router.push(`/companies/${companyId}/employees`);
     }
   }
 
   return (
     <div className="max-w-[1400px] mx-auto pb-12 animate-fade-in-up">
       <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] mb-4">
-        <Link href={`/companies/${companyId}`} className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors">
+        <Link href={`/companies/${companyId}/employees`} className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors">
           <ArrowLeft size={14} />
           Perusahaan
         </Link>
@@ -368,7 +368,7 @@ export default function NewEmployeePage() {
           </Section>
 
           <div className="flex justify-end gap-3 pt-2">
-            <Link href={`/companies/${companyId}`}
+            <Link href={`/companies/${companyId}/employees`}
               className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] rounded-lg transition-colors"
             >
               Batal

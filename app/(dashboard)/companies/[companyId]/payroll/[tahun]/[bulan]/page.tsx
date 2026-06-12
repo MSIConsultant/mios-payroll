@@ -4,13 +4,12 @@
 // (PR 1 decomposition — behavior unchanged.)
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Table2, LayoutList } from 'lucide-react';
+import { Table2, LayoutList } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRupiah } from '@/lib/format';
-import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
+import { savePayrollRun, lockPayrollRun, deletePayrollRun } from '@/lib/actions/payroll';
 import { updateEmployee } from '@/lib/actions/employees';
 import { printAllSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
@@ -207,6 +206,17 @@ export default function PayrollRunPage() {
     setSaving(false);
   }
 
+  async function handleDelete() {
+    if (!existingRun?.id || existingRun.status === 'locked') return;
+    if (!(await confirm({ title: `Hapus run ${BULAN_NAMES[Number(bulan) - 1]} ${tahun}?`, message: 'Hasil tersimpan bulan ini dihapus dari database. Karyawan dan variasi tidak terpengaruh.', severity: 'danger', confirmLabel: 'Hapus' }))) return;
+    setSaving(true);
+    const res = await deletePayrollRun(existingRun.id, companyId as string, Number(tahun), Number(bulan));
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
+    setExistingRun(null);
+    toast.success('Run dihapus — hasil di layar tetap bisa disimpan ulang');
+    setSaving(false);
+  }
+
   if (loading) {
     return (
       <div className="space-y-3 animate-fade-in">
@@ -283,17 +293,10 @@ export default function PayrollRunPage() {
         />
       )}
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-        <Link href={`/companies/${companyId}/payroll`} className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors">
-          <ArrowLeft size={14} />
-          {company?.name ?? 'Perusahaan'} · Payroll
-        </Link>
-      </div>
-
       <MonthHeader
         bulan={Number(bulan)}
         tahun={Number(tahun)}
+        companyId={companyId as string}
         companyName={company?.name ?? null}
         runStatus={runStatus}
         resultCount={results.length}
@@ -301,6 +304,7 @@ export default function PayrollRunPage() {
         isLocked={isLocked}
         canLock={existingRun?.status === 'calculated'}
         canShare={existingRun?.status === 'locked'}
+        canDelete={!!existingRun?.id && existingRun?.status !== 'locked'}
         saving={saving}
         sharing={sharing}
         shareCopied={shareCopied}
@@ -310,6 +314,7 @@ export default function PayrollRunPage() {
         onSave={handleSave}
         onLock={handleLock}
         onShare={handleShare}
+        onDelete={handleDelete}
         onPrintAll={() => printAllSlipGaji(results, company, Number(bulan), Number(tahun))}
         onExportSPT={() => exportSPTMasa(results, company, employees, Number(bulan), Number(tahun))}
         onExportBPJSTK={() => exportBPJSTK(results, employees, company, Number(bulan), Number(tahun))}
