@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Layers, Settings,
-  ChevronLeft, ChevronRight, Users, ScrollText,
+  ChevronLeft, ChevronRight, ScrollText,
   Terminal, Upload, Calculator,
 } from 'lucide-react';
 import type { UserRole } from '@/lib/types/roles';
@@ -17,7 +17,6 @@ function buildNav(role: UserRole) {
   ];
   if (role === 'accountant' || role === 'dev') {
     base.push({ href: '/import',   label: 'Import',     icon: Upload     });
-    base.push({ href: '/staff',    label: 'Staff',      icon: Users      });
     base.push({ href: '/logs',     label: 'Audit Log',  icon: ScrollText });
     base.push({ href: '/settings', label: 'Pengaturan', icon: Settings   });
   }

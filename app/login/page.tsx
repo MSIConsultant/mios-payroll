@@ -126,15 +126,6 @@ function LoginForm() {
               )}
             </button>
 
-            <p className="text-center text-[13px] text-[var(--text-muted)] pt-2">
-              Belum punya akun?{' '}
-              <Link
-                href="/register"
-                className="font-semibold text-[var(--brand)] hover:underline"
-              >
-                Daftar sekarang
-              </Link>
-            </p>
           </form>
         </div>
 

@@ -13,7 +13,7 @@ export default async function LogsPage() {
   if (!profile || profile.role === 'staff') redirect('/dashboard');
 
   const workspaceId = profile.workspace_id;
-  if (!workspaceId) redirect('/onboarding');
+  if (!workspaceId) redirect('/dashboard');
 
   const [{ data: logs }, { data: companies }] = await Promise.all([
     supabase.from('audit_logs')

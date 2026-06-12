@@ -4,15 +4,12 @@ import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { archiveCompany, deleteCompany } from '@/lib/actions/companies';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
-import {
-  sendInvite, removeMember, revokeInvite, getWorkspaceActivity, createWorkspace,
-} from '@/lib/actions/workspace';
-import {
-  Trash2, Archive, AlertTriangle, Building2, UserPlus, UserX, Copy, Check, Clock, Plus,
-  Loader2,
-} from 'lucide-react';
+import { getWorkspaceActivity } from '@/lib/actions/workspace';
+import { Trash2, Archive, AlertTriangle, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Labels for historical activity rows — member/invite events remain in the
+// log even though the invite flow itself has been removed.
 const ACTION_LABELS: Record<string, { label: string; tone: string }> = {
   WORKSPACE_CREATED:  { label: 'Workspace dibuat',       tone: 'text-[var(--brand)]' },
   MEMBER_INVITED:     { label: 'Undangan dikirim ke',    tone: 'text-sky-700' },
@@ -47,17 +44,9 @@ function Tab({
 }
 
 export default function SettingsPage() {
-  const { workspace, workspaces, switchWorkspace } = useWorkspace();
+  const { workspace } = useWorkspace();
   const confirm = useConfirm();
-  const [tab, setTab] = useState<'members' | 'companies' | 'activity'>('members');
-
-  const [members, setMembers] = useState<any[]>([]);
-  const [invites, setInvites] = useState<any[]>([]);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteLink, setInviteLink] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState('');
+  const [tab, setTab] = useState<'companies' | 'activity'>('companies');
 
   const [companies, setCompanies] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -72,26 +61,11 @@ export default function SettingsPage() {
     setLoadingData(true);
     const supabase = createClient();
 
-    const [{ data: mems }, { data: invs }, { data: cos }] = await Promise.all([
-      supabase
-        .from('workspace_members')
-        .select('user_id, user_email, role, created_at')
-        .eq('workspace_id', workspace.id),
-      supabase
-        .from('workspace_invitations')
-        .select('*')
-        .eq('workspace_id', workspace.id)
-        .is('accepted_at', null)
-        .gt('expires_at', new Date().toISOString()),
-      supabase
-        .from('companies')
-        .select('id, name, aktif')
-        .eq('workspace_id', workspace.id)
-        .order('name'),
-    ]);
-
-    if (mems) setMembers(mems);
-    if (invs) setInvites(invs);
+    const { data: cos } = await supabase
+      .from('companies')
+      .select('id, name, aktif')
+      .eq('workspace_id', workspace.id)
+      .order('name');
     if (cos) setCompanies(cos);
 
     const acts = await getWorkspaceActivity(workspace.id);
@@ -102,67 +76,6 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  const [newWsName, setNewWsName] = useState('');
-  const [creatingWs, setCreatingWs] = useState(false);
-
-  async function handleCreateWorkspace() {
-    if (!newWsName) return;
-    setCreatingWs(true);
-    const fd = new FormData();
-    fd.append('name', newWsName);
-    const res = await createWorkspace(fd);
-    if (res.error) {
-      toast.error(res.error);
-    } else {
-      toast.success(`Workspace "${newWsName}" dibuat`);
-      setNewWsName('');
-      window.location.reload();
-    }
-    setCreatingWs(false);
-  }
-
-  async function handleInvite() {
-    if (!workspace || !inviteEmail) return;
-    setInviting(true);
-    setInviteError('');
-    setInviteLink('');
-    const res = await sendInvite(workspace.id, inviteEmail);
-    if (res.error) {
-      setInviteError(res.error);
-    } else {
-      setInviteLink(res.inviteUrl!);
-      setInviteEmail('');
-      await fetchAll();
-    }
-    setInviting(false);
-  }
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function handleRemoveMember(userId: string, email: string) {
-    if (!workspace) return;
-    if (!(await confirm({
-      title: 'Hapus anggota dari workspace?',
-      message: `${email} akan kehilangan akses ke workspace ini.`,
-      severity: 'danger',
-      confirmLabel: 'Hapus',
-    }))) return;
-    const res = await removeMember(workspace.id, userId, email);
-    if (res.error) toast.error(res.error);
-    else await fetchAll();
-  }
-
-  async function handleRevokeInvite(id: string, email: string) {
-    if (!workspace) return;
-    const res = await revokeInvite(id, workspace.id, email);
-    if (res.error) toast.error(res.error);
-    else await fetchAll();
-  }
 
   async function handleArchive(id: string, aktif: boolean) {
     setDeleting(id);
@@ -178,6 +91,12 @@ export default function SettingsPage() {
       toast.error('Nama tidak cocok.');
       return;
     }
+    if (!(await confirm({
+      title: 'Hapus perusahaan secara permanen?',
+      message: `Semua karyawan dan riwayat payroll ${co?.name} ikut terhapus. Tidak dapat dibatalkan.`,
+      severity: 'danger',
+      confirmLabel: 'Hapus Permanen',
+    }))) return;
     setDeleting(id);
     const res = await deleteCompany(id);
     if (res.error) {
@@ -196,218 +115,16 @@ export default function SettingsPage() {
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
           Pengaturan
         </h1>
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <span className="text-sm text-[var(--text-muted)]">Workspace aktif:</span>
-          <select
-            value={workspace?.id ?? ''}
-            onChange={(e) => switchWorkspace(e.target.value)}
-            className="bg-white border border-[var(--border-default)] text-[var(--text-primary)] text-sm rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] font-semibold"
-          >
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="text-sm text-[var(--text-muted)] mt-2">
+          Workspace: <span className="font-semibold text-[var(--text-secondary)]">{workspace?.name ?? '…'}</span>
+        </p>
       </header>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white border border-[var(--border-default)] rounded-lg p-1 w-fit">
-        <Tab id="members" active={tab === 'members'} label="Anggota & Undangan" onClick={setTab} />
-        <Tab id="companies" active={tab === 'companies'} label="Kelola Data" onClick={setTab} />
+        <Tab id="companies" active={tab === 'companies'} label="Perusahaan" onClick={setTab} />
         <Tab id="activity" active={tab === 'activity'} label="Log Aktivitas" onClick={setTab} />
       </div>
-
-      {tab === 'members' && (
-        <div className="space-y-4">
-          {/* Create new workspace */}
-          <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center">
-                <Plus size={16} />
-              </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                Workspace Baru{' '}
-                <span className="text-[var(--text-muted)] font-normal">
-                  {workspaces.length}/2
-                </span>
-              </h2>
-            </div>
-            {workspaces.length >= 2 ? (
-              <p className="text-[13px] text-[var(--text-muted)]">
-                Maksimal 2 workspace per akun sudah tercapai.
-              </p>
-            ) : (
-              <div className="flex gap-2 flex-col sm:flex-row">
-                <input
-                  type="text"
-                  value={newWsName}
-                  onChange={(e) => setNewWsName(e.target.value)}
-                  placeholder="Nama workspace baru…"
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateWorkspace()}
-                  className="flex-1 px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
-                />
-                <button
-                  onClick={handleCreateWorkspace}
-                  disabled={creatingWs || !newWsName}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold disabled:opacity-60 transition-colors cursor-pointer"
-                >
-                  {creatingWs ? <Loader2 size={14} className="animate-spin" /> : null}
-                  Buat
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Invite form */}
-          <div className="bg-white border border-[var(--border-default)] rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center">
-                <UserPlus size={16} />
-              </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                Undang Anggota
-              </h2>
-            </div>
-            <div className="flex gap-2 flex-col sm:flex-row">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="email@akuntan.com"
-                onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                className="flex-1 px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
-              />
-              <button
-                onClick={handleInvite}
-                disabled={inviting || !inviteEmail}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold disabled:opacity-60 transition-colors cursor-pointer"
-              >
-                {inviting ? <Loader2 size={14} className="animate-spin" /> : null}
-                Kirim
-              </button>
-            </div>
-            {inviteError && (
-              <p className="text-[12px] text-red-700 mt-2 flex items-center gap-1.5">
-                <AlertTriangle size={12} />
-                {inviteError}
-              </p>
-            )}
-
-            {inviteLink && (
-              <div className="mt-4 animate-fade-in">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">
-                  Link undangan (salin & kirim via WhatsApp/Email)
-                </p>
-                <div className="flex gap-2">
-                  <div className="flex-1 px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-default)] rounded-lg text-[12px] text-[var(--text-secondary)] font-mono truncate">
-                    {inviteLink}
-                  </div>
-                  <button
-                    onClick={handleCopy}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-soft)] text-[var(--brand)] rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors cursor-pointer"
-                  >
-                    {copied ? (
-                      <>
-                        <Check size={14} /> Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={14} /> Copy
-                      </>
-                    )}
-                  </button>
-                </div>
-                <p className="text-[12px] text-[var(--text-muted)] mt-2">
-                  Link berlaku 7 hari. Penerima harus login/daftar dengan email yang sama.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Members */}
-          <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
-              <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                Anggota Aktif{' '}
-                <span className="text-[var(--text-muted)] font-normal">({members.length})</span>
-              </h2>
-            </div>
-            <ul className="divide-y divide-[var(--border-subtle)]">
-              {members.map((m) => {
-                const email = m.user_email ?? '—';
-                const isOwnerMember = m.role === 'owner';
-                return (
-                  <li
-                    key={m.user_id ?? email}
-                    className="px-5 py-3 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="text-[14px] font-medium text-[var(--text-primary)]">
-                        {email}
-                      </p>
-                      <span
-                        className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 ring-inset mt-1 inline-block ${
-                          isOwnerMember
-                            ? 'bg-[var(--brand-soft)] text-[var(--brand)] ring-blue-200'
-                            : 'bg-slate-100 text-slate-600 ring-slate-200'
-                        }`}
-                      >
-                        {m.role}
-                      </span>
-                    </div>
-                    {!isOwnerMember && (
-                      <button
-                        onClick={() => handleRemoveMember(m.user_id, email)}
-                        className="p-2 rounded-lg text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                        aria-label="Hapus anggota"
-                      >
-                        <UserX size={15} />
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {invites.length > 0 && (
-            <div className="bg-white border border-[var(--border-default)] rounded-xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
-                <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                  Undangan Pending{' '}
-                  <span className="text-[var(--text-muted)] font-normal">({invites.length})</span>
-                </h2>
-              </div>
-              <ul className="divide-y divide-[var(--border-subtle)]">
-                {invites.map((inv) => (
-                  <li
-                    key={inv.id}
-                    className="px-5 py-3 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="text-[14px] font-medium text-[var(--text-primary)]">
-                        {inv.invited_email}
-                      </p>
-                      <p className="text-[12px] text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                        <Clock size={11} />
-                        Berakhir {new Date(inv.expires_at).toLocaleDateString('id-ID')}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleRevokeInvite(inv.id, inv.invited_email)}
-                      className="text-[12px] font-semibold text-[var(--text-muted)] hover:text-red-600 transition-colors cursor-pointer"
-                    >
-                      Cabut
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
 
       {tab === 'companies' && (
         <div className="bg-white border border-red-200 rounded-xl overflow-hidden">
