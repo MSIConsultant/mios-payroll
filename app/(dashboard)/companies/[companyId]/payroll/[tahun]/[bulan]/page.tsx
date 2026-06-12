@@ -410,14 +410,22 @@ const Pasal17BreakdownPanel = memo(function Pasal17BreakdownPanel({ res }: { res
               <p className="font-mono font-bold text-[13px] text-violet-900">{rp(res.pph_jan_nov ?? 0)}</p>
             </div>
             <span className="text-violet-400 font-bold text-lg select-none">=</span>
-            <div className={`text-center rounded-lg px-3 py-1.5 ${res.is_refund ? 'bg-amber-100 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
-              <p className={`text-[10px] mb-0.5 font-medium ${res.is_refund ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {res.is_refund ? '← Refund karyawan' : `PPh ${periodName}`}
-              </p>
-              <p className={`font-mono font-bold text-[14px] ${res.is_refund ? 'text-amber-800' : 'text-emerald-800'}`}>
-                {res.is_refund ? `− ${rp(res.refund_amount ?? 0)}` : rp(res.pph ?? 0)}
-              </p>
-            </div>
+            {(() => {
+              // Over-withheld: show the honest negative, grossup included.
+              // Older saved results lack `lebih_potong` — fall back to refund pair.
+              const lebihPotong = (res.lebih_potong ?? (res.is_refund ? res.refund_amount : 0)) || 0;
+              const over = lebihPotong > 0;
+              return (
+                <div className={`text-center rounded-lg px-3 py-1.5 ${over ? 'bg-amber-100 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
+                  <p className={`text-[10px] mb-0.5 font-medium ${over ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {over ? (res.pph_ditanggung ? '← Lebih setor (grossup)' : '← Refund karyawan') : `PPh ${periodName}`}
+                  </p>
+                  <p className={`font-mono font-bold text-[14px] ${over ? 'text-amber-800' : 'text-emerald-800'}`}>
+                    {over ? `− ${rp(lebihPotong)}` : rp(res.pph ?? 0)}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -602,6 +610,7 @@ export default function PayrollRunPage() {
   const [shareCopied, setShareCopied]     = useState(false);
   const [calcProgress, setCalcProgress]   = useState({ current: 0, total: 0 });
   const [accumMap, setAccumMap]           = useState<Record<string, { akum_bruto: number; pph_jan_nov: number }>>({});
+  const [savedMonths, setSavedMonths]     = useState<number[]>([]);
   const [showYTD, setShowYTD]             = useState(false);
   const [quickEditEmp, setQuickEditEmp]   = useState<any>(null);
   const [upahEditEmp, setUpahEditEmp]     = useState<any>(null);
@@ -611,12 +620,17 @@ export default function PayrollRunPage() {
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
-      const [{ data: co }, { data: empDataRaw }, { data: eventData }, { data: runData }] = await Promise.all([
+      const [{ data: co }, { data: empDataRaw }, { data: eventData }, { data: runData }, { data: priorRuns }] = await Promise.all([
         supabase.from('companies').select('name, npwp_perusahaan').eq('id', companyId).single(),
         supabase.from('employees').select('*').eq('company_id', companyId).eq('aktif', true),
         supabase.from('employee_events').select('*').eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan),
         supabase.from('payroll_runs').select('*, payroll_results(*)').eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan).maybeSingle(),
+        // Which prior months of this year have a saved run — December's
+        // equalization silently sums only what exists, so the UI must be able
+        // to say which months are missing from the accumulation.
+        supabase.from('payroll_runs').select('bulan').eq('company_id', companyId).eq('tahun', tahun).lt('bulan', Number(bulan)),
       ]);
+      setSavedMonths([...new Set((priorRuns ?? []).map((r) => Number(r.bulan)))]);
       // Filter out employees who already exited before this run month AND were
       // not active at any point in this month. An employee with tanggal_keluar
       // in 2026-03 is included in March payroll (last month) but NOT in April.
@@ -801,6 +815,12 @@ export default function PayrollRunPage() {
   const totalThp   = results.reduce((a, r) => a + (r.thp || 0), 0);
   const totalCtc   = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0) + (r.bpjs?.employer_offslip || 0), 0);
   const hasYTD     = Object.keys(accumMap).length > 0;
+  // Older saved results predate `lebih_potong` — fall back to the refund pair.
+  const lebihPotongOf = (r: any) => r.lebih_potong ?? (r.is_refund ? (r.refund_amount ?? 0) : 0);
+  const totalLebihPotong = results.reduce((a, r) => a + lebihPotongOf(r), 0);
+  const missingMonths = isDesember
+    ? Array.from({ length: 11 }, (_, i) => i + 1).filter((m) => !savedMonths.includes(m))
+    : [];
   const isCalcing  = calcProgress.total > 0;
   const maxThp     = results.length > 0 ? Math.max(...results.map((r) => r.thp ?? 0), 1) : 1;
   const runStatus  = existingRun?.status ?? (isCalcing ? 'calculating' : 'draft');
@@ -937,6 +957,22 @@ export default function PayrollRunPage() {
         </div>
       )}
 
+      {/* December: missing prior months — the equalization sums only saved runs */}
+      {isDesember && missingMonths.length > 0 && missingMonths.length < 11 && (
+        <div className="rounded-xl p-5 flex items-start gap-3 bg-red-50 border border-red-200 animate-fade-in">
+          <AlertTriangle size={18} className="text-red-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">Akumulasi tidak lengkap — PPh Desember kemungkinan salah</p>
+            <p className="text-[13px] text-red-700 mt-1 leading-relaxed">
+              Run berikut belum tersimpan untuk {tahun}:{' '}
+              <span className="font-semibold">{missingMonths.map((m) => BULAN_NAMES[m - 1]).join(', ')}</span>.
+              Equalisasi Desember hanya menjumlahkan bulan yang tersimpan, jadi PPh setahun dihitung dari data yang kurang.
+              Simpan run bulan-bulan tersebut dulu, lalu hitung ulang Desember. Abaikan jika perusahaan memang baru mulai payroll di tengah tahun.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* December warning */}
       {isDesember && isCalculated && (
         <div className="rounded-xl p-5 flex items-start gap-3 bg-amber-50 border border-amber-200 animate-fade-in">
@@ -948,6 +984,13 @@ export default function PayrollRunPage() {
               <span className="font-semibold font-mono">{formatRupiah(totalPph)}</span> untuk{' '}
               {results.length} karyawan menggunakan metode Pasal 17 tahunan.
             </p>
+            {totalLebihPotong > 0 && (
+              <p className="text-[13px] text-amber-700 mt-1.5 leading-relaxed">
+                Total kelebihan potong/setor (PPh Des negatif):{' '}
+                <span className="font-semibold font-mono">− {formatRupiah(totalLebihPotong)}</span>{' '}
+                — rincian per karyawan ada di kartu masing-masing.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1079,7 +1122,7 @@ export default function PayrollRunPage() {
               }
               steps.push({ label: 'PPh Tahunan', value: rpFmt(res.pph_tahunan ?? 0) });
               steps.push({ label: '− PPh sudah dipotong', value: rpFmt(res.pph_jan_nov ?? 0), op: '-' });
-              if (res.is_refund) steps.push({ label: 'Refund (kelebihan potong)', value: `−${rpFmt(res.refund_amount ?? 0)}`, highlight: true });
+              if (lebihPotongOf(res) > 0) steps.push({ label: res.pph_ditanggung ? 'Lebih setor (grossup)' : 'Refund (kelebihan potong)', value: `−${rpFmt(lebihPotongOf(res))}`, highlight: true });
               else steps.push({ label: isMidYear ? 'PPh Bulan Terakhir' : 'PPh Desember', value: rpFmt(res.pph ?? 0), highlight: true });
               return { title: `PPh 21 — ${isMidYear ? `Bulan Terakhir Kerja (${M} bulan)` : 'Desember (12 bulan)'}`, description: 'Equalisasi tarif progresif Pasal 17', steps, footer: 'UU HPP Pasal 17 — pembulatan PKP ke ribuan bawah' };
             })() : undefined;
@@ -1155,7 +1198,7 @@ export default function PayrollRunPage() {
                       {res.punya_npwp === false && <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-50 text-red-600">NO NPWP</span>}
                       {res.pph_ditanggung && <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">Gross</span>}
                       {res.is_last_month && <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">P17·{res.months_in_year ?? 12}m</span>}
-                      {res.is_refund && <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">Refund</span>}
+                      {lebihPotongOf(res) > 0 && <span className="shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">{res.pph_ditanggung ? 'Lebih Setor' : 'Refund'}</span>}
                     </div>
                     <div className="mt-1.5 h-1 w-full max-w-[160px] bg-slate-100 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${thpPct}%` }} />
@@ -1227,16 +1270,22 @@ export default function PayrollRunPage() {
                         </div>
                       </div>
                     )}
-                    {res.is_refund && (
+                    {lebihPotongOf(res) > 0 && (
                       <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
                         <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
                         <div className="text-[13px] text-amber-900 leading-relaxed">
-                          <p className="font-semibold">Kelebihan potong PPh — karyawan berhak refund</p>
+                          <p className="font-semibold">
+                            {res.pph_ditanggung
+                              ? 'Kelebihan setor PPh (grossup) — PPh Des negatif'
+                              : 'Kelebihan potong PPh — karyawan berhak refund'}
+                          </p>
                           <p className="mt-0.5">
-                            PPh tahunan ({formatRupiah(res.pph_tahunan ?? 0)}) lebih kecil dari PPh yang sudah dipotong{' '}
-                            ({formatRupiah(res.pph_jan_nov ?? 0)}). Selisih:{' '}
-                            <span className="font-semibold font-mono">{formatRupiah(res.refund_amount ?? 0)}</span>{' '}
-                            harus dikembalikan tunai kepada karyawan di luar slip ini.
+                            PPh tahunan ({formatRupiah(res.pph_tahunan ?? 0)}) lebih kecil dari PPh yang sudah {res.pph_ditanggung ? 'dibayar perusahaan' : 'dipotong'}{' '}
+                            ({formatRupiah(res.pph_jan_nov ?? 0)}). PPh Desember:{' '}
+                            <span className="font-semibold font-mono">− {formatRupiah(lebihPotongOf(res))}</span>
+                            {res.pph_ditanggung
+                              ? ' — kelebihan setor perusahaan, dikompensasikan/direstitusi via SPT.'
+                              : ' — harus dikembalikan tunai kepada karyawan di luar slip ini.'}
                           </p>
                         </div>
                       </div>

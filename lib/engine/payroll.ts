@@ -400,14 +400,20 @@ export function calculateLastMonth(
     const { bj, jht_k_tahunan, jp_k_tahunan, netto, pkp, pth } = annual;
 
     const rawPph = Math.round(pth - k.pph_jan_nov);
-    // Refund (over-withholding) only meaningful for non-grossup employees;
-    // for grossup, the employer over-paid tunjangan — tracked separately.
+    // Over-withholding. For non-grossup the employee is owed a cash refund
+    // (is_refund/refund_amount). For grossup the employer over-paid tunjangan
+    // during the year. Either way the accountant's REKAP sheet reports the
+    // negative "PPH DES" — `lebih_potong` carries that amount (≥ 0) for both
+    // schemes so the UI can show it; on-slip pph/pot_pph stay clamped to 0.
     const isRefund = !k.pph_ditanggung && rawPph < 0;
     const refundAmount = isRefund ? -rawPph : 0;
+    const lebihPotong = Math.max(0, -rawPph);
     const pot_pph = k.pph_ditanggung ? 0 : Math.max(0, rawPph);
     const pph_this = k.pph_ditanggung ? tunj_pph : Math.max(0, rawPph);
 
-    const thp = k.gaji_pokok + allowance_total - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    // THR/bonus paid in the last month are part of that month's take-home,
+    // same as calculateMonthlySalary's irregular_total.
+    const thp = k.gaji_pokok + allowance_total + k.thr + k.bonus - Math.round(bpjs.karyawan_potong) - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     const proyeksi = {
         bruto_setahun: bs,
@@ -450,6 +456,7 @@ export function calculateLastMonth(
         raw_pph: rawPph,
         is_refund: isRefund,
         refund_amount: refundAmount,
+        lebih_potong: lebihPotong,
     };
 }
 
