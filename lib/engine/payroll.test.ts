@@ -603,6 +603,64 @@ describe('calculateLastMonth — mid-year exit Pasal 17 reconciliation', () => {
     expect((r as any).raw_pph).toBeGreaterThanOrEqual(0);
   });
 
+  it('RALO workbook regression: grossup December matches accountant REKAP to the rupiah', () => {
+    // Employee "XX" from samples/Grossup PPh 21 RALO.xlsx REKAP sheet:
+    // gaji 9,150,000 TK0 grossup; JKK 0.24% + JKM in bruto, Kes employer
+    // off-slip; JHT 2% + JP 1% potong karyawan; THR (Mar) + bonus (Aug)
+    // already inside akum_bruto. Sheet: bruto setahun 128,286,613 → bj 6M →
+    // JHT+JP 3,294,000 → netto 118,992,613 → PKP 64,992,000 → PPh setahun
+    // 3,748,800; sudah dipotong 4,168,708 → PPH DES −419,908.
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 9_150_000,
+      jkk_rate: 0.0024,
+      ikut_jht: true, tanggung_jht_k: false,
+      ikut_jp: true, tanggung_jp_k: false,
+      ikut_kes: true, tanggung_kes_k: false,
+      kes_employer_in_bruto: false,
+      pph_ditanggung: true,
+      akum_bruto: 119_087_203,
+      pph_jan_nov: 4_168_708,
+    }));
+    expect((r as any).bs).toBeCloseTo(128_286_613, 0);
+    expect((r as any).bj).toBe(6_000_000);
+    expect((r as any).jht_k_tahunan + (r as any).jp_k_tahunan).toBeCloseTo(3_294_000, 0);
+    expect((r as any).pkp).toBe(64_992_000);
+    expect((r as any).pph_tahunan).toBe(3_748_800);
+    expect((r as any).raw_pph).toBe(-419_908);
+    expect((r as any).lebih_potong).toBe(419_908);
+    expect((r as any).tunj_pph).toBe(0);  // no December tunjangan needed
+    expect(r.pph).toBe(0);                // on-slip stays clamped
+  });
+
+  it('December THP includes THR/bonus paid in that month (bugfix)', () => {
+    const base = tetap({
+      bulan: 12,
+      gaji_pokok: 10_000_000,
+      jkk_rate: 0,
+      akum_bruto: 110_000_000,
+      pph_jan_nov: 1_500_000,
+    });
+    const without = calculateMonthlySalary(base);
+    const withThr = calculateMonthlySalary({ ...base, thr: 10_000_000, bonus: 2_000_000 });
+    // Same deductions baseline; THP must grow by exactly THR+bonus minus the
+    // extra PPh those irregulars trigger in the equalization.
+    const extraPph = (withThr.pph ?? 0) - (without.pph ?? 0);
+    expect(withThr.thp - without.thp).toBe(12_000_000 - extraPph);
+  });
+
+  it('lebih_potong mirrors refund_amount for non-grossup over-withholding', () => {
+    const r = calculateMonthlySalary(tetap({
+      bulan: 12,
+      gaji_pokok: 5_000_000,
+      jkk_rate: 0,
+      akum_bruto: 55_000_000,
+      pph_jan_nov: 5_000_000,
+    }));
+    expect((r as any).lebih_potong).toBe((r as any).refund_amount);
+    expect((r as any).lebih_potong).toBeGreaterThan(0);
+  });
+
   it('months_in_year clamps to [1, 12]', () => {
     const r1 = calculateMonthlySalary(tetap({
       bulan: 1, isLastMonth: true, months_in_year: 0,

@@ -1,38 +1,42 @@
 # MIOS Payroll — Product Requirements Document
 
-> **Positioning:** Internal-first tool for MSI Consultant International today; a
-> multi-tenant SaaS for Indonesian accounting firms is **Phase 2** (see end).
-> The multi-tenant primitives (workspaces, capacity caps, RLS isolation) are
-> already built as groundwork, but the product is operated internally for now.
+> **Positioning (revised 2026-06-12):** A two-user internal tool for MSI
+> Consultant International — the dev (Ral) and the MSI accountant. The former
+> multi-tenant SaaS ambition is **dropped**; it drove most of the app's
+> complexity (registration/approval, invites, staff roles, notifications) with
+> no second tenant to justify it. That scaffolding was removed in 2026-06.
 >
-> Status flags reflect the codebase as of 2026-06 and are verified against the
-> repo — not aspirational. Don't rank work off this checklist alone; confirm
-> priorities against real accountant friction.
+> Status flags reflect the codebase as of 2026-06-12 and are verified against
+> the repo — not aspirational. Don't rank work off this checklist alone;
+> confirm priorities against real accountant friction.
 
 ## Product Vision
-MIOS Payroll is an Indonesian payroll operating system for accounting
-professionals. It runs the full payroll lifecycle for many client companies —
-employee onboarding, PPh 21 calculation (TER + December Pasal 17 equalization),
-BPJS, slip generation, SPT export, and a legal audit trail — and lets
-an accountant migrate years of Excel history into a structured, reconciled store.
+MIOS Payroll stores employee data per client company and calculates Indonesian
+payroll correctly — PPh 21 (TER + last-month Pasal 17 equalization), BPJS,
+THR/bonus — with a transparent breakdown the accountant can defend, plus slip
+generation, SPT export, Excel-history import, and an audit trail.
 
-**Phase 1 (now):** the internal payroll system for MSI's own accountants.
-**Phase 2 (later):** the same system sold to Indonesian KAP / tax consultants.
+**Compact, easy, fast.** Anything that doesn't serve the accountant's monthly
+run across his client companies is out of scope.
 
 ## Target Users
+- **Dev (Ral)** — System owner/operator. Full access, `/dev/admin`.
+- **Accountant (MSI staff)** — Does the actual monthly work: manages companies
+  and employees, runs/locks payroll, imports Excel history, prints slips,
+  exports SPT.
 
-### Primary
-- **Dev (Ral)** — System owner/operator. Full access, user-approval authority, `/dev/admin`.
-- **Accountant (MSI staff)** — Workspace owner. Manages companies, runs/locks payroll, imports Excel history, reviews logs.
-
-### Secondary
-- **Staff** — Data entry, scoped to assigned companies only. No logs, settings, deletes, imports, or locks.
+There are no other users. Accounts are created manually in Supabase; there is
+no self-registration.
 
 ## Core Problems Solved
-1. **Indonesian payroll math is hard** (TER, BPJS, grossup, December equalization) — the engine does it automatically and is locked by a comprehensive test suite.
-2. **Accountants live in Excel across many companies** — MIOS is a structured, auditable alternative that preserves the exact monthly math.
-3. **Years of historical payroll are scattered across spreadsheets** — MIOS bulk-imports them (multi-file, multi-month) with per-employee reconciliation against the engine, and preserves them permanently.
-4. **Multi-user accounting teams have no access control** — MIOS enforces role-based, per-company permissions at the database (RLS), not just the UI.
+1. **Indonesian payroll math is hard** (TER, BPJS, grossup, December
+   equalization) — the engine does it automatically, is locked by a test suite,
+   and is pinned to the accountant's own workbook (RALO regression test).
+2. **The accountant lives in Excel across many companies** — MIOS is a
+   structured, auditable alternative that preserves the exact monthly math and
+   mirrors his REKAP-sheet December reconciliation (including negative PPh Des).
+3. **Years of historical payroll are scattered across spreadsheets** — MIOS
+   bulk-imports them with per-employee reconciliation against the engine.
 
 ---
 
@@ -41,7 +45,7 @@ an accountant migrate years of Excel history into a structured, reconciled store
 |---|---|
 | PP 58/2023 | TER tables A/B/C |
 | PMK 168/2023 | TER method Jan–Nov; Pasal 17 equalization in the last month; **harian via TER** (replaced the pre-2024 Pasal 17 + Rp 450k daily threshold, 2026-05-20) |
-| PPh 21 Pasal 17 | December (and mid-year exit) equalization; THR/Bonus selisih method |
+| PPh 21 Pasal 17 | December (and mid-year exit) equalization; THR/Bonus selisih method; over-withholding shown as negative PPh Des (lebih potong/setor) |
 | PENG-6/PJ.09/2024 + PMK 112/2022 | **Non-NPWP ×1.2 surcharge removed** (NIK = NPWP integration); `punya_npwp` retained for slip/SPT display only |
 | BPJS Ketenagakerjaan | JHT 3.7%/2%, JP 2%/1% (cap 10,547,400), JKK/JKM |
 | BPJS Kesehatan | 4%/1% (cap 12,000,000) |
@@ -49,74 +53,48 @@ an accountant migrate years of Excel history into a structured, reconciled store
 
 ---
 
-## Product Priorities
-
-> "Done" means shipped and in production use. The foundational priorities are delivered.
-
-1. **Excel-migration wedge — DONE.** Multi-file / multi-month bulk historical import with engine reconciliation is the core reason an accountant switches off Excel. Live at `/import/bulk`.
-2. **Calculation correctness — DONE & guarded.** Engine math is the product's credibility; locked by tests, with transparent December breakdowns.
-3. **Tenant isolation — DONE (hardened 2026-06).** Staff are scoped to assigned companies at the RLS layer; capacity caps enforced by DB triggers.
-
----
-
 ## Feature Requirements
 
-### Auth & Access Control
-- [x] Registration with email verification
-- [x] Approval-gated access (pending → approved/rejected)
-- [x] Dev receives Resend email on new registration
-- [x] Role system: dev / accountant / staff
-- [x] Middleware enforces role-based path access
+### Auth & Access
+- [x] Login for two known accounts (manual creation in Supabase; no self-registration)
+- [x] Middleware signs out any session without an approved profile
 - [x] Dev hardcoded bypass (no DB lookup)
-- [x] Staff blocked from: /logs /settings /staff /dev /import
-- [x] **Per-company staff scoping enforced in RLS** (`is_company_member` role-aware; 2026-06 hardening)
-- [x] Server-action role guards via `appRole` (defense-in-depth on top of RLS)
-- [ ] Session timeout handling
-- [ ] 2FA for accountant role (future)
+- [x] Legacy `staff` role still path-blocked by middleware (no longer assignable from the UI)
+- [ ] Session timeout handling (idle timeout exists: 8h)
 
-### Workspace & Companies
-- [x] Multi-tenant workspace per accountant
-- [x] Capacity caps (app + DB triggers): max 2 workspaces/user, max 2 owned/accountant, max 10 staff/workspace
-- [x] Login returns user to their previous active workspace
-- [x] Company CRUD with NPWP, kota, industri, alamat (staff cannot create)
-- [x] Archive/restore companies
-- [x] Staff company access control (per company, per staff)
-- [ ] Company-level settings (BPJS registration numbers)
-
-### Employee Management
+### Companies & Employees
+- [x] Company CRUD with NPWP, kota, industri, alamat; archive/restore; guarded hard-delete
 - [x] Employee profiles: NIK (KTP/passport), NPWP, PTKP, compensation, BPJS flags
 - [x] Karyawan tetap + tidak tetap (harian / bulanan)
 - [x] Grossup (PPh ditanggung perusahaan) flag
 - [x] `bpjs_basis` override (declared BPJS salary distinct from gaji_pokok)
 - [x] Monthly events: THR, bonus, kasbon, potongan, benefit_extra, per-month upah override
-- [x] Toggle active/inactive
-- [x] Payroll history per employee
-- [ ] Employee photo
+- [x] Toggle active/inactive; payroll history per employee
+- [ ] Company-level settings (BPJS registration numbers)
 - [ ] Contract end date for tidak tetap
 
 ### Payroll Engine
-- [x] Auto-calculate on page open (no button click needed)
+- [x] Auto-calculate on page open
 - [x] TER method (Jan–Nov)
 - [x] Pasal 17 equalization — December **and** mid-year exit (`calculateLastMonth`, M-scaled)
 - [x] Harian via TER (PMK 168/2023)
 - [x] Grossup iterative convergence (<0.01 threshold)
 - [x] BPJS full breakdown (in-bruto vs offslip), with per-employee JKK rate
-- [x] THR/Bonus via selisih Pasal 17
-- [x] Over-withholding refund detection (`is_refund` / `refund_amount`)
+- [x] THR/Bonus via selisih Pasal 17; included in last-month THP (bugfix 2026-06)
+- [x] Over-withholding shown honestly (`lebih_potong` for grossup **and** non-grossup; negative PPh Des like the accountant's sheet)
+- [x] December warns which prior months are missing from the saved accumulation
+- [x] RALO workbook regression test (engine pinned to the accountant's December numbers)
 - [x] Quick-edit employee compensation inline + per-employee recalc
 - [x] Save (calculated) → Lock workflow (locked runs immutable)
 - [x] YTD ledger (akum_bruto + akum_pph)
-- [x] Full per-employee breakdown panel
+- [x] Full per-employee breakdown panel + sortable **Tabel** view with totals row
 - [ ] Bulk recalculate all companies for a month
-- [ ] Payroll comparison month-over-month
-- [ ] Anomaly alerts (e.g. >15% bruto change)
-- [ ] `is_estimate` / convergence warnings surfaced to UI (engine sets flags; UI not yet showing them)
+- [ ] Grossup non-convergence warning surfaced to UI (`_converged` flag exists)
 
 ### Calculator / Simulasi
-- [x] Standalone 12-month payroll calculator (`/simulasi`, "Kalkulator") — editable per-month ledger, computed from real per-month inputs, **no DB writes**
-- [x] Per-month overrides (raise, THR, bonus, potongan, not-working months) + "apply forward"
-- [x] Presets, grossup, BPJS/PTKP toggles
-- [x] Transparent December Pasal 17 reconciliation (Bruto Setahun shown as accumulated months + current month)
+- [x] Standalone 12-month payroll calculator (`/simulasi`) — editable per-month ledger, no DB writes
+- [x] Per-month overrides + "apply forward"; presets, grossup, BPJS/PTKP toggles
+- [x] Transparent December Pasal 17 reconciliation
 - [ ] Save / share a scenario
 
 ### Export
@@ -125,92 +103,56 @@ an accountant migrate years of Excel history into a structured, reconciled store
 - [x] BPJS export
 - [x] Client share link (public, no-auth, 30-day expiry)
 - [ ] Bulk slip gaji (all employees in one PDF)
-- [ ] e-SPT compatible format
 - [ ] Excel export of payroll results
 
 ### Import
 - [x] Excel import (single file, `Grossup_PPh_21_MM-YYYY.xlsx`)
 - [x] Auto-detect month/year from sheet name + filename
-- [x] Tetap + Harian sheet parsing
-- [x] Engine reconciliation with diff % per employee
-- [x] Permanent import session + records in DB
-- [x] Employee creation from import (match by NIK)
+- [x] Tetap + Harian sheet parsing; engine reconciliation with diff % per employee
+- [x] Permanent import session + records; employee creation by NIK match
 - [x] Payroll run creation from import (locked immediately)
-- [x] **Multi-month / archival bulk import** (`/import/bulk`) — queue many files, per-file period detect, reconcile + save each *(the Excel-migration wedge)*
-- [ ] CSV import (employee master data)
-- [ ] CSV import (payroll results)
+- [x] Multi-month / archival bulk import (`/import/bulk`)
 - [ ] Import validation template download
 
 ### Audit & Logs
-- [x] Audit log table with workspace + company scope
-- [x] Logged events: employee CRUD, payroll calculate/save/lock, import, export, permission changes, user approval
-- [x] Logs viewer (accountant+) with filter by action/company
-- [x] CSV export of audit logs
+- [x] Audit log with workspace + company scope; viewer with filters; CSV export
 - [x] Expandable diff view (old vs new values)
 - [ ] Log retention policy
 - [ ] Log search by date range
 
-### Notifications
-- [x] In-app notifications (bell icon, unread count)
-- [x] Mark read / mark all read
-- [x] Resend email: new registration → dev
-- [x] Resend email: approval/rejection → user
-- [ ] Resend email: payroll locked → accountant (when staff locks)
-- [ ] Push notifications (mobile, future)
-
-### Dashboard
-- [x] Period hero (current month/year)
-- [x] Company status board (pending/calculated/locked)
-- [x] Recent payroll log
-- [x] Stats: active companies, employees, runs this month
-- [x] Empty state with onboarding guide
-- [x] Realtime updates (Supabase channel on payroll_runs)
-- [ ] Monthly total PPh 21 across all companies
-- [ ] Anomaly detection alerts on dashboard
-
-### Performance
-- [x] `unstable_cache` wrappers wired into dashboard, batch, payroll, and layout routes
+### Dashboard & Performance
+- [x] Period hero, company status board, recent runs, stats
+- [x] Dashboard snapshot RPC (one round-trip, replaces the query waterfall)
+- [x] Companies + Batch pages server-rendered with parallel fetches (`lib/cache`)
 - [x] Skeleton loaders on all routes
-- [x] Auto-calculate payroll on page open
 - [x] Optimistic UI on quick-edit
-- [ ] Prefetch company data on hover
-- [ ] Client-side caching (React Query / SWR) (future)
+- [ ] Monthly total PPh 21 across all companies on the dashboard
 
 ### Mobile
-- [x] Mobile sidebar drawer (hamburger menu)
-- [x] Responsive grid layouts
+- [x] Mobile sidebar drawer; responsive grids
 - [ ] Touch-optimized payroll tables
-- [ ] PWA manifest
 
 ---
+
+## Removed in the 2026-06 simplification (do not rebuild)
+- Self-registration, email verification, approval queue, approval/rejection emails
+- Workspace invitations and the onboarding wizard (workspaces are created via SQL when ever needed)
+- Staff management UI and per-company staff access control (RLS scaffolding remains in the DB, harmless)
+- In-app notifications (bell, unread counts) and Supabase realtime on the dashboard
+- Severance/kompensasi module (removed 2026-06-04, before this simplification)
 
 ## Non-Goals (Explicit Out of Scope)
-- Attendance tracking
-- Leave management
-- Employee self-service portal
-- Org chart
-- HR document management
+- Multi-tenant SaaS, billing, plan tiers, external onboarding — **dropped, not deferred**
+- Attendance tracking, leave management, employee self-service, org chart, HR documents
 - Payroll disbursement (bank transfer integration)
 - Accounting journal entries
-- Foreign-worker (TKA) / PPh 26 handling — a separate product, out of scope here
-
----
-
-## Phase 2 — SaaS for Accounting Firms (future, not in scope yet)
-When MIOS moves from internal tool to sold product, these become in-scope:
-- Subscription/plan tiers (the capacity caps already model this — replace hard-coded limits with a plan column)
-- External self-serve onboarding (today onboarding assumes a trusted, dev-approved accountant)
-- Public marketing surface + a public version of the `/simulasi` calculator as a lead magnet
-- Positioning per the README: built for **KAP and tax consultants** managing multiple client companies (not single-company HR)
-- Billing, support, and data-isolation guarantees suitable for external tenants
-
-*Until then, "Dev (Ral)" remains a primary internal user and the external-SaaS language stays in this section only.*
+- Foreign-worker (TKA) / PPh 26 handling
 
 ---
 
 ## Success Metrics
 - Accountant completes a full monthly payroll for one company in < 5 minutes
-- Zero calculation divergence vs the accountant's Excel after reconciliation
+- Zero calculation divergence vs the accountant's Excel after reconciliation —
+  including December (verified against his REKAP sheet)
 - A company's multi-year, multi-month Excel history is fully importable and reconciled
 - Audit log covers every payroll-critical action
-- A staff user can access **only** their assigned companies (enforced and verifiable at the RLS layer)

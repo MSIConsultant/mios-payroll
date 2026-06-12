@@ -28,3 +28,6 @@ samples/
 *.xls
 !public/**/*.xlsx
 
+
+# TypeScript incremental build info (from npx tsc --noEmit)
+tsconfig.tsbuildinfo

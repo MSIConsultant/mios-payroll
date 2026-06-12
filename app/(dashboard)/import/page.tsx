@@ -20,7 +20,7 @@ export default async function ImportPage() {
     .eq('id', user.id)
     .single();
   if (!profile || profile.role === 'staff') redirect('/dashboard');
-  if (!profile.workspace_id) redirect('/onboarding');
+  if (!profile.workspace_id) redirect('/dashboard');
 
   const history = await getImportHistory(profile.workspace_id);
 

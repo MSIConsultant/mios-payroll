@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const DEV_EMAIL   = 'msiconsultant.international@gmail.com';
 const PUBLIC_PATHS = [
-  '/login', '/register', '/invite', '/auth', '/oauth',
-  '/forgot-password', '/reset-password', '/share', '/pending-approval',
+  '/login', '/auth', '/oauth',
+  '/forgot-password', '/reset-password', '/share',
 ];
 const IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
 
@@ -69,68 +69,25 @@ export async function middleware(request: NextRequest) {
   if (user && !isPublic) {
     // Dev email bypasses all status checks
     if (user.email?.toLowerCase() === DEV_EMAIL.toLowerCase()) {
-      // Only block if trying to access pending-approval page
-      if (pathname === '/pending-approval') {
-        const u = request.nextUrl.clone();
-        u.pathname = '/dev/admin';
-        return NextResponse.redirect(u);
-      }
-      // Dev can access everything — skip profile check entirely
       return response;
     }
     const { data: profile } = await supabase
-      .from('user_profiles').select('status, role, workspace_id').eq('id', user.id).single();
+      .from('user_profiles').select('status, role').eq('id', user.id).single();
 
-    // No profile yet (race condition after register) → pending
-    if (!profile) {
-      if (pathname !== '/pending-approval') {
-        const u = request.nextUrl.clone();
-        u.pathname = '/pending-approval';
-        return NextResponse.redirect(u);
-      }
-      return response;
-    }
-
-    // Rejected or suspended
-    if (profile.status === 'rejected' || profile.status === 'suspended') {
-      if (pathname !== '/pending-approval') {
-        const u = request.nextUrl.clone();
-        u.pathname = '/pending-approval';
-        return NextResponse.redirect(u);
-      }
-      return response;
-    }
-
-    // Pending approval
-    if (profile.status === 'pending_approval') {
-      if (pathname !== '/pending-approval') {
-        const u = request.nextUrl.clone();
-        u.pathname = '/pending-approval';
-        return NextResponse.redirect(u);
-      }
-      return response;
-    }
-
-    // Approved user with no workspace → must create one before using the app.
-    // Guards direct URL navigation (e.g. bookmark to /companies) before the
-    // workspace creation step in onboarding is complete.
-    if (
-      profile.status === 'approved' &&
-      !profile.workspace_id &&
-      pathname !== '/onboarding' &&
-      !pathname.startsWith('/api/')
-    ) {
+    // Registration is closed: accounts are created manually in Supabase.
+    // Anything other than an approved profile gets signed out.
+    if (!profile || profile.status !== 'approved') {
+      await supabase.auth.signOut();
       const u = request.nextUrl.clone();
-      u.pathname = '/onboarding';
+      u.pathname = '/login';
+      u.search = '?reason=not_approved';
       return NextResponse.redirect(u);
     }
 
-    // Staff trying to access accountant-only paths.
-    // /import is included here because the import flow needs to update
-    // employees and create payroll runs across all companies in the
-    // workspace, which falls outside the staff per-company access model.
+    // Staff trying to access accountant-only paths. The staff role is no
+    // longer assignable from the UI but DB rows may still carry it.
     if (profile.role === 'staff') {
-      const staffBlocked = ['/settings', '/dev', '/logs', '/staff', '/import'];
+      const staffBlocked = ['/settings', '/dev', '/logs', '/import'];
       if (staffBlocked.some(p => pathname.startsWith(p))) {
         const u = request.nextUrl.clone();
         u.pathname = '/dashboard';
@@ -139,8 +96,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Logged in, on login/register → redirect to dashboard
-  if (user && (pathname === '/login' || pathname === '/register')) {
+  // Logged in, on login → redirect to dashboard
+  if (user && pathname === '/login') {
     const u = request.nextUrl.clone();
     u.pathname = '/';
     u.search = '';

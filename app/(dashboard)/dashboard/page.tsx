@@ -9,7 +9,6 @@ import {
   cachedWorkspaceForUser,
   getDashboardSnapshot,
 } from '@/lib/cache';
-import DashboardRealtime from './DashboardRealtime';
 
 const BULAN_ID    = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SHORT = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -388,10 +387,6 @@ export default async function DashboardPage() {
               )}
             </div>
           </section>
-
-          {companyIds.length > 0 && workspaceId && (
-            <DashboardRealtime companyIds={companyIds} workspaceId={workspaceId} />
-          )}
         </>
       )}
     </div>

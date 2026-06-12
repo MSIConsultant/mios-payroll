@@ -173,9 +173,10 @@ app/
 │   ├── loading.tsx
 │   ├── page.tsx
 │   ├── dashboard/page.tsx      — Server, stats, mission board, payroll log, realtime
-│   ├── batch/page.tsx          — Multi-company status board
+│   ├── batch/                  — Multi-company status board (server page + BatchClient island)
 │   ├── companies/
-│   │   ├── page.tsx            — Company list (staff-filtered)
+│   │   ├── page.tsx            — Server fetch (parallel, lib/cache) → CompaniesClient
+│   │   ├── CompaniesClient.tsx — Search/filter island
 │   │   ├── loading.tsx
 │   │   ├── new/page.tsx
 │   │   └── [companyId]/
@@ -191,28 +192,20 @@ app/
 │   │   ├── page.tsx            — Import history
 │   │   ├── new/page.tsx        — Import wizard (Excel only; xlsx package)
 │   │   └── [sessionId]/page.tsx — Reconciliation detail
-│   ├── staff/page.tsx          — Staff management + company access control
 │   ├── logs/
 │   │   ├── page.tsx            — Server gate (accountant+ only)
 │   │   └── LogsClient.tsx      — Filterable audit log + CSV export
-│   ├── notifications/page.tsx
-│   └── settings/page.tsx
+│   └── settings/page.tsx       — Company danger zone + workspace activity log
 ├── dev/
 │   └── admin/
 │       ├── page.tsx            — Server gate (dev email only)
-│       └── AdminPanel.tsx      — Approve/reject users, system stats
+│       └── AdminPanel.tsx      — User admin, system stats
 ├── share/[token]/page.tsx      — Public payroll summary (no auth)
-├── pending-approval/page.tsx   — Auto-refresh every 10s
-├── onboarding/page.tsx         — 4-step guided setup
 ├── login/page.tsx
-├── register/page.tsx
 ├── forgot-password/page.tsx
 ├── reset-password/page.tsx
 ├── auth/                       — Supabase auth callback handlers
-├── oauth/                      — OAuth callback handlers
-├── invite/                     — Workspace invite acceptance flow
-└── api/
-    └── notify-registration/route.ts — Resend email on new signup
+└── oauth/                      — OAuth callback handlers
 
 lib/
 ├── engine/
@@ -227,8 +220,7 @@ lib/
 │   ├── companies.ts            — CRUD + revalidateTag
 │   ├── employees.ts            — parseFields, createEmployee (aktif=true), updateEmployee (delete aktif)
 │   ├── payroll.ts              — savePayrollRun, lockPayrollRun, deletePayrollRun
-│   ├── workspace.ts            — createWorkspace, sendInvite, acceptInvite
-│   ├── staff.ts                — grantCompanyAccess, revokeCompanyAccess
+│   ├── workspace.ts            — setActiveWorkspace, getWorkspaceActivity
 │   ├── admin.ts                — approveUser, rejectUser, suspendUser
 │   ├── import.ts               — saveImport, getImportHistory, getImportSession
 │   ├── notify.ts               — Resend email (approval, rejection, payroll lock)
@@ -261,14 +253,12 @@ components/
 │   ├── FormattedInput.tsx      — NpwpInput, NpwpCompanyInput, NikInput, NominalInput, DateInput
 │   └── Skeleton.tsx            — SkeletonCard, SkeletonTable, SkeletonStats, SkeletonPage
 └── layout/
-    ├── NavLinks.tsx            — Role-aware nav, collapsible, tooltips on collapsed
-    ├── Sidebar.tsx
-    └── Topbar.tsx
+    └── NavLinks.tsx            — Role-aware nav, collapsible, tooltips on collapsed
 
 supabase/
 └── schema.sql                  — Source of truth for tables/RLS/functions (managed via Supabase SQL editor; no migrations library)
 
-middleware.ts                   — Auth gate; dev email bypasses status checks; staff blocked from /settings /dev /logs /staff
+middleware.ts                   — Auth gate; dev email bypasses checks; non-approved profiles signed out; staff blocked from /settings /dev /logs /import
 ```
 
 ---
@@ -277,16 +267,14 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
 
 | Role | Access |
 |------|--------|
-| `dev` | Everything + `/dev/admin` + approve/reject users |
-| `accountant` | Full workspace + logs + staff + settings + import |
-| `staff` | Assigned companies only, no logs/settings/delete |
+| `dev` | Everything + `/dev/admin` |
+| `accountant` | Full workspace + logs + settings + import |
+| `staff` | Legacy role; may exist in DB but no longer assignable from the UI. Middleware still blocks it from /settings /dev /logs /import |
 
-**Registration flow:**
-1. Register → Supabase email verify
-2. `handle_new_user` trigger creates `user_profiles` with `status = pending_approval`
-3. Dev gets Resend email notification
-4. Dev approves from `/dev/admin` → user gets email
-5. User logs in → onboarding (create workspace) → dashboard
+**Account creation (registration flow removed 2026-06):**
+- Self-registration, approval queue, invites, onboarding wizard, staff management, and in-app notifications were all removed — the app serves exactly two users (dev + accountant).
+- New accounts are created manually in the Supabase dashboard (Auth → Add user), then given an approved profile + workspace membership via the SQL editor (`create_workspace_for_user` RPC still exists for this).
+- Middleware signs out any session whose profile is missing or not `approved`.
 
 **Dev bypasses middleware** — hardcoded email check, no DB lookup needed.
 
@@ -301,8 +289,9 @@ middleware.ts                   — Auth gate; dev email bypasses status checks;
 - **Last month (`calculateLastMonth`)**: Pasal 17 equalization using `akum_bruto` from saved results.
   - Full-year December: caller passes `monthsInYear = 12` (default; legacy `calculateDecember` is a thin alias).
   - Mid-year exit (e.g. starts Jun, ends Aug → 3 months): caller passes `isLastMonth: true` and `months_in_year: 3`. Engine scales `biaya_jabatan` cap and per-month iuran by `M`, annualizes the partial-year base correctly.
-  - **Fallback hazard**: if `akum_bruto === 0`, falls back to `base × M` with no warning surfaced yet. Known gap — should set `proyeksi.is_estimate: true` when this path triggers.
-- **Refund case (over-withholding)**: if `pph_jan_nov > pph_setahun`, the on-slip `pph` is clamped to `0` and the engine sets `is_refund: true`, `refund_amount: <positive>`, `raw_pph: <negative>`. Note: these fields are returned in `result_json` but not yet persisted as columns on `payroll_results`.
+  - **Fallback**: if `akum_bruto === 0`, falls back to `base × M` and sets `proyeksi.is_estimate: true` (UI shows a warning card). Separately, the December page queries `payroll_runs` for which prior months are saved and shows a red banner naming the missing months — partial accumulation (e.g. 8 of 11 months saved) is the dangerous silent case.
+  - **THP**: includes `thr + bonus` paid in the last month (bugfix 2026-06, matches the monthly formula).
+- **Over-withholding (PPh Des negatif)**: if `pph_jan_nov > pph_setahun`, the on-slip `pph` is clamped to `0`. The engine sets `lebih_potong: <positive>` for BOTH grossup (kelebihan setor perusahaan) and non-grossup (refund karyawan; also `is_refund: true`, `refund_amount`); `raw_pph` carries the honest negative. The UI shows the negative amount like the accountant's REKAP sheet. The RALO workbook regression test in `payroll.test.ts` pins this case to the accountant's exact numbers.
 - **Grossup**: iterative `pph = (ter × base) / (1 − ter)` until convergence < 0.01, max 200 iterations. If `ter ≥ 1`, the loop breaks with a stale value — no warning surfaced yet.
 - **Non-NPWP**: ×1.2 surcharge **removed 2026-05-29** per PENG-6/PJ.09/2024 + NIK=NPWP integration (PMK 112/2022). `punya_npwp` is preserved on the engine input for slip-gaji / SPT Masa display but no longer multiplies PPh. For TKA without Indonesian NPWP, PPh 26 routing is the correct path (deferred — `pph_26` column added by `2026-05-29-tka-pph26-fields.sql`).
 
@@ -384,7 +373,7 @@ Don't undo these shims; rewrite the legacy classes instead when touching a page.
 
 2. **Boolean parsing**: `parseFields` in `employees.ts` defaults all booleans to `false`. Unchecked checkboxes don't appear in FormData.
 
-3. **Last-month equalization** (`calculateLastMonth`): fetches Jan–(M-1) saved `payroll_results` from DB. Must have saved those months first. When `akum_bruto === 0`, the engine silently annualizes from the current month alone (`base × M`) — outputs will be plausible but likely wrong. Surface `proyeksi.is_estimate` to the UI as a follow-up.
+3. **Last-month equalization** (`calculateLastMonth`): fetches Jan–(M-1) saved `payroll_results` from DB. Must have saved those months first. December absorbs every rupiah of divergence from prior months — the page warns when specific months are missing and when `akum_bruto === 0` (estimate fallback), but saved months with *different inputs* than reality still produce a wrong December with no warning.
 
 4. **Share link RLS**: `payroll_share_links` has `for select using (true)` — fully public. Uses `result_json` for employee names (avoids RLS on employees table).
 
@@ -411,6 +400,32 @@ update employees set aktif=true where aktif=false;
 -- Check workspace linkage
 select id, email, role, status, workspace_id from user_profiles;
 ```
+
+### Add a new user (e.g. the GM) — registration UI is removed
+
+1. Supabase Dashboard → **Authentication → Users → Add user** — fill email +
+   password, check **Auto Confirm User**. The `handle_new_user` trigger creates
+   a `user_profiles` row with `status = pending_approval` (middleware blocks it
+   until approved below).
+2. Run in the SQL editor (replace the email; if more than one workspace exists,
+   replace the subquery with the right workspace id):
+
+```sql
+update user_profiles
+set role = 'accountant', status = 'approved', approved_at = now(),
+    workspace_id = (select id from workspaces limit 1)
+where email = 'gm@example.com';
+
+insert into workspace_members (workspace_id, user_id, user_email, role)
+select p.workspace_id, p.id, p.email, 'member'
+from user_profiles p
+where p.email = 'gm@example.com'
+on conflict do nothing;
+```
+
+There is no read-only role — `accountant` grants full workspace access
+(including locking payroll). For showing a single payroll result to someone
+without an account, use the public share link instead.
 
 ---
 

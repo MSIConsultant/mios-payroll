@@ -2,8 +2,7 @@
 import { useEffect, useState } from 'react';
 import NavLinks from '@/components/layout/NavLinks';
 import MiosLogo from '@/components/ui/MiosLogo';
-import { LogOut, Bell, Menu, X } from 'lucide-react';
-import Link from 'next/link';
+import { LogOut, Menu, X } from 'lucide-react';
 import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -22,7 +21,6 @@ export interface DashboardShellProps {
   userEmail: string;
   fullName: string | null;
   role: 'dev' | 'accountant' | 'staff';
-  initialUnreadCount: number;
   children: React.ReactNode;
 }
 
@@ -30,15 +28,11 @@ export default function DashboardShell({
   userEmail,
   fullName,
   role,
-  initialUnreadCount,
   children,
 }: DashboardShellProps) {
   const [collapsed, setCollapsed]   = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile]     = useState(false);
-  // initialUnreadCount is server-fetched; this state exists so callers could
-  // later update it (e.g. via realtime subscription) without a hard refresh.
-  const [unreadCount] = useState(initialUnreadCount);
 
   useEffect(() => {
     function checkMobile() {
@@ -122,16 +116,6 @@ export default function DashboardShell({
           </div>
         )}
 
-        {(!collapsed || isMobile) && unreadCount > 0 && (
-          <Link
-            href="/notifications"
-            className="flex items-center gap-2 px-2.5 py-2 rounded-md mb-1 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition-colors"
-          >
-            <Bell size={14} />
-            <span className="text-[12px] font-semibold">{unreadCount} notifikasi</span>
-          </Link>
-        )}
-
         <form action="/auth/signout" method="post">
           <button
             type="submit"
@@ -177,14 +161,6 @@ export default function DashboardShell({
             </button>
             <MiosLogo size="sm" showWordmark={false} />
             <div className="flex-1" />
-            {unreadCount > 0 && (
-              <Link href="/notifications" className="relative text-[var(--text-secondary)] hover:text-[var(--brand)] p-1.5">
-                <Bell size={18} />
-                <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              </Link>
-            )}
           </div>
 
           {mobileOpen && (
