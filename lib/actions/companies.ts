@@ -61,7 +61,11 @@ export async function createCompany(formData: FormData) {
 
   revalidateTag(`companies-${workspace_id}`);
   revalidatePath('/companies');
-  return { success: true };
+  revalidatePath('/');
+  // Return the new id so callers (e.g. "create company from Excel" in bulk
+  // import) can proceed straight into the new company. Existing callers that
+  // only read `success`/`error` are unaffected.
+  return { success: true, id: inserted?.id as string };
 }
 
 export async function updateCompany(id: string, formData: FormData) {
