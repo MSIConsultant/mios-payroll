@@ -154,7 +154,7 @@ export default function CompanyDataPage() {
         </p>
         <div className="mt-4 flex gap-2 flex-wrap">
           <Link
-            href="/import/bulk"
+            href={`/import/bulk?companyId=${companyId}`}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[var(--brand)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--brand-hover)] transition-colors shadow-sm"
           >
             <Upload size={14} />

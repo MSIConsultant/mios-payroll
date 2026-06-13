@@ -8,9 +8,13 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { saveImport, fetchExistingEmployeeDataByNik, type ImportRecord } from '@/lib/actions/import';
+import { createCompany } from '@/lib/actions/companies';
 import {
   parseWorkbook, readWorkbook, reconcileEmployee, type ParsedEmp,
 } from '@/lib/import/excel';
+
+// Sentinel companyId for "create a new company from this workbook".
+const NEW_COMPANY = '__new__';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +68,10 @@ interface QueueItem {
 export default function ImportBulkPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [companyId, setCompanyId] = useState('');
+  // "Create company from Excel" — inline fields shown when companyId === NEW_COMPANY.
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyNpwp, setNewCompanyNpwp] = useState('');
+  const [createdCompany, setCreatedCompany] = useState<{ id: string; name: string } | null>(null);
   const [workspaceId, setWorkspaceId] = useState('');
   const [dbEmployeeMap, setDbEmployeeMap] = useState<Record<string, { bpjs_basis: number | null }>>({});
   const [defaultYear, setDefaultYear] = useState(new Date().getFullYear());
@@ -76,6 +84,14 @@ export default function ImportBulkPage() {
   // Keep a live ref to items so processAll can check for user-removals mid-run
   const itemsRef = useRef<QueueItem[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+
+  // Deep links from Home ("Buat dari Excel" → ?new=1) and the company Data tab
+  // (?companyId=…). Read from window to avoid a useSearchParams Suspense boundary.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('new') === '1') setCompanyId(NEW_COMPANY);
+    else { const cid = sp.get('companyId'); if (cid) setCompanyId(cid); }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -98,7 +114,8 @@ export default function ImportBulkPage() {
   }, []);
 
   useEffect(() => {
-    if (!companyId) { setDbEmployeeMap({}); return; }
+    // A brand-new company has no existing employees to reconcile against.
+    if (!companyId || companyId === NEW_COMPANY) { setDbEmployeeMap({}); return; }
     fetchExistingEmployeeDataByNik(companyId).then((map) => {
       const slim: Record<string, { bpjs_basis: number | null }> = {};
       for (const nik of Object.keys(map)) slim[nik] = { bpjs_basis: map[nik].bpjs_basis };
@@ -144,7 +161,7 @@ export default function ImportBulkPage() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...partial } : i)));
   }
 
-  async function processOne(item: QueueItem) {
+  async function processOne(item: QueueItem, targetCompanyId: string) {
     patch(item.id, { status: 'parsing', error: null });
     try {
       const wb = await readWorkbook(item.file);
@@ -223,7 +240,7 @@ export default function ImportBulkPage() {
         const records = buildRecords(group.rows);
         if (records.length === 0) continue;
         const res = await saveImport({
-          workspaceId, companyId,
+          workspaceId, companyId: targetCompanyId,
           bulan: effectiveMonth, tahun: year,
           fileName: item.file.name,
           mode: 'full', jenis: group.jenis, archival,
@@ -263,12 +280,43 @@ export default function ImportBulkPage() {
       toast.info('Tidak ada file yang perlu diproses');
       return;
     }
+
+    // Resolve the target company. In "new company" mode, create it once up
+    // front (idempotent across re-runs via createdCompany), then import into
+    // it. If creation fails we stop before touching any file.
+    let targetCompanyId = companyId;
+    if (companyId === NEW_COMPANY) {
+      if (createdCompany) {
+        targetCompanyId = createdCompany.id;
+      } else {
+        const name = newCompanyName.trim();
+        if (!name) { toast.error('Isi nama perusahaan baru'); return; }
+        setRunning(true);
+        const fd = new FormData();
+        fd.append('name', name);
+        if (newCompanyNpwp.trim()) fd.append('npwp_perusahaan', newCompanyNpwp.trim());
+        const res = await createCompany(fd);
+        if (res.error || !res.id) {
+          setRunning(false);
+          toast.error(res.error ?? 'Gagal membuat perusahaan');
+          return;
+        }
+        targetCompanyId = res.id;
+        const created = { id: res.id, name };
+        setCreatedCompany(created);
+        // Reflect in the dropdown and switch selection to the real company.
+        setCompanies((prev) => [...prev, { id: res.id, name, kota: null }]);
+        setCompanyId(res.id);
+        toast.success(`Perusahaan "${name}" dibuat`);
+      }
+    }
+
     setRunning(true);
     for (const i of queue) {
       // Use ref so we check the live state (in case user removed item mid-run)
       const current = itemsRef.current.find((x) => x.id === i.id);
       if (!current) continue;
-      await processOne(current);
+      await processOne(current, targetCompanyId);
     }
     setRunning(false);
     toast.success('Selesai memproses');
@@ -325,9 +373,11 @@ export default function ImportBulkPage() {
             <select
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
+              disabled={!!createdCompany}
+              className="w-full px-3 py-2.5 bg-white border border-[var(--border-default)] rounded-lg text-[14px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] disabled:opacity-60"
             >
               <option value="">— pilih perusahaan —</option>
+              <option value={NEW_COMPANY}>+ Perusahaan baru…</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -335,6 +385,42 @@ export default function ImportBulkPage() {
             <p className="text-[11px] text-[var(--text-muted)] mt-1">
               Semua file di batch ini akan masuk ke perusahaan yang sama.
             </p>
+
+            {companyId === NEW_COMPANY && !createdCompany && (
+              <div className="mt-3 rounded-lg border border-[var(--brand)] bg-[var(--brand-soft)] p-3 space-y-2.5 animate-fade-in">
+                <p className="text-[12px] font-semibold text-[var(--brand)]">
+                  Perusahaan baru — akan dibuat saat &ldquo;Proses Semua&rdquo;
+                </p>
+                <input
+                  type="text"
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  placeholder="Nama perusahaan *"
+                  className="w-full px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[14px] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
+                />
+                <input
+                  type="text"
+                  value={newCompanyNpwp}
+                  onChange={(e) => setNewCompanyNpwp(e.target.value)}
+                  placeholder="NPWP perusahaan (opsional)"
+                  className="w-full px-3 py-2 bg-white border border-[var(--border-default)] rounded-lg text-[14px] font-mono outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]"
+                />
+              </div>
+            )}
+
+            {createdCompany && (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 flex items-center justify-between gap-2 animate-fade-in">
+                <span className="text-[12px] text-emerald-800">
+                  Perusahaan <span className="font-semibold">{createdCompany.name}</span> dibuat.
+                </span>
+                <Link
+                  href={`/companies/${createdCompany.id}`}
+                  className="text-[12px] font-semibold text-emerald-700 hover:underline shrink-0"
+                >
+                  Buka workbook →
+                </Link>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-[12px] font-semibold text-[var(--text-secondary)] mb-1.5">
@@ -460,7 +546,7 @@ export default function ImportBulkPage() {
             )}
             <button
               onClick={processAll}
-              disabled={running || !companyId || (pendingCount + errorCount === 0)}
+              disabled={running || !companyId || (companyId === NEW_COMPANY && !createdCompany && !newCompanyName.trim()) || (pendingCount + errorCount === 0)}
               className="inline-flex items-center gap-2 bg-[var(--brand)] hover:bg-[var(--brand-hover)] disabled:opacity-50 text-white px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors shadow-sm cursor-pointer"
             >
               {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
