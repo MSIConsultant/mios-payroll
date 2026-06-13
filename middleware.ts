@@ -90,7 +90,7 @@ export async function middleware(request: NextRequest) {
       const staffBlocked = ['/settings', '/dev', '/logs', '/import'];
       if (staffBlocked.some(p => pathname.startsWith(p))) {
         const u = request.nextUrl.clone();
-        u.pathname = '/dashboard';
+        u.pathname = '/';
         return NextResponse.redirect(u);
       }
     }

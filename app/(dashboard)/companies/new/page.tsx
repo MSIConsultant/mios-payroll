@@ -50,7 +50,7 @@ export default function NewCompanyPage() {
       setLoading(false);
     } else {
       toast.success('Perusahaan berhasil dibuat');
-      router.push('/companies');
+      router.push('/');
     }
   }
 
@@ -58,7 +58,7 @@ export default function NewCompanyPage() {
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in-up">
       <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
         <Link
-          href="/companies"
+          href="/"
           className="inline-flex items-center gap-1 hover:text-[var(--brand)] transition-colors"
         >
           <ArrowLeft size={14} />
@@ -108,7 +108,7 @@ export default function NewCompanyPage() {
 
           <div className="flex justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
             <Link
-              href="/companies"
+              href="/"
               className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] rounded-lg transition-colors"
             >
               Batal

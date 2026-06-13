@@ -18,10 +18,10 @@ export default function NotFound() {
           URL yang Anda buka tidak tersedia atau telah dipindahkan.
         </p>
         <Link
-          href="/dashboard"
+          href="/"
           className="mt-6 inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-sm font-semibold transition-colors shadow-sm"
         >
-          ← Kembali ke Dashboard
+          ← Kembali ke Beranda
         </Link>
       </div>
     </div>
