@@ -10,10 +10,10 @@ export default async function LogsPage() {
   const { data: profile } = await supabase
     .from('user_profiles').select('role, workspace_id').eq('id', user.id).single();
 
-  if (!profile || profile.role === 'staff') redirect('/dashboard');
+  if (!profile || profile.role === 'staff') redirect('/');
 
   const workspaceId = profile.workspace_id;
-  if (!workspaceId) redirect('/dashboard');
+  if (!workspaceId) redirect('/');
 
   const [{ data: logs }, { data: companies }] = await Promise.all([
     supabase.from('audit_logs')

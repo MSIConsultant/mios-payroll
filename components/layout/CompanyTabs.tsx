@@ -27,7 +27,7 @@ export function CompanyTabs({ companyId, companyName, aktif }: {
     <div className="bg-white border border-[var(--border-default)] rounded-xl px-4 sm:px-5 pt-3.5">
       <div className="flex items-center gap-3 flex-wrap">
         <Link
-          href="/companies"
+          href="/"
           className="inline-flex items-center gap-1 text-[13px] text-[var(--text-muted)] hover:text-[var(--brand)] transition-colors shrink-0"
           title="Semua perusahaan"
         >

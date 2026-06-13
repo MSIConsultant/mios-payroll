@@ -2,17 +2,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Building2, Layers, Settings,
+  Building2, Settings,
   ChevronLeft, ChevronRight, ScrollText,
   Terminal, Upload, Calculator,
 } from 'lucide-react';
 import type { UserRole } from '@/lib/types/roles';
 
+// Slim nav (workbook PR 4): Home (the company-database list) absorbs the old
+// Dashboard / Batch / Perusahaan trio. Company workbooks live under /companies
+// and keep the Perusahaan item highlighted.
 function buildNav(role: UserRole) {
   const base = [
-    { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
-    { href: '/batch',      label: 'Batch Run',  icon: Layers },
-    { href: '/companies',  label: 'Perusahaan', icon: Building2 },
+    { href: '/',         label: 'Perusahaan', icon: Building2 },
     { href: '/simulasi', label: 'Kalkulator', icon: Calculator },
   ];
   if (role === 'accountant' || role === 'dev') {
@@ -39,7 +40,10 @@ export default function NavLinks({
   return (
     <nav className="flex-1 px-2 pt-3 flex flex-col gap-0.5 overflow-y-auto">
       {NAV.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+        const active =
+          href === '/'
+            ? pathname === '/' || pathname.startsWith('/companies')
+            : pathname === href || pathname.startsWith(href);
         return (
           <Link
             key={href}

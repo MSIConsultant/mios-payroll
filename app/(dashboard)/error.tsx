@@ -39,12 +39,12 @@ export default function DashboardError({
             Coba Lagi
           </button>
           <Link
-            href="/dashboard"
+            href="/"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
           >
             <Home className="w-3.5 h-3.5" />
-            Dashboard
+            Beranda
           </Link>
         </div>
       </div>

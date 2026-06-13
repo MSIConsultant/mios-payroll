@@ -19,8 +19,8 @@ export default async function ImportPage() {
     .select('role, workspace_id')
     .eq('id', user.id)
     .single();
-  if (!profile || profile.role === 'staff') redirect('/dashboard');
-  if (!profile.workspace_id) redirect('/dashboard');
+  if (!profile || profile.role === 'staff') redirect('/');
+  if (!profile.workspace_id) redirect('/');
 
   const history = await getImportHistory(profile.workspace_id);
 
