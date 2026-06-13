@@ -12,23 +12,24 @@ Built for KAP and tax consultants managing multiple client companies — not HR 
 
 ## What It Does
 
-Most Indonesian payroll software is built for HR departments. MIOS Payroll is built for the **accountant** — the person who manages payroll for 5–20 client companies every month, needs the tax math to be exactly right, and needs to produce compliant documents fast.
+Most Indonesian payroll software is built for HR departments. MIOS Payroll is built for the **accountant** — the person who tracks payroll for many client companies every month, needs the tax math to be exactly right, and needs to produce compliant documents fast.
+
+The app is shaped like Microsoft Access: each company is a **"database"** the accountant opens. **Home** lists the companies; each company is a **workbook** with tabs:
+
+- **Bulan** — the month sheet: a transparent per-employee breakdown (Tabel overview ⇄ Detail cards), auto-calculated on open, with Hitung → Simpan → Kunci.
+- **REKAP** — the year at a glance: every employee × months 1–12, plus the annual Pasal 17 recap (incl. December's reconciled — and honestly negative when over-withheld — PPh).
+- **Karyawan** — the employee master.
+- **Data** — company settings + seed/extend the database from the accountant's Excel workbook.
 
 **Core capabilities:**
-- PPh 21 calculation using TER method (Jan–Nov) and Pasal 17 equalization (December), per PP 58/2023 and PMK 168/2023
-- Grossup (PPh ditanggung perusahaan) with iterative convergence formula
+- PPh 21 via the TER method (Jan–Nov) and Pasal 17 equalization in the last month (December / mid-year exit), per PP 58/2023 and PMK 168/2023
+- Grossup (PPh ditanggung perusahaan) with iterative convergence
 - BPJS Ketenagakerjaan and Kesehatan with full employer/employee split
-- THR and Bonus via selisih Pasal 17 method
-- Non-NPWP employees (×1.2 multiplier)
+- THR and Bonus via selisih Pasal 17
 - Karyawan tetap and tidak tetap (harian/bulanan)
-- Slip gaji PDF — print or WhatsApp directly from browser
-- SPT Masa PPh 21 CSV export in 1721-I format
-- December equalization warning with total PPh projection
-- Multi-company batch dashboard — all client statuses on one screen
-- Month-over-month anomaly detection (>15% bruto change flagged)
-- Import employees directly from existing Excel payroll sheets
-- Multi-tenant workspace with invite system and activity audit log
-- Client read-only share link for payroll summary distribution
+- December equalization that shows the negative (lebih potong/setor) like the accountant's REKAP sheet, with a warning when prior months are unsaved
+- Slip gaji PDF, SPT Masa PPh 21 CSV (1721 format), BPJS TK/Kes export, client read-only share link
+- Seed a whole company database from an existing Excel payroll workbook (multi-month bulk import with engine reconciliation)
 
 ---
 

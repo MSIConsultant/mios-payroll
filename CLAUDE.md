@@ -162,6 +162,12 @@ where email = 'msiconsultant.international@gmail.com';
 
 > Verified against the repo. If a path here doesn't match reality, fix the file or this doc — don't fork.
 
+> **Information architecture (workbook revamp, 2026-06):** Home (`/`) is the list
+> of company "databases". Each company is a workbook with tabs — Bulan / REKAP /
+> Karyawan / Data — under `/companies/[companyId]/...`. The month sheet URL
+> `/companies/[companyId]/payroll/[tahun]/[bulan]` is canonical (most-linked).
+> Old routes `/dashboard`, `/batch`, `/companies` (bare list) redirect to `/`.
+
 ```
 app/
 ├── layout.tsx                  — Root layout, Plus Jakarta Sans via next/font
@@ -169,96 +175,74 @@ app/
 ├── not-found.tsx
 ├── globals.css                 — @import "tailwindcss" FIRST
 ├── (dashboard)/
-│   ├── layout.tsx              — Client, sidebar (mobile+desktop), role-aware nav
+│   ├── layout.tsx              — Server: auth+profile → DashboardShell (sidebar)
 │   ├── loading.tsx
-│   ├── page.tsx
-│   ├── dashboard/page.tsx      — Server, stats, mission board, payroll log, realtime
-│   ├── batch/                  — Multi-company status board (server page + BatchClient island)
+│   ├── page.tsx                — HOME: company-database list (server fetch) → HomeClient
+│   ├── HomeClient.tsx          — Company cards (status + current-month totals), search/filter, CTAs
+│   ├── dashboard/page.tsx      — redirect → /  (merged into Home)
+│   ├── batch/page.tsx          — redirect → /  (merged into Home)
 │   ├── companies/
-│   │   ├── page.tsx            — Server fetch (parallel, lib/cache) → CompaniesClient
-│   │   ├── CompaniesClient.tsx — Search/filter island
-│   │   ├── loading.tsx
-│   │   ├── new/page.tsx
-│   │   └── [companyId]/
-│   │       ├── page.tsx        — Company detail + employee table
+│   │   ├── page.tsx            — redirect → /  (bare list merged into Home)
+│   │   ├── new/page.tsx        — Create company form
+│   │   └── [companyId]/        — COMPANY WORKBOOK
+│   │       ├── layout.tsx      — Workbook shell: company header + CompanyTabs
+│   │       ├── page.tsx        — redirect → current-month Bulan
+│   │       ├── rekap/page.tsx  — REKAP tab: annual recap (server) → RekapTable
+│   │       ├── data/page.tsx   — Data tab: company edit/archive + Excel import entry
 │   │       ├── employees/
+│   │       │   ├── page.tsx    — Karyawan tab: employee master (table/search)
 │   │       │   ├── new/page.tsx
 │   │       │   └── [empId]/page.tsx — Profile, events, payroll history
 │   │       └── payroll/
-│   │           ├── page.tsx
-│   │           └── [tahun]/[bulan]/page.tsx — Auto-calc, quick-edit, YTD, breakdown
+│   │           ├── page.tsx    — redirect → current-month Bulan
+│   │           └── [tahun]/[bulan]/page.tsx — Bulan tab: orchestrator (auto-calc, save/lock, switcher)
 │   ├── dev/                    — Dashboard-shell dev tools (separate from app/dev/)
 │   ├── import/
-│   │   ├── page.tsx            — Import history
-│   │   ├── new/page.tsx        — Import wizard (Excel only; xlsx package)
+│   │   ├── page.tsx            — Import history hub
+│   │   ├── new/page.tsx        — Single-file import wizard (per-row reconcile)
+│   │   ├── bulk/page.tsx       — Multi-file queue; "+ Perusahaan baru" creates a company from Excel
 │   │   └── [sessionId]/page.tsx — Reconciliation detail
-│   ├── logs/
-│   │   ├── page.tsx            — Server gate (accountant+ only)
-│   │   └── LogsClient.tsx      — Filterable audit log + CSV export
+│   ├── logs/{page,LogsClient}.tsx — Audit log (accountant+); filter + CSV export
+│   ├── simulasi/page.tsx       — Standalone 12-month calculator (no DB) — nav label "Kalkulator"
+│   ├── kalkulator/page.tsx     — redirect → /simulasi
 │   └── settings/page.tsx       — Company danger zone + workspace activity log
-├── dev/
-│   └── admin/
-│       ├── page.tsx            — Server gate (dev email only)
-│       └── AdminPanel.tsx      — User admin, system stats
+├── dev/admin/                  — Dev-email-gated admin panel
 ├── share/[token]/page.tsx      — Public payroll summary (no auth)
-├── login/page.tsx
-├── forgot-password/page.tsx
-├── reset-password/page.tsx
-├── auth/                       — Supabase auth callback handlers
-└── oauth/                      — OAuth callback handlers
+├── login,forgot-password,reset-password,auth/,oauth/  — Auth surfaces
+
+components/payroll/
+├── CalcTooltip.tsx             — Hover calc popover (InfoDot, CalcTooltipPopover)
+├── MonthlyLedgerSimulator.tsx  — /simulasi engine UI
+├── month/                      — Bulan-tab pieces (extracted PR 1)
+│   ├── MonthHeader.tsx         — Period switcher + status + exports + Hitung/Simpan/Kunci/Hapus
+│   ├── ResultsTable.tsx        — Sortable Tabel view
+│   ├── EmployeeDetailCard.tsx  — Per-employee expandable breakdown
+│   ├── BreakdownDrawer.tsx     — Right slide-over wrapping EmployeeDetailCard (from Tabel rows)
+│   ├── Pasal17BreakdownPanel.tsx — December/last-month equalization (display-only)
+│   ├── LedgerPrimitives.tsx, QuickEditModal.tsx, UpahBulananModal.tsx, DecemberBanners.tsx, YTDLedger.tsx
+└── rekap/RekapTable.tsx        — REKAP grid (months 1–12 + annual Pasal 17 columns from saved December result_json)
+
+components/layout/
+├── NavLinks.tsx                — Slim nav: Perusahaan(/) · Kalkulator · Import · Audit Log · Pengaturan · Dev Panel
+└── CompanyTabs.tsx             — Workbook tab bar (Bulan/REKAP/Karyawan/Data), active from pathname
 
 lib/
-├── engine/
-│   ├── payroll.ts              — calculateMonthlySalary, calculateLastMonth (full-year + mid-year exit), calculateDecember (alias), calculateFreelance, calculateTHRBonus
-│   ├── projection.ts           — proyeksi.* helpers (annual forecast block on every result)
-│   ├── payroll.test.ts         — Vitest, ~700 lines, locks current math
-│   └── constants.ts            — TER A/B/C tables, PTKP, BPJS rates
-├── export/
-│   ├── slip-gaji.ts            — Print window PDF
-│   └── spt-masa.ts             — SPT Masa PPh 21 CSV (BOM-encoded)
-├── actions/
-│   ├── companies.ts            — CRUD + revalidateTag
-│   ├── employees.ts            — parseFields, createEmployee (aktif=true), updateEmployee (delete aktif)
-│   ├── payroll.ts              — savePayrollRun, lockPayrollRun, deletePayrollRun
-│   ├── workspace.ts            — setActiveWorkspace, getWorkspaceActivity
-│   ├── admin.ts                — approveUser, rejectUser, suspendUser
-│   ├── import.ts               — saveImport, getImportHistory, getImportSession
-│   ├── notify.ts               — Resend email (approval, rejection, payroll lock)
-│   └── share.ts                — createShareLink
-├── auth/
-│   └── assertAccess.ts         — assertAuth, assertWorkspaceAccess, assertCompanyAccess, assertRunAccess (defense-in-depth gates for server actions)
-├── supabase/
-│   ├── client.ts               — createClient (browser)
-│   ├── server.ts               — createClient (server)
-│   └── types.ts                — DB type helpers
-├── types/
-│   └── roles.ts                — UserRole, UserStatus, UserProfile, CAN helper
-├── audit.ts                    — audit() helper, AuditAction type
-├── cache.ts                    — unstable_cache wrappers
-├── env.ts                      — hasSupabaseEnv() guard, getAppUrl() canonical app URL
-├── format.ts                   — formatRupiah
-├── formatters.ts               — NPWP, NIK, nominal, date formatting
-├── types.ts                    — Company, Employee, EmployeeEvent types
-└── utils.ts                    — General helpers (cn, etc.)
-
-hooks/                          — Root-level hooks (sole location post audit-hardening)
-├── use-mobile.ts
-├── useUserProfile.ts           — profile + role + canDo
-└── useWorkspace.ts             — workspace + workspaces[] + switchWorkspace (from workspace_members)
-
-components/
-├── SetupRequired.tsx           — Renders when Supabase env vars missing
-├── ui/
-│   ├── MiosLogo.tsx            — SVG 2×2 quadrant mark (M=red, I=blue, O=green, S=dark); exports MiosLogoAuth
-│   ├── FormattedInput.tsx      — NpwpInput, NpwpCompanyInput, NikInput, NominalInput, DateInput
-│   └── Skeleton.tsx            — SkeletonCard, SkeletonTable, SkeletonStats, SkeletonPage
-└── layout/
-    └── NavLinks.tsx            — Role-aware nav, collapsible, tooltips on collapsed
+├── engine/                     — UNTOUCHED. payroll.ts (calculateMonthlySalary/LastMonth/Freelance/THRBonus), constants.ts, payroll.test.ts (55 tests incl. RALO regression)
+├── payroll/calc-client.ts      — Client month helpers: runCalculation internals, period filter, lebihPotongOf() (shared by month page + REKAP)
+├── engine/server-recalc.ts     — Authoritative server recompute used by savePayrollRun
+├── export/{slip-gaji,spt-masa,bpjs}.ts — Slip PDF, SPT Masa CSV, BPJS TK/Kes CSV
+├── import/excel.ts             — parseWorkbook/parseTetap/parseHarian/parseTidakFinal, reconcileEmployee
+├── actions/                    — companies (createCompany returns id), employees, payroll, import, workspace, share, admin
+├── auth/assertAccess.ts        — assertAuth/Workspace/Company/Run gates for server actions
+├── cache.ts                    — cachedAuth, cachedUserProfile, getPayrollRunTotals, getEmployeeYTD, getDashboardSnapshot (React.cache per-request + RPC wrappers)
+├── supabase/{client,server,types}.ts, types.ts, types/roles.ts, audit.ts, env.ts, format.ts, formatters.ts, utils.ts
 
 supabase/
-└── schema.sql                  — Source of truth for tables/RLS/functions (managed via Supabase SQL editor; no migrations library)
+├── schema.sql                  — Tables/RLS/functions snapshot (managed via Supabase SQL editor; no migrations library)
+└── migrations/                 — One self-contained SQL file per change set (BEGIN/COMMIT + rollback)
 
 middleware.ts                   — Auth gate; dev email bypasses checks; non-approved profiles signed out; staff blocked from /settings /dev /logs /import
+GOAL.md                         — North star + constraints + workbook phase ledger
 ```
 
 ---

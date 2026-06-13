@@ -23,12 +23,16 @@ accountant's Excel workbook, format in `samples/`), and the app is the helpful U
 
 | Phase | Scope | Status |
 |---|---|---|
-| PR 1 | Month page decomposition (pure refactor) + this file | in progress |
-| PR 2 | Company workbook shell (tabs: Bulan / REKAP / Karyawan / Data) | pending |
-| PR 3 | REKAP year view + breakdown drawer | pending |
-| PR 4 | Home = company database list; slim nav | pending |
-| PR 5 | Seed a company database from Excel (bulk import + create company) | pending |
-| PR 6 | Deletions, permanent redirects, docs rewrite | pending |
+| PR 1 | Month page decomposition (pure refactor) + this file | done (#70) |
+| PR 2 | Company workbook shell (tabs: Bulan / REKAP / Karyawan / Data) | done (#71) |
+| PR 3 | REKAP year view + breakdown drawer | done (#72) |
+| PR 4 | Home = company database list; slim nav | done (#73) |
+| PR 5 | Seed a company database from Excel (bulk import + create company) | done (#74) |
+| PR 6 | Deletions, permanent redirects, docs rewrite | done (#75) |
+
+The revamp is complete. The app is now company-workbook shaped: Home lists the
+company "databases"; each company has Bulan / REKAP / Karyawan / Data tabs.
+Future work should preserve this IA and the engine/no-schema-change constraints.
 
 Full plan: see the approved plan in the PR descriptions; method is goal-biased,
 compartmentalized specs verified per phase (CLAUDE.md → Working Style).
